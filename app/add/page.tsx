@@ -75,7 +75,18 @@ export default function AddAnnouncement() {
               <option value="Attrezzi">Attrezzi</option>
               <option value="Altro">Altro</option>
             </select>
-            <input type="number" placeholder="Prezzo (€)" className="w-full p-4 bg-stone-50 border border-stone-200 rounded-xl font-bold text-sm outline-none focus:border-emerald-500" onChange={(e)=>setPrice(e.target.value)} required />
+            
+            {/* HO AGGIUNTO step="0.01" E min="0" QUI SOTTO */}
+            <input 
+              type="number" 
+              step="0.01" 
+              min="0" 
+              placeholder="Prezzo (€)" 
+              className="w-full p-4 bg-stone-50 border border-stone-200 rounded-xl font-bold text-sm outline-none focus:border-emerald-500" 
+              onChange={(e)=>setPrice(e.target.value)} 
+              required 
+            />
+
             <div className="relative">
               <input type="file" accept="image/*" className="hidden" id="file-upload" onChange={(e)=>setFile(e.target.files?.[0] || null)} />
               <label htmlFor="file-upload" className="flex items-center justify-center w-full h-full p-4 bg-emerald-50 border border-dashed border-emerald-300 rounded-xl cursor-pointer text-[10px] font-black text-emerald-600 tracking-widest uppercase hover:bg-emerald-100 transition-colors">
