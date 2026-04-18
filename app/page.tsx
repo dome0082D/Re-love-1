@@ -1,3 +1,4 @@
+'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase'; // Assicurati che il percorso sia corretto
 import Image from 'next/image';
@@ -63,9 +64,9 @@ export default function HomePage() {
 
       {/* HERO SECTION CON IMMAGINE */}
       <section 
-        className="relative h-[450px] flex items-center justify-center overflow-hidden mx-4 my-4 rounded-xl shadow-lg"
+        className="relative h-[1920px] flex items-center justify-center overflow-hidden mx-4 my-4 rounded-xl shadow-lg"
         style={{ 
-          backgroundImage: "url('/hero-background.jpg')", // Assicurati di aver salvato l'immagine in /public
+          backgroundImage: "url('/gazebo.jpg')", // Assicurati di aver salvato l'immagine in /public
           backgroundSize: 'cover',
           backgroundPosition: 'center'
         }}
