@@ -43,135 +43,118 @@ export default function HomePage() {
   }
 
   return (
-    // CONTENITORE ESTERNO (Sfondo grigio che crea l'effetto bordo)
-    <div className="min-h-screen bg-slate-100 md:p-4 lg:p-6">
-      
-      {/* CORPO DEL SITO (Effetto "foglio" bianco centrato) */}
-      <main className="bg-[#fafafa] max-w-[1600px] mx-auto md:rounded-3xl border-slate-200/60 md:border shadow-sm min-h-screen md:min-h-[calc(100vh-3rem)] overflow-hidden flex flex-col relative">
+    <div className="min-h-screen bg-[#f0f2f5] p-3 md:p-6">
+      {/* CONTENITORE PRINCIPALE EFFETTO 3D SOLLEVATO */}
+      <main className="bg-white max-w-[1400px] mx-auto rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] border border-white/20 min-h-screen overflow-hidden flex flex-col relative">
         
         {/* NAVBAR */}
-        <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-100 px-6 py-4">
-          <div className="mx-auto flex justify-between items-center">
-            {/* Logo compatto */}
-            <Link href="/" className="text-xl font-serif text-slate-800 tracking-tight hover:opacity-70 transition">
+        <nav className="sticky top-0 z-50 bg-white/70 backdrop-blur-xl border-b border-gray-100 px-8 py-5">
+          <div className="flex justify-between items-center">
+            <Link href="/" className="text-2xl font-serif text-slate-800 tracking-tighter font-bold hover:scale-105 transition-transform">
               MATERIALI
             </Link>
 
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-4">
               {user ? (
                 <>
-                  {/* Link al Profilo - Novità */}
-                  <Link href="/profile" className="text-xs font-medium text-slate-500 hover:text-sky-500 transition-colors">
-                    Il mio Profilo
+                  <Link href="/profile" className="text-xs font-semibold text-slate-500 hover:text-sky-500 transition-colors uppercase tracking-wider">
+                    Profilo
                   </Link>
-                  
-                  <Link href="/add" className="hidden md:flex bg-slate-800 text-white px-5 py-2 rounded-full text-xs font-medium hover:bg-slate-700 transition-all shadow-sm items-center gap-2">
-                    <span className="font-light">+</span> Pubblica
+                  <Link href="/add" className="bg-slate-800 text-white px-6 py-2.5 rounded-2xl text-xs font-bold hover:shadow-lg active:scale-95 transition-all shadow-md">
+                    + PUBBLICA
                   </Link>
-                  
-                  <button 
-                    onClick={() => supabase.auth.signOut().then(() => window.location.reload())} 
-                    className="text-slate-400 hover:text-red-400 text-[11px] font-medium transition-colors"
-                  >
-                    Esci
+                  <button onClick={() => supabase.auth.signOut().then(() => window.location.reload())} className="text-slate-400 hover:text-red-500 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
                   </button>
                 </>
               ) : (
-                <Link href="/register" className="bg-sky-500 text-white px-6 py-2 rounded-full text-xs font-medium hover:bg-sky-400 transition-all shadow-sm">
-                  Accedi
+                <Link href="/register" className="bg-sky-500 text-white px-7 py-3 rounded-2xl text-xs font-bold hover:bg-sky-400 shadow-[0_10px_20px_rgba(14,165,233,0.3)] transition-all active:scale-95">
+                  ACCEDI
                 </Link>
               )}
             </div>
           </div>
         </nav>
 
-        {/* HERO SECTION (Immagine professionale e ricerca) */}
-        <div className="px-4 md:px-8 mt-6 w-full">
-          <div className="relative h-[300px] md:h-[400px] rounded-[2.5rem] overflow-hidden shadow-sm group">
+        {/* HERO SECTION 3D */}
+        <div className="px-6 md:px-12 mt-8">
+          <div className="relative h-[350px] md:h-[450px] rounded-[3rem] overflow-hidden shadow-2xl group border-4 border-white">
             <img 
-              src="https://images.unsplash.com/photo-1503387762-5929c69d3978?q=80&w=1920&auto=format&fit=crop" 
-              alt="Architettura moderna" 
-              className="absolute inset-0 w-full h-full object-cover transition-transform duration-[20s] group-hover:scale-105"
+              src="https://images.unsplash.com/photo-1541888946425-d81bb19480c5?q=80&w=1920&auto=format&fit=crop" 
+              alt="Background" 
+              className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000"
             />
-            <div className="absolute inset-0 bg-slate-900/30 flex flex-col items-center justify-center text-center p-6">
-              <h2 className="text-3xl md:text-5xl font-serif text-white mb-4 tracking-tight drop-shadow-sm">
-                Costruisci con intelligenza.
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-slate-900/20 to-transparent flex flex-col items-center justify-center text-center p-6">
+              <h2 className="text-4xl md:text-6xl font-serif text-white mb-4 tracking-tighter drop-shadow-2xl font-bold">
+                Costruisci il domani.
               </h2>
-              <p className="mb-8 text-sky-50/90 max-w-lg mx-auto text-sm md:text-base font-light">
-                Recupera, regala o vendi materiali edili. Meno sprechi, più valore al tuo cantiere.
+              <p className="mb-10 text-white/80 max-w-lg mx-auto text-sm md:text-lg font-light italic">
+                Recupera, regala o vendi. Il valore non si butta mai.
               </p>
               
-              {/* Barra di ricerca delicata */}
-              <div className="w-full max-w-lg relative">
+              <div className="w-full max-w-xl relative group/search">
                 <input 
                   type="text" 
-                  placeholder="Cerca legno, mattoni, attrezzi..." 
-                  className="w-full p-4 pl-12 rounded-full text-slate-700 shadow-2xl outline-none focus:ring-2 focus:ring-sky-200 transition-all text-sm font-light border-none"
+                  placeholder="Cosa stai cercando oggi?" 
+                  className="w-full p-5 pl-14 rounded-[2rem] text-slate-800 shadow-2xl outline-none focus:ring-4 focus:ring-sky-400/20 transition-all text-base border-none"
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
-                <span className="absolute left-5 top-4 opacity-40 text-lg">🔍</span>
+                <span className="absolute left-6 top-5 text-2xl group-focus-within/search:scale-110 transition-transform">🔍</span>
               </div>
             </div>
           </div>
         </div>
 
-        {/* GRIGLIA CONTENUTI */}
-        <div className="px-4 md:px-10 py-12 flex-grow">
+        {/* CONTENUTO */}
+        <div className="px-6 md:px-12 py-16 flex-grow">
           
-          {/* BOTTONI FILTRO PICCOLI */}
-          <div className="flex gap-2 mb-10 overflow-x-auto pb-2">
-            <button 
-              onClick={() => setActiveFilter('all')} 
-              className={`px-5 py-2 rounded-full text-[11px] font-medium transition-all border ${activeFilter === 'all' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-100 hover:bg-slate-50'}`}
-            >
-              Tutti
-            </button>
-            <button 
-              onClick={() => setActiveFilter('free')} 
-              className={`px-5 py-2 rounded-full text-[11px] font-medium transition-all border ${activeFilter === 'free' ? 'bg-teal-500 text-white border-teal-500' : 'bg-white text-slate-500 border-slate-100 hover:bg-slate-50'}`}
-            >
-              In regalo
-            </button>
-            <button 
-              onClick={() => setActiveFilter('paid')} 
-              className={`px-5 py-2 rounded-full text-[11px] font-medium transition-all border ${activeFilter === 'paid' ? 'bg-sky-500 text-white border-sky-500' : 'bg-white text-slate-500 border-slate-100 hover:bg-slate-50'}`}
-            >
-              In vendita
-            </button>
+          {/* FILTRI STILE PILLOLA 3D */}
+          <div className="flex gap-4 mb-12 overflow-x-auto pb-4 scrollbar-hide">
+            {['all', 'free', 'paid'].map((f) => (
+              <button 
+                key={f}
+                onClick={() => setActiveFilter(f)} 
+                className={`px-8 py-3 rounded-2xl text-xs font-bold uppercase tracking-widest transition-all shadow-sm border ${
+                  activeFilter === f 
+                  ? 'bg-slate-800 text-white border-slate-800 shadow-xl -translate-y-1' 
+                  : 'bg-white text-slate-400 border-slate-100 hover:border-slate-300 hover:text-slate-600'
+                }`}
+              >
+                {f === 'all' ? 'Tutti' : f === 'free' ? 'In Regalo' : 'In Vendita'}
+              </button>
+            ))}
           </div>
 
           {loading ? (
-            <div className="flex justify-center py-20">
-              <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-slate-300"></div>
-            </div>
+            <div className="flex justify-center py-20"><div className="animate-bounce text-4xl">🏗️</div></div>
           ) : filteredAnnouncements.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-10">
               {filteredAnnouncements.map((ann) => (
-                <div key={ann.id} className="bg-white rounded-3xl overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-500 border border-slate-100 flex flex-col h-full group">
-                  <div className="relative p-3">
+                <div key={ann.id} className="bg-white rounded-[2.5rem] p-4 shadow-[0_10px_30px_rgba(0,0,0,0.05)] hover:shadow-[0_20px_40px_rgba(0,0,0,0.12)] hover:-translate-y-3 transition-all duration-500 border border-slate-50 flex flex-col group">
+                  <div className="relative mb-5 overflow-hidden rounded-[2rem] h-56 shadow-inner">
                     <img 
-                      src={ann.image_url || "https://images.unsplash.com/photo-1581094128547-138325033c5a?q=80&w=500"} 
+                      src={ann.image_url || "https://images.unsplash.com/photo-1517646287270-a5a9ca602e5c?q=80&w=500"} 
                       alt={ann.title} 
-                      className="w-full h-48 object-cover rounded-2xl" 
+                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
                     />
-                    <div className="absolute top-6 left-6">
-                      <span className={`px-3 py-1 rounded-full text-[9px] font-bold tracking-widest shadow-sm backdrop-blur-md ${ann.price === 0 ? 'bg-teal-500/90 text-white' : 'bg-white/90 text-slate-700'}`}>
+                    <div className="absolute bottom-4 left-4">
+                      <span className={`px-5 py-2 rounded-xl text-[10px] font-black tracking-tighter shadow-lg backdrop-blur-md ${ann.price === 0 ? 'bg-teal-500 text-white' : 'bg-white text-slate-800'}`}>
                         {ann.price === 0 ? 'GRATIS' : `€ ${ann.price}`}
                       </span>
                     </div>
                   </div>
                   
-                  <div className="p-5 flex flex-col flex-grow">
-                    <h4 className="text-base font-serif text-slate-800 mb-2 truncate tracking-tight">{ann.title}</h4>
-                    <p className="text-slate-400 text-xs mb-6 line-clamp-2 font-light leading-relaxed">
-                      {ann.description || "Contatta l'inserzionista per maggiori dettagli su questo materiale."}
+                  <div className="px-3 pb-4 flex flex-col flex-grow">
+                    <h4 className="text-xl font-serif text-slate-800 mb-2 truncate font-bold tracking-tight">{ann.title}</h4>
+                    <p className="text-slate-400 text-xs mb-8 line-clamp-2 font-medium leading-relaxed">
+                      {ann.description || "Contatta l'inserzionista per questo materiale unico."}
                     </p>
                     <div className="mt-auto">
                       <a 
-                        href={`mailto:${ann.contact_email}?subject=Interessato a: ${ann.title}`}
-                        className="block text-center w-full bg-slate-50 text-slate-600 py-2.5 rounded-xl text-[10px] font-semibold hover:bg-slate-800 hover:text-white transition-all"
+                        href={`mailto:${ann.contact_email}?subject=Interessato: ${ann.title}`}
+                        className="block text-center w-full bg-slate-50 text-slate-700 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-sky-500 hover:text-white hover:shadow-[0_10px_20px_rgba(14,165,233,0.3)] transition-all"
                       >
-                        CONTATTA
+                        Invia Richiesta
                       </a>
                     </div>
                   </div>
@@ -179,26 +162,18 @@ export default function HomePage() {
               ))}
             </div>
           ) : (
-            <div className="text-center py-32 bg-white rounded-[2.5rem] border border-slate-100 shadow-sm max-w-lg mx-auto px-6">
-              <p className="text-slate-400 text-sm font-light">Nessun materiale disponibile in questa categoria.</p>
+            <div className="text-center py-32 bg-slate-50 rounded-[3rem] border-2 border-dashed border-slate-200">
+              <p className="text-slate-400 text-sm font-bold uppercase tracking-widest italic">Cantiere vuoto... prova un'altra ricerca!</p>
             </div>
           )}
         </div>
 
-        {/* PULSANTE AGGIUNGI (Mobile) */}
-        {user && (
-          <Link href="/add" className="md:hidden fixed bottom-8 right-8 bg-slate-800 text-white w-14 h-14 rounded-full flex items-center justify-center shadow-2xl z-50">
-            <span className="text-2xl font-light">+</span>
-          </Link>
-        )}
+        {/* FOOTER */}
+        <footer className="mt-auto py-10 border-t border-slate-50 text-center">
+          <p className="text-[9px] text-slate-300 font-bold tracking-[0.3em] uppercase">© 2026 Materiali Edili • Sustainable Building</p>
+        </footer>
 
       </main>
-
-      {/* FOOTER SEMPLICE */}
-      <footer className="text-center py-8">
-        <p className="text-[10px] text-slate-400 font-light tracking-widest uppercase">© 2026 Materiali Edili Hub</p>
-      </footer>
-
     </div>
   )
 }
