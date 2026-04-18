@@ -75,7 +75,7 @@ export default function HomePage() {
         {/* HERO SECTION */}
         <div className="px-4 md:px-8 mt-6">
           <div className="relative h-[250px] md:h-[350px] rounded-xl overflow-hidden shadow-sm border border-gray-100">
-            <img src="/gazebo.png" alt="Gazebo Attrezzi" className="absolute inset-0 w-full h-full object-cover object-center" />
+            <img src="/gazebo.png" alt="gazebo Attrezzi" className="absolute inset-0 w-full h-full object-cover object-center" />
             <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-black/30 flex flex-col items-start justify-center p-8 md:p-16">
               
               {/* NUOVO TITOLO */}
