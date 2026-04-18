@@ -1,6 +1,6 @@
-'use client'
+''use client'
 import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase } from './../lib/supabase'
 import Link from 'next/link'
 
 export default function HomePage() {
@@ -9,7 +9,6 @@ export default function HomePage() {
   const [filtered, setFiltered] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   
-  // STATI PER I NUOVI FILTRI
   const [searchTerm, setSearchTerm] = useState('')
   const [searchBrand, setSearchBrand] = useState('')
   const [searchModel, setSearchModel] = useState('')
@@ -23,7 +22,6 @@ export default function HomePage() {
 
   useEffect(() => {
     let res = announcements
-    // Filtri a cascata
     if (searchTerm) res = res.filter(a => a.title.toLowerCase().includes(searchTerm.toLowerCase()))
     if (searchBrand) res = res.filter(a => a.brand?.toLowerCase().includes(searchBrand.toLowerCase()))
     if (searchModel) res = res.filter(a => a.model?.toLowerCase().includes(searchModel.toLowerCase()))
@@ -53,24 +51,25 @@ export default function HomePage() {
       {/* MENU STAFF FISSO A SCOMPARSA */}
       {IS_STAFF && (
         <>
-          <button onClick={() => setIsStaffMenuOpen(true)} className="fixed bottom-6 right-6 z-50 bg-emerald-700 text-white w-14 h-14 rounded-full shadow-lg font-black text-xl hover:-translate-y-1 hover:shadow-2xl transition-all duration-300 ease-out flex items-center justify-center">👑</button>
+          <button onClick={() => setIsStaffMenuOpen(true)} className="fixed bottom-6 right-6 z-50 bg-emerald-700 text-white w-14 h-14 rounded-full shadow-lg font-black text-xl hover:-translate-y-1 hover:shadow-2xl transition-all duration-300 flex items-center justify-center">👑</button>
           <div className={`fixed top-0 right-0 h-full w-80 bg-stone-900 z-[60] transform transition-transform duration-500 ease-out ${isStaffMenuOpen ? 'translate-x-0' : 'translate-x-full'} shadow-2xl p-6 text-stone-100`}>
             <div className="flex justify-between mb-8 border-b border-stone-800 pb-4 items-center">
               <span className="font-bold uppercase tracking-[0.2em] text-xs">Pannello Staff</span>
               <button onClick={() => setIsStaffMenuOpen(false)} className="text-stone-400 hover:text-white transition-colors text-xl">✕</button>
             </div>
             <div className="space-y-4">
-              <Link href="/profile" className="block p-4 bg-stone-800 rounded-lg font-bold hover:bg-emerald-600 hover:text-white uppercase text-[10px] tracking-widest text-center transition-all duration-300">Gestione Utenti / Profili</Link>
-              <Link href="/chat" className="block p-4 bg-stone-800 rounded-lg font-bold hover:bg-emerald-600 hover:text-white uppercase text-[10px] tracking-widest text-center transition-all duration-300">Spia Tutte le Chat</Link>
+              <Link href="/profile" className="block p-4 bg-stone-800 rounded-lg font-bold hover:bg-emerald-600 hover:text-white uppercase text-[10px] tracking-widest text-center transition-all">Gestione Utenti / Profili</Link>
+              <Link href="/chat" className="block p-4 bg-stone-800 rounded-lg font-bold hover:bg-emerald-600 hover:text-white uppercase text-[10px] tracking-widest text-center transition-all">Spia Tutte le Chat</Link>
               <p className="text-[9px] text-stone-500 mt-10 uppercase tracking-widest text-center">ID STAFF: USR-1</p>
             </div>
           </div>
-          {isStaffMenuOpen && <div onClick={() => setIsStaffMenuOpen(false)} className="fixed inset-0 bg-stone-900/40 backdrop-blur-sm z-[55] animate-fade-in"></div>}
+          {isStaffMenuOpen && <div onClick={() => setIsStaffMenuOpen(false)} className="fixed inset-0 bg-stone-900/40 backdrop-blur-sm z-[55]"></div>}
         </>
       )}
 
       <main className="max-w-[1400px] mx-auto bg-white min-h-screen shadow-2xl shadow-stone-200/50 flex flex-col">
         
+        {/* NAVBAR */}
         <nav className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-stone-100 px-6 py-4 flex justify-between items-center">
           <Link href="/" className="text-2xl font-black tracking-[0.1em] italic uppercase text-stone-800">MATERIALI</Link>
           <div className="flex gap-4 items-center">
@@ -78,7 +77,7 @@ export default function HomePage() {
               <>
                 <Link href="/chat" className="text-stone-600 hover:text-emerald-600 text-[11px] font-black uppercase tracking-widest transition-colors p-2 bg-stone-100 rounded-md">💬 Chat</Link>
                 <Link href="/profile" className="text-stone-600 hover:text-emerald-600 text-[11px] font-black uppercase tracking-widest transition-colors p-2 bg-stone-100 rounded-md">👤 Profilo</Link>
-                <Link href="/add" className="bg-emerald-600 text-white px-6 py-2.5 rounded-md text-[11px] font-black tracking-widest uppercase shadow-md hover:bg-emerald-700 transition-all duration-300">+ Pubblica</Link>
+                <Link href="/add" className="bg-emerald-600 text-white px-6 py-2.5 rounded-md text-[11px] font-black tracking-widest uppercase shadow-md hover:bg-emerald-700 transition-all">+ Pubblica</Link>
               </>
             ) : (
               <Link href="/register" className="bg-stone-900 text-white px-8 py-3 rounded-md text-[11px] font-black tracking-widest uppercase hover:bg-stone-800 transition-all shadow-md">Accedi</Link>
@@ -86,20 +85,41 @@ export default function HomePage() {
           </div>
         </nav>
 
-        {/* RIQUADRI PROMOZIONALI IN ALTO */}
+        {/* 1. HERO CON BARRA DI RICERCA INTEGRATA */}
+        <div className="px-6 mt-6">
+          <div className="relative h-[400px] rounded-3xl overflow-hidden border border-stone-100 shadow-lg">
+            <img src="/gazebo.jpg" alt="Gazebo" className="absolute inset-0 w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-stone-900/60 flex flex-col items-center justify-center p-8 text-center">
+              <h1 className="text-4xl md:text-6xl font-black text-white mb-8 italic uppercase drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)]">
+                Recupera, Regala, Vendi.
+              </h1>
+              <div className="w-full max-w-2xl relative">
+                <input 
+                  type="text" 
+                  placeholder="Cerca materiali o attrezzi..." 
+                  className="w-full p-5 pl-14 rounded-2xl bg-white shadow-2xl outline-none text-lg text-stone-800 focus:ring-4 focus:ring-emerald-500/50 transition-all" 
+                  onChange={(e) => setSearchTerm(e.target.value)} 
+                />
+                <span className="absolute left-5 top-5 text-2xl opacity-40">🔍</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 2. RIQUADRI USATO E NUOVO */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 px-6 mt-8">
-          <div className="relative h-[250px] rounded-2xl overflow-hidden group border-2 border-stone-100 shadow-lg">
-            <img src="/usato.png" alt="Usato" className="absolute inset-0 w-full h-full object-cover transform scale-105 group-hover:scale-100 transition-transform duration-[8s] ease-out" />
-            <div className="absolute inset-0 bg-stone-900/60 group-hover:bg-stone-900/50 transition-colors flex items-center justify-center p-8 text-center">
+          <div className="relative h-[220px] rounded-2xl overflow-hidden group border border-stone-100 shadow-md">
+            <img src="/usato.png" alt="Usato" className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out" />
+            <div className="absolute inset-0 bg-stone-900/50 group-hover:bg-stone-900/40 transition-colors flex items-center justify-center p-8 text-center">
               <h3 className="text-2xl md:text-3xl font-black text-white uppercase tracking-wider drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)] italic">
                 "Non buttare, magari ad un altro serve"
               </h3>
             </div>
           </div>
           
-          <div className="relative h-[250px] rounded-2xl overflow-hidden group border-2 border-stone-100 shadow-lg">
-            <img src="/nuovo.png" alt="Nuovo" className="absolute inset-0 w-full h-full object-cover transform scale-105 group-hover:scale-100 transition-transform duration-[8s] ease-out" />
-            <div className="absolute inset-0 bg-stone-900/60 group-hover:bg-stone-900/50 transition-colors flex items-center justify-center p-8 text-center">
+          <div className="relative h-[220px] rounded-2xl overflow-hidden group border border-stone-100 shadow-md">
+            <img src="/nuovo.png" alt="Nuovo" className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out" />
+            <div className="absolute inset-0 bg-stone-900/50 group-hover:bg-stone-900/40 transition-colors flex items-center justify-center p-8 text-center">
               <h3 className="text-2xl md:text-3xl font-black text-white uppercase tracking-wider drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)] italic">
                 "È nuovo?, vendilo"
               </h3>
@@ -107,38 +127,32 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* BARRA RICERCA E FILTRI AVANZATI */}
-        <div className="mx-6 mt-10 p-6 bg-stone-50 rounded-2xl border border-stone-200 shadow-inner flex flex-col gap-4">
-          <h2 className="text-[10px] font-black uppercase text-stone-400 tracking-[0.2em]">Filtra Materiali</h2>
+        {/* FILTRI EXTRA (Sottili e non invasivi, sopra la griglia) */}
+        <div className="mx-6 mt-10 p-4 bg-stone-50 rounded-2xl border border-stone-200 flex flex-wrap gap-4 items-center">
+          <select onChange={(e)=>setCategory(e.target.value)} className="p-3 bg-white border border-stone-200 rounded-lg text-xs font-black uppercase outline-none focus:border-emerald-500 shadow-sm flex-grow md:flex-grow-0 min-w-[150px]">
+            <option value="all">Tutte le Categorie</option>
+            <option value="Edilizia">🧱 Edilizia</option>
+            <option value="Elettricità">⚡ Elettricità</option>
+            <option value="Idraulica">🚰 Idraulica</option>
+            <option value="Attrezzi">🛠️ Attrezzi</option>
+          </select>
+          <input type="text" placeholder="Marca" className="p-3 bg-white border border-stone-200 rounded-lg text-sm font-bold outline-none focus:border-emerald-500 shadow-sm w-32" onChange={(e)=>setSearchBrand(e.target.value)} />
+          <input type="text" placeholder="Modello" className="p-3 bg-white border border-stone-200 rounded-lg text-sm font-bold outline-none focus:border-emerald-500 shadow-sm w-32" onChange={(e)=>setSearchModel(e.target.value)} />
           
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <input type="text" placeholder="Cerca Nome/Titolo..." className="p-3 bg-white border border-stone-200 rounded-lg text-sm font-bold outline-none focus:border-emerald-500 shadow-sm" onChange={(e)=>setSearchTerm(e.target.value)} />
-            <input type="text" placeholder="Marca..." className="p-3 bg-white border border-stone-200 rounded-lg text-sm font-bold outline-none focus:border-emerald-500 shadow-sm" onChange={(e)=>setSearchBrand(e.target.value)} />
-            <input type="text" placeholder="Modello..." className="p-3 bg-white border border-stone-200 rounded-lg text-sm font-bold outline-none focus:border-emerald-500 shadow-sm" onChange={(e)=>setSearchModel(e.target.value)} />
-            
-            <select onChange={(e)=>setCategory(e.target.value)} className="p-3 bg-white border border-stone-200 rounded-lg text-xs font-black uppercase outline-none focus:border-emerald-500 shadow-sm">
-              <option value="all">Tutte le categorie</option>
-              <option value="Edilizia">🧱 Edilizia</option>
-              <option value="Elettricità">⚡ Elettricità</option>
-              <option value="Idraulica">🚰 Idraulica</option>
-              <option value="Attrezzi">🛠️ Attrezzi</option>
-            </select>
-          </div>
-
-          <div className="flex flex-wrap gap-2 pt-2">
+          <div className="flex gap-2 ml-auto">
             {['all', 'sell', 'offered', 'wanted'].map(f => (
-              <button key={f} onClick={()=>setActiveType(f)} className={`px-6 py-2.5 rounded-lg text-[10px] font-black tracking-widest uppercase transition-all duration-300 ${activeType === f ? 'bg-stone-800 text-white shadow-md' : 'bg-white text-stone-500 border border-stone-200 hover:bg-stone-100'}`}>
+              <button key={f} onClick={()=>setActiveType(f)} className={`px-4 py-2.5 rounded-lg text-[10px] font-black tracking-widest uppercase transition-all ${activeType === f ? 'bg-stone-800 text-white shadow-md' : 'bg-white text-stone-500 border border-stone-200 hover:bg-stone-100'}`}>
                 {f === 'all' ? 'Tutti' : f === 'sell' ? 'Vendi' : f === 'offered' ? 'Regala' : 'Cerco'}
               </button>
             ))}
           </div>
         </div>
 
-        {/* CATALOGO INFINITO */}
+        {/* 3. GRIGLIA PRODOTTI */}
         <div className="px-6 py-10 flex-grow pb-32">
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
             {filtered.map((ann) => (
-              <div key={ann.id} className="bg-white border border-stone-200 rounded-2xl overflow-hidden hover:-translate-y-1 hover:shadow-2xl transition-all duration-300 ease-out flex flex-col group relative">
+              <div key={ann.id} className="bg-white border border-stone-200 rounded-2xl overflow-hidden hover:-translate-y-1 hover:shadow-xl transition-all duration-300 flex flex-col group relative">
                 
                 {IS_STAFF && <button onClick={()=>deleteAd(ann.id)} className="absolute top-2 left-2 z-20 bg-red-600/90 backdrop-blur-sm text-white px-3 py-1.5 rounded-md text-[9px] font-black tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">STAFF: ELIMINA</button>}
                 
@@ -150,11 +164,10 @@ export default function HomePage() {
                 <div className="p-5 flex-grow flex flex-col justify-between">
                   <div>
                     <h4 className="text-sm font-black text-stone-900 uppercase tracking-tight line-clamp-1 mb-1">{ann.title}</h4>
-                    {/* Mostra Marca e Modello se presenti */}
                     {(ann.brand || ann.model) && (
                        <p className="text-[10px] font-bold text-emerald-600 uppercase mb-2 line-clamp-1">{ann.brand} {ann.model}</p>
                     )}
-                    <p className="text-[10px] text-stone-500 line-clamp-2 leading-relaxed font-medium">{ann.description}</p>
+                    <p className="text-[10px] text-stone-500 line-clamp-2 font-medium leading-relaxed">{ann.description}</p>
                   </div>
                   
                   <div className="mt-5 pt-4 border-t border-stone-100 flex justify-between items-center">
