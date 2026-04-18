@@ -74,7 +74,7 @@ export default function HomePage() {
         {/* HEADER / HERO SECTION */}
         <div className="px-4 md:px-8 mt-6">
           <div className="relative h-[250px] md:h-[350px] rounded-xl overflow-hidden shadow-sm border border-gray-100">
-            <img src="/capanno.png" alt="Gazebo Attrezzi" className="absolute inset-0 w-full h-full object-cover object-center" />
+            <img src="/gazebo.png" alt="Gazebo Attrezzi" className="absolute inset-0 w-full h-full object-cover object-center" />
             <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-black/30 flex flex-col items-start justify-center p-8 md:p-16">
               <h1 className="text-3xl md:text-5xl font-serif text-white drop-shadow-md font-bold leading-tight mb-4">
                 Il mercato edile circolare.
@@ -138,7 +138,7 @@ export default function HomePage() {
               {filteredAnnouncements.map((ann) => (
                 <div key={ann.id} className="bg-white rounded-lg shadow-sm hover:shadow-md transition-all border border-gray-200 flex flex-col">
                   <div className="relative p-2 h-40">
-                    <img src={ann.image_url || "/capanno.png"} className="w-full h-full object-cover rounded-md border border-gray-100" />
+                    <img src={ann.image_url || "/gazebo.png"} className="w-full h-full object-cover rounded-md border border-gray-100" />
                     <div className="absolute top-4 right-4">
                       <span className={`px-2 py-1 rounded text-[8px] font-black uppercase tracking-tighter shadow-sm ${ann.type === 'wanted' ? 'bg-orange-500 text-white' : 'bg-emerald-500 text-white'}`}>
                         {ann.type === 'wanted' ? 'CERCASI' : 'OFFRESI'}
