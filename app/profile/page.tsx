@@ -7,83 +7,73 @@ import Link from 'next/link'
 export default function ProfilePage() {
   const [loading, setLoading] = useState(true)
   const [user, setUser] = useState<any>(null)
-  const [profile, setProfile] = useState<any>({ first_name: '', last_name: '', dob: '', residence_city: '' })
-  const [userSerialId, setUserSerialId] = useState('')
-  const [myAnnouncements, setMyAnnouncements] = useState<any[]>([])
-  
-  const [isStaff, setIsStaff] = useState(false)
+  const [profile, setProfile] = useState<any>({})
   const [allUsers, setAllUsers] = useState<any[]>([])
   const router = useRouter()
 
-  useEffect(() => { getProfile() }, [])
+  const IS_STAFF = user?.email === 'dome0082@gmail.com';
 
-  async function getProfile() {
+  useEffect(() => { load() }, [])
+
+  async function load() {
     const { data: { user: u } } = await supabase.auth.getUser()
     if (!u) { router.push('/register'); return; }
     setUser(u)
 
-    const staffMode = u.email === 'dome0082@gmail.com'
-    setIsStaff(staffMode)
+    const { data: p } = await supabase.from('profiles').select('*').eq('id', u.id).single()
+    if (p) setProfile(p)
 
-    let { data: pData } = await supabase.from('profiles').select('*').eq('id', u.id).single()
-    if (pData) { setProfile(pData); setUserSerialId(pData.user_serial_id); }
-
-    const { data: annData } = await supabase.from('announcements').select('*').eq('user_id', u.id)
-    if (annData) setMyAnnouncements(annData)
-
-    if (staffMode) {
-      const { data: usersData } = await supabase.from('profiles').select('*').order('user_serial_id', { ascending: true })
-      if (usersData) setAllUsers(usersData)
+    if (u.email === 'dome0082@gmail.com') {
+      const { data: users } = await supabase.from('profiles').select('*').order('user_serial_id', { ascending: true })
+      if (users) setAllUsers(users)
     }
     setLoading(false)
   }
 
-  async function deleteUserProfile(id: string) {
-    if(!confirm("STAFF: Sicuro di voler cancellare questo profilo e i suoi annunci?")) return
-    await supabase.from('announcements').delete().eq('user_id', id)
+  async function deleteUser(id: string) {
+    if(!confirm("STAFF: Vuoi eliminare questo utente e tutti i suoi dati?")) return
     await supabase.from('profiles').delete().eq('id', id)
-    setAllUsers(allUsers.filter(u => u.id !== id))
+    load()
   }
 
-  if (loading) return <div className="min-h-screen bg-slate-100 flex items-center justify-center font-black uppercase text-xs tracking-widest">Caricamento...</div>
+  if (loading) return <div className="min-h-screen flex items-center justify-center font-black uppercase text-xs">Sincronizzazione...</div>
 
   return (
-    <div className="min-h-screen bg-slate-200 p-4 md:p-10 font-sans text-slate-800">
-      <main className="bg-white max-w-4xl mx-auto rounded-3xl shadow-2xl overflow-hidden border">
-        
+    <div className="min-h-screen bg-slate-200 p-8">
+      <div className="max-w-4xl mx-auto bg-white rounded-3xl shadow-2xl overflow-hidden">
         <div className="bg-slate-800 p-10 text-white flex justify-between items-center">
-          <div>
-            <Link href="/" className="text-[10px] font-black text-slate-400 hover:text-white uppercase mb-4 block tracking-widest">← Home</Link>
-            <h1 className="text-4xl font-black italic tracking-tighter uppercase">Area Personale</h1>
-          </div>
-          <div className="bg-slate-900 p-5 rounded-2xl border border-slate-700 text-center">
-            <span className="block text-[9px] font-black uppercase text-slate-500 mb-1">ID UNIVOCO</span>
-            <span className={`text-2xl font-mono font-bold ${isStaff ? 'text-red-500' : 'text-sky-400'}`}>{userSerialId || '---'}</span>
-          </div>
+          <h1 className="text-4xl font-black italic uppercase">Profilo {profile.user_serial_id}</h1>
+          <Link href="/" className="text-xs font-bold uppercase opacity-50">Home</Link>
         </div>
 
-        <div className="p-10 space-y-12">
-          {isStaff && (
-            <div className="p-6 bg-slate-900 rounded-2xl shadow-xl border border-slate-700">
-              <h3 className="text-white font-black uppercase text-xl mb-4">👑 STAFF: Lista Utenti ({allUsers.length})</h3>
-              <div className="max-h-[300px] overflow-y-auto space-y-2 pr-2">
+        <div className="p-10 space-y-10">
+          {IS_STAFF && (
+            <div className="bg-slate-900 rounded-2xl p-6 text-white border border-red-500/50 shadow-xl shadow-red-500/10">
+              <h3 className="font-black uppercase mb-6 text-red-500">Amministrazione Utenti ({allUsers.length})</h3>
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-4">
                 {allUsers.map(u => (
-                  <div key={u.id} className="flex justify-between items-center p-4 bg-slate-800 rounded-xl border border-slate-700 text-white">
-                    <div>
-                      <span className="font-black text-sky-400 mr-4 w-16 inline-block">{u.user_serial_id}</span>
-                      <span className="text-xs font-bold uppercase">{u.first_name} {u.last_name || 'Senza Nome'}</span>
-                    </div>
+                  <div key={u.id} className="flex justify-between items-center p-3 bg-slate-800 rounded-lg">
+                    <span className="text-[10px] font-black uppercase tracking-widest">{u.user_serial_id} - {u.first_name || 'Anonimo'}</span>
                     {u.user_serial_id !== 'USR-1' && (
-                       <button onClick={() => deleteUserProfile(u.id)} className="bg-red-600 text-white px-4 py-2 rounded-lg text-[9px] font-black uppercase hover:bg-red-800 transition-colors">Banna Utente</button>
+                      <button onClick={()=>deleteUser(u.id)} className="bg-red-600 px-3 py-1.5 rounded text-[8px] font-black uppercase">Elimina</button>
                     )}
                   </div>
                 ))}
               </div>
             </div>
           )}
-          {/* ... Qui ci sarebbero i tuoi input anagrafici standard, li ho ostruiti per brevità ma il concetto è lo stesso del messaggio precedente ... */}
+
+          <div className="grid grid-cols-2 gap-6">
+            <input placeholder="Nome" className="p-4 bg-slate-50 border rounded-xl outline-none" value={profile.first_name || ''} onChange={(e)=>setProfile({...profile, first_name: e.target.value})} />
+            <input placeholder="Cognome" className="p-4 bg-slate-50 border rounded-xl outline-none" value={profile.last_name || ''} onChange={(e)=>setProfile({...profile, last_name: e.target.value})} />
+            <input type="date" className="p-4 bg-slate-50 border rounded-xl outline-none" value={profile.dob || ''} onChange={(e)=>setProfile({...profile, dob: e.target.value})} />
+            <button onClick={async () => {
+              await supabase.from('profiles').upsert({ id: user.id, ...profile })
+              alert("Salvato!")
+            }} className="bg-sky-600 text-white font-black uppercase rounded-xl">Salva Dati</button>
+          </div>
         </div>
-      </main>
+      </div>
     </div>
   )
 }
