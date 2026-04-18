@@ -1,171 +1,174 @@
-'use client';
-
-import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase'; // Assicurati che questo percorso sia corretto per il tuo progetto
-import Link from 'next/link';
+'use client'
+import { useEffect, useState } from 'react'
+import { supabase } from './../lib/supabase'
+import Link from 'next/link'
 
 export default function HomePage() {
-  const [announcements, setAnnouncements] = useState<any[]>([]);
-  const [filteredAnnouncements, setFilteredAnnouncements] = useState<any[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [activeFilter, setActiveFilter] = useState('all');
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<any>(null)
+  const [announcements, setAnnouncements] = useState<any[]>([])
+  const [filteredAnnouncements, setFilteredAnnouncements] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [activeFilter, setActiveFilter] = useState('all')
 
-  // Carica i dati e controlla lo stato dell'utente all'avvio della pagina
   useEffect(() => {
-    fetchData();
-  }, []);
+    fetchData()
+  }, [])
 
-  // Logica di filtraggio: si attiva quando l'utente scrive nella barra di ricerca
   useEffect(() => {
-    let results = announcements;
-
-    if (activeFilter === 'wanted') {
-      results = results.filter(item => item.type === 'wanted');
-    }
-
+    let results = announcements
+    // Filtro Ricerca testuale
     if (searchTerm) {
-      results = results.filter(item =>
-        item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.description?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+      results = results.filter(ann => 
+        ann.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        ann.description?.toLowerCase().includes(searchTerm.toLowerCase())
+      )
     }
-
-    setFilteredAnnouncements(results);
-  }, [searchTerm, activeFilter, announcements]);
+    // Filtro Tipo
+    if (activeFilter === 'offered') results = results.filter(ann => ann.type === 'offered' || !ann.type)
+    if (activeFilter === 'wanted') results = results.filter(ann => ann.type === 'wanted')
+    
+    setFilteredAnnouncements(results)
+  }, [searchTerm, activeFilter, announcements])
 
   const fetchData = async () => {
-    // 1. Recupera l'utente loggato da Supabase (se presente)
-    const { data: { user } } = await supabase.auth.getUser();
-    setUser(user);
-
-    // 2. Recupera gli annunci dalla tabella Supabase
+    const { data: { user } } = await supabase.auth.getUser()
+    setUser(user)
     const { data, error } = await supabase
       .from('announcements')
       .select('*')
-      .order('created_at', { ascending: false });
-
-    if (!error && data) {
-      setAnnouncements(data);
-      setFilteredAnnouncements(data);
+      .order('created_at', { ascending: false })
+    if (!error) {
+      setAnnouncements(data)
+      setFilteredAnnouncements(data)
     }
-  };
+    setLoading(false)
+  }
 
   return (
-    <main className="min-h-screen bg-gray-50">
-      {/* NAVBAR DINAMICA */}
-      <nav className="flex items-center justify-between px-8 py-4 bg-white border-b sticky top-0 z-50 shadow-sm">
-        <div className="text-2xl font-bold tracking-tighter text-gray-800">
-          MATERIALI
-        </div>
+    <div className="min-h-screen bg-[#f3f4f6] p-2 md:p-4 font-sans text-slate-900">
+      <main className="bg-white max-w-[1600px] mx-auto rounded-xl shadow-lg border border-gray-200 min-h-screen overflow-hidden flex flex-col relative">
         
-        {/* Mostra "Esci" se l'utente è loggato, altrimenti "Accedi" */}
-        {user ? (
+        {/* NAVBAR PROFESSIONALE */}
+        <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-200 px-6 py-4 flex justify-between items-center shadow-sm">
+          <Link href="/" className="text-2xl font-serif text-slate-900 tracking-tighter font-black">MATERIALI</Link>
           <div className="flex items-center gap-4">
-            <span className="text-sm font-medium text-gray-600 hidden md:block">
-              {user.email}
-            </span>
-            <button 
-              onClick={async () => {
-                await supabase.auth.signOut();
-                setUser(null); // Aggiorna lo stato localmente
-              }}
-              className="bg-red-500 hover:bg-red-600 text-white px-6 py-2 rounded-md font-medium text-sm transition-colors shadow-sm"
-            >
-              ESCI
-            </button>
+            {user ? (
+              <>
+                <Link href="/profile" className="flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-sky-600 uppercase tracking-widest transition-colors bg-slate-100 px-4 py-2 rounded-md">
+                  <span>👤</span> Profilo Utente
+                </Link>
+                <Link href="/add" className="bg-sky-600 text-white px-5 py-2 rounded-md text-xs font-bold hover:bg-sky-500 transition-all shadow-sm">
+                  + Inserisci Annuncio
+                </Link>
+                <button onClick={() => supabase.auth.signOut().then(() => window.location.reload())} className="text-slate-400 hover:text-red-500 transition-colors" title="Esci">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                </button>
+              </>
+            ) : (
+              <Link href="/register" className="bg-slate-800 text-white px-6 py-2 rounded-md text-xs font-bold hover:bg-slate-700 shadow-sm">ACCEDI</Link>
+            )}
           </div>
-        ) : (
-          <Link href="/login">
-            <button className="bg-sky-500 hover:bg-sky-600 text-white px-6 py-2 rounded-md font-medium text-sm transition-colors shadow-sm">
-              ACCEDI
-            </button>
-          </Link>
-        )}
-      </nav>
+        </nav>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* BANNER PRINCIPALE (HERO SECTION) */}
-        <section 
-          className="relative w-full h-[450px] flex flex-col items-center justify-center rounded-2xl overflow-hidden shadow-2xl mt-6 border border-gray-100"
-          style={{ 
-            // QUI ABBIAMO IMPOSTATO IL NOME "gazebo"
-            backgroundImage: "url('/gazebo.jpeg')", 
-            backgroundSize: 'cover', 
-            backgroundPosition: 'center' 
-          }}
-        >
-          {/* Overlay scuro per migliorare la leggibilità del testo bianco */}
-          <div className="absolute inset-0 bg-black/40"></div> 
-          
-          {/* Contenuto in primo piano (Testo + Ricerca) */}
-          <div className="relative z-10 text-center w-full max-w-2xl px-4">
-            <h1 className="text-4xl md:text-5xl font-serif italic text-white mb-3 font-bold drop-shadow-lg">
-              Recupera, regala o vendi.
-            </h1>
-            <p className="text-xl md:text-2xl font-serif italic text-gray-100 mb-10 drop-shadow-md">
-              Il valore non si butta mai.
-            </p>
-            
-            {/* Barra di ricerca bianca e visibile */}
-            <div className="relative max-w-xl mx-auto shadow-2xl rounded-full">
-              <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
-                <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
+        {/* HEADER / HERO SECTION */}
+        <div className="px-4 md:px-8 mt-6">
+          <div className="relative h-[250px] md:h-[350px] rounded-xl overflow-hidden shadow-sm border border-gray-100">
+            <img src="/capanno.png" alt="Gazebo Attrezzi" className="absolute inset-0 w-full h-full object-cover object-center" />
+            <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-black/30 flex flex-col items-start justify-center p-8 md:p-16">
+              <h1 className="text-3xl md:text-5xl font-serif text-white drop-shadow-md font-bold leading-tight mb-4">
+                Il mercato edile circolare.
+              </h1>
+              
+              <div className="w-full max-w-xl relative mt-4">
+                <input 
+                  type="text" 
+                  placeholder="Cerca materiali o attrezzi..." 
+                  className="w-full p-4 pl-12 rounded-lg bg-white/95 text-slate-800 shadow-md outline-none focus:ring-2 focus:ring-sky-500 border border-gray-200"
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+                <span className="absolute left-4 top-4 text-xl opacity-50">🔍</span>
               </div>
-              <input 
-                type="text" 
-                placeholder="Cerca materiali (es. mattoni, legno...)" 
-                className="w-full py-4.5 pl-14 pr-6 text-gray-900 bg-white rounded-full focus:outline-none focus:ring-2 focus:ring-sky-500 text-lg placeholder:text-gray-400"
-                value={searchTerm} 
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
             </div>
           </div>
-        </section>
+        </div>
 
-        {/* SEZIONE GRIGLIA DEGLI ANNUNCI */}
-        <section className="py-12">
-          <h2 className="text-2xl font-bold text-gray-800 mb-8 border-l-4 border-sky-500 pl-3">Ultimi arrivi</h2>
+        {/* DUE RIQUADRI PROMOZIONALI (NUOVO / USATO) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 px-4 md:px-8 mt-6">
           
-          {filteredAnnouncements.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
-              {filteredAnnouncements.map((item) => (
-                <div key={item.id} className="bg-white border rounded-2xl overflow-hidden hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 group">
-                  {/* Immagine dell'annuncio */}
-                  <div className="h-52 bg-gray-100 relative overflow-hidden">
-                    {item.image_url ? (
-                      <img src={item.image_url} alt={item.title} className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300" />
-                    ) : (
-                      <div className="flex flex-col items-center justify-center w-full h-full text-gray-400 bg-gray-50">
-                        <svg className="w-12 h-12 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                        <span className="text-xs">Nessuna immagine</span>
-                      </div>
-                    )}
-                  </div>
-                  {/* Testo e Dettagli dell'annuncio */}
-                  <div className="p-5">
-                    <h3 className="font-bold text-lg text-gray-900 mb-1.5 truncate group-hover:text-sky-600 transition-colors">{item.title}</h3>
-                    <p className="text-gray-600 text-sm line-clamp-2 mb-4 h-10">{item.description || 'Nessuna descrizione fornita.'}</p>
-                    <div className="mt-auto flex justify-between items-center pt-3 border-t">
-                      <span className="text-xl font-bold text-sky-600">
-                        {item.price === 0 || !item.price ? 'Gratis' : `€ ${item.price.toFixed(2)}`}
+          {/* Riquadro Usato */}
+          <div className="relative h-[180px] md:h-[220px] rounded-xl overflow-hidden shadow-sm group border border-gray-200">
+            <img src="/usato.png" alt="Mercatino Usato" className="absolute inset-0 w-full h-full object-cover transition-transform duration-[5s] group-hover:scale-110" />
+            <div className="absolute inset-0 bg-black/40 group-hover:bg-black/50 transition-colors flex items-center justify-center p-6">
+              <h3 className="text-2xl md:text-3xl font-serif font-bold text-white text-center drop-shadow-lg tracking-wide">
+                "Non buttare, magari ad un altro serve"
+              </h3>
+            </div>
+          </div>
+
+          {/* Riquadro Nuovo */}
+          <div className="relative h-[180px] md:h-[220px] rounded-xl overflow-hidden shadow-sm group border border-gray-200">
+            <img src="/nuovo.png" alt="Negozio Nuovo" className="absolute inset-0 w-full h-full object-cover transition-transform duration-[5s] group-hover:scale-110" />
+            <div className="absolute inset-0 bg-black/40 group-hover:bg-black/50 transition-colors flex items-center justify-center p-6">
+              <h3 className="text-2xl md:text-3xl font-serif font-bold text-white text-center drop-shadow-lg tracking-wide">
+                "È nuovo?, vendilo"
+              </h3>
+            </div>
+          </div>
+
+        </div>
+
+        {/* TABELLA ANNUNCI (GRANDE CATALOGO) */}
+        <div className="px-4 md:px-8 py-10 flex-grow">
+          
+          <div className="flex justify-between items-end mb-8 border-b border-gray-200 pb-4">
+            <h2 className="text-xl font-bold uppercase tracking-widest text-slate-800">Catalogo Annunci</h2>
+            <div className="flex gap-2 overflow-x-auto">
+              <button onClick={() => setActiveFilter('all')} className={`px-4 py-2 rounded-md text-[10px] font-bold uppercase tracking-widest border ${activeFilter === 'all' ? 'bg-slate-800 text-white' : 'bg-white text-slate-500 border-gray-300'}`}>Tutti</button>
+              <button onClick={() => setActiveFilter('offered')} className={`px-4 py-2 rounded-md text-[10px] font-bold uppercase tracking-widest border ${activeFilter === 'offered' ? 'bg-sky-600 text-white' : 'bg-white text-slate-500 border-gray-300'}`}>Disponibili</button>
+              <button onClick={() => setActiveFilter('wanted')} className={`px-4 py-2 rounded-md text-[10px] font-bold uppercase tracking-widest border ${activeFilter === 'wanted' ? 'bg-orange-500 text-white' : 'bg-white text-slate-500 border-gray-300'}`}>Cercasi</button>
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="flex justify-center py-20"><div className="animate-spin h-8 w-8 border-4 border-sky-500 border-t-transparent rounded-full"></div></div>
+          ) : filteredAnnouncements.length > 0 ? (
+            /* GRIGLIA ALLARGATA (Fino a 5 colonne su schermi grandi) */
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
+              {filteredAnnouncements.map((ann) => (
+                <div key={ann.id} className="bg-white rounded-lg shadow-sm hover:shadow-md transition-all border border-gray-200 flex flex-col">
+                  <div className="relative p-2 h-40">
+                    <img src={ann.image_url || "/capanno.png"} className="w-full h-full object-cover rounded-md border border-gray-100" />
+                    <div className="absolute top-4 right-4">
+                      <span className={`px-2 py-1 rounded text-[8px] font-black uppercase tracking-tighter shadow-sm ${ann.type === 'wanted' ? 'bg-orange-500 text-white' : 'bg-emerald-500 text-white'}`}>
+                        {ann.type === 'wanted' ? 'CERCASI' : 'OFFRESI'}
                       </span>
+                    </div>
+                  </div>
+                  
+                  <div className="p-3 flex flex-col flex-grow">
+                    <div className="flex justify-between items-start mb-2">
+                      <h4 className="text-sm font-bold text-slate-800 uppercase tracking-tighter line-clamp-1" title={ann.title}>{ann.title}</h4>
+                    </div>
+                    <p className="text-slate-500 text-[10px] mb-4 line-clamp-2 leading-relaxed h-8">{ann.description}</p>
+                    
+                    <div className="mt-auto flex items-center justify-between">
+                      <span className="font-black text-slate-800 text-sm">
+                        {ann.price === 0 ? 'GRATIS' : `€ ${ann.price}`}
+                      </span>
+                      <a href={`mailto:${ann.contact_email}`} className="bg-slate-100 text-slate-700 px-3 py-1.5 rounded text-[9px] font-bold uppercase tracking-wider hover:bg-sky-600 hover:text-white transition-all">Contatta</a>
                     </div>
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-gray-200">
-              <svg className="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
-              <h3 className="text-xl font-semibold text-gray-700">Nessun materiale trovato</h3>
-              <p className="text-gray-500 mt-1">Prova a cambiare la tua ricerca o controlla più tardi.</p>
+            <div className="text-center py-20 bg-gray-50 border border-dashed border-gray-300 rounded-lg">
+              <p className="text-gray-500 text-sm font-bold uppercase tracking-widest">Nessun annuncio presente nel catalogo</p>
             </div>
           )}
-        </section>
-      </div>
-    </main>
-  );
+        </div>
+      </main>
+    </div>
+  )
 }
