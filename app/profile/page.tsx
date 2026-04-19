@@ -12,7 +12,6 @@ export default function ProfilePage() {
     residence_city: '', residence_street: '', residence_number: '', residence_zip: '' 
   })
   const [allUsers, setAllUsers] = useState<any[]>([])
-  const [myAnnouncements, setMyAnnouncements] = useState<any[]>([])
   const router = useRouter()
 
   const IS_STAFF = user?.email === 'dome0082@gmail.com';
@@ -27,9 +26,6 @@ export default function ProfilePage() {
     const { data: p } = await supabase.from('profiles').select('*').eq('id', u.id).single()
     if (p) setProfile(p)
 
-    const { data: ann } = await supabase.from('announcements').select('*').eq('user_id', u.id)
-    if (ann) setMyAnnouncements(ann)
-
     if (u.email === 'dome0082@gmail.com') {
       const { data: users } = await supabase.from('profiles').select('*').order('user_serial_id', { ascending: true })
       if (users) setAllUsers(users)
@@ -37,10 +33,20 @@ export default function ProfilePage() {
     setLoading(false)
   }
 
+  // FUNZIONE DI SALVATAGGIO CON GESTIONE ERRORI
   async function update() {
     setLoading(true)
-    await supabase.from('profiles').upsert({ id: user.id, ...profile, updated_at: new Date().toISOString() })
-    alert("Dati aggiornati con successo!")
+    const { error } = await supabase.from('profiles').upsert({ 
+      id: user.id, 
+      ...profile, 
+      updated_at: new Date().toISOString() 
+    })
+    
+    if (error) {
+      alert("Errore durante il salvataggio: " + error.message)
+    } else {
+      alert("Dati aggiornati e salvati con successo!")
+    }
     setLoading(false)
   }
 
@@ -50,18 +56,28 @@ export default function ProfilePage() {
     load()
   }
 
+  // NUOVA FUNZIONE LOGOUT
+  async function handleLogout() {
+    await supabase.auth.signOut()
+    router.push('/')
+  }
+
   if (loading) return <div className="min-h-screen bg-stone-50 flex items-center justify-center font-bold uppercase tracking-widest text-[10px] text-stone-400">Sincronizzazione...</div>
 
   return (
     <div className="min-h-screen bg-stone-50 p-4 md:p-8 font-sans">
       <div className="max-w-5xl mx-auto bg-white rounded-xl shadow-xl shadow-stone-200/50 overflow-hidden border border-stone-100">
         
-        <div className="bg-stone-900 p-8 text-white flex justify-between items-center">
+        {/* HEADER CON TASTO LOGOUT */}
+        <div className="bg-stone-900 p-8 text-white flex justify-between items-center flex-wrap gap-4">
           <div>
             <h1 className="text-2xl font-light uppercase tracking-[0.2em]">Il Mio Profilo</h1>
-            <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest mt-2">ID: {profile.user_serial_id}</p>
+            <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest mt-2">ID: {profile.user_serial_id || 'In elaborazione...'}</p>
           </div>
-          <Link href="/" className="text-[10px] border border-stone-700 px-4 py-2 rounded-md font-bold uppercase hover:bg-stone-800 transition-colors">Torna al Sito</Link>
+          <div className="flex gap-3 items-center">
+            <Link href="/" className="text-[10px] border border-stone-700 px-4 py-2.5 rounded-md font-bold uppercase hover:bg-stone-800 transition-colors">Torna al Sito</Link>
+            <button onClick={handleLogout} className="text-[10px] bg-red-600/90 text-white px-4 py-2.5 rounded-md font-bold uppercase hover:bg-red-600 transition-colors shadow-sm">Esci (Logout)</button>
+          </div>
         </div>
 
         <div className="p-8">
@@ -92,7 +108,7 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            {/* LUOGO DI RITIRO (NUOVO) */}
+            {/* LUOGO DI RITIRO */}
             <div className="space-y-4">
               <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-stone-400 border-b border-stone-100 pb-2">Luogo di Residenza / Ritiro Merce</h3>
               <div className="grid grid-cols-2 gap-3">
