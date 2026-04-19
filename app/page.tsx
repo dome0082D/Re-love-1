@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 function HomePageContent() {
   const [user, setUser] = useState<any>(null)
   const [announcements, setAnnouncements] = useState<any[]>([])
+  const [favorites, setFavorites] = useState<string[]>([]) // NUOVO: Stato per i preferiti
   const [mainSearch, setMainSearch] = useState('') 
   const [adNumberSearch, setAdNumberSearch] = useState('') 
   const [searchCategory, setSearchCategory] = useState('all')
@@ -21,8 +22,31 @@ function HomePageContent() {
   async function fetchData() {
     const { data: { user: u } } = await supabase.auth.getUser()
     setUser(u)
+    
+    // Carica annunci
     const { data } = await supabase.from('announcements').select('*').order('created_at', { ascending: false })
     if (data) setAnnouncements(data)
+
+    // NUOVO: Carica preferiti se utente loggato
+    if (u) {
+      const { data: favs } = await supabase.from('favorites').select('announcement_id').eq('user_id', u.id)
+      if (favs) setFavorites(favs.map(f => f.announcement_id))
+    }
+  }
+
+  // NUOVO: Funzione per aggiungere/togliere preferiti
+  async function toggleFavorite(e: any, annId: string) {
+    e.preventDefault(); // Evita di aprire l'annuncio
+    e.stopPropagation();
+    if (!user) { alert("Accedi per salvare i preferiti!"); return; }
+
+    if (favorites.includes(annId)) {
+      await supabase.from('favorites').delete().eq('user_id', user.id).eq('announcement_id', annId);
+      setFavorites(favorites.filter(id => id !== annId));
+    } else {
+      await supabase.from('favorites').insert([{ user_id: user.id, announcement_id: annId }]);
+      setFavorites([...favorites, annId]);
+    }
   }
 
   const filteredAnnouncements = announcements.filter(a => {
@@ -54,6 +78,7 @@ function HomePageContent() {
                {user ? (
                  <>
                   <Link href="/profile" className="hover:text-emerald-600">Mio Profilo</Link>
+                  <Link href="/dashboard/preferiti" className="hover:text-emerald-600">I Miei Preferiti</Link>
                   <button onClick={() => supabase.auth.signOut().then(() => window.location.reload())} className="hover:text-red-500">Esci Sessione</button>
                  </>
                ) : (
@@ -95,7 +120,13 @@ function HomePageContent() {
           <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-stone-400 mb-6 border-b pb-2">Vetrina Top Nuovo</h2>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             {showcaseNew.map(ann => (
-              <Link href={`/announcement/${ann.id}`} key={ann.id} className="group bg-white p-3 rounded-xl shadow-sm border border-stone-100 hover:border-stone-400 transition-all flex flex-col justify-between">
+              <Link href={`/announcement/${ann.id}`} key={ann.id} className="group bg-white p-3 rounded-xl shadow-sm border border-stone-100 hover:border-stone-400 transition-all flex flex-col justify-between relative">
+                
+                {/* ICONA PREFERITI */}
+                <button onClick={(e) => toggleFavorite(e, ann.id)} className="absolute top-4 right-4 z-20 bg-white/80 backdrop-blur rounded-full p-2 hover:scale-110 transition-transform">
+                  {favorites.includes(ann.id) ? '❤️' : '🤍'}
+                </button>
+
                 <div>
                   <div className="aspect-square rounded-lg overflow-hidden bg-stone-50 border border-stone-100 mb-3">
                     <img src={ann.image_url || "/nuovo.png"} className="w-full h-full object-cover" />
@@ -114,7 +145,13 @@ function HomePageContent() {
           <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-stone-400 mb-6 border-b pb-2">Tutti gli Oggetti</h2>
           <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
             {others.map(ann => (
-              <Link href={`/announcement/${ann.id}`} key={ann.id} className="bg-white rounded-xl overflow-hidden border border-stone-200 shadow-sm flex flex-col group hover:border-stone-400 transition-all">
+              <Link href={`/announcement/${ann.id}`} key={ann.id} className="bg-white rounded-xl overflow-hidden border border-stone-200 shadow-sm flex flex-col group hover:border-stone-400 transition-all relative">
+                
+                {/* ICONA PREFERITI */}
+                <button onClick={(e) => toggleFavorite(e, ann.id)} className="absolute top-2 left-2 z-20 bg-white/80 backdrop-blur rounded-full p-1.5 hover:scale-110 transition-transform text-xs">
+                  {favorites.includes(ann.id) ? '❤️' : '🤍'}
+                </button>
+
                 <div className="h-32 bg-stone-50 relative border-b border-stone-100">
                   <img src={ann.image_url || "/usato.png"} className="w-full h-full object-cover" />
                   {ann.type === 'offered' && <span className="absolute top-2 right-2 bg-emerald-500 text-white text-[8px] font-black px-2 py-1 rounded uppercase shadow-sm">Regalo</span>}
@@ -126,7 +163,7 @@ function HomePageContent() {
                       <p className="text-[13px] font-black mt-1 text-stone-900">{ann.type === 'offered' ? 'GRATIS' : `€ ${ann.price}`}</p>
                     </div>
                   <button className="mt-3 w-full bg-stone-50 text-stone-800 text-[9px] font-black uppercase py-2 rounded-lg group-hover:bg-stone-900 group-hover:text-white transition-colors">Vedi Dettagli</button>
-                  {IS_STAFF && <button onClick={async (e)=>{e.preventDefault(); if(confirm("Eliminare?")){await supabase.from('announcements').delete().eq('id', ann.id); fetchData()}}} className="mt-2 text-[8px] font-black text-red-500 uppercase bg-red-50 px-2 py-2 rounded w-full border border-red-100 hover:bg-red-500 hover:text-white">Elimina Staff</button>}
+                  {IS_STAFF && <button onClick={async (e)=>{e.preventDefault(); e.stopPropagation(); if(confirm("Eliminare?")){await supabase.from('announcements').delete().eq('id', ann.id); fetchData()}}} className="mt-2 text-[8px] font-black text-red-500 uppercase bg-red-50 px-2 py-2 rounded w-full border border-red-100 hover:bg-red-500 hover:text-white">Elimina Staff</button>}
                 </div>
               </Link>
             ))}
@@ -134,7 +171,6 @@ function HomePageContent() {
         </section>
       </main>
 
-      {/* POP-UP STAFF MODIFICATO */}
       {isStaffOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-sm">
           <div className="bg-white w-full max-w-sm rounded-3xl p-8 shadow-2xl relative text-center space-y-3">
