@@ -5,14 +5,14 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
 export default function ProfilePage() {
-  // Aggiunto <any> per risolvere l'errore di compilazione TypeScript
   const [user, setUser] = useState<any>(null)
   const [profile, setProfile] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [stripeLoading, setStripeLoading] = useState(false)
   
   const [isEditing, setIsEditing] = useState(false)
-  const [editForm, setEditForm] = useState<any>({ first_name: '', last_name: '', city: '' })
+  // Aggiunto full_address allo stato del modulo
+  const [editForm, setEditForm] = useState<any>({ first_name: '', last_name: '', city: '', full_address: '' })
   const [saving, setSaving] = useState(false)
   
   const router = useRouter()
@@ -36,13 +36,20 @@ export default function ProfilePage() {
       setEditForm({
         first_name: data.first_name || '',
         last_name: data.last_name || '',
-        city: data.city || ''
+        city: data.city || '',
+        full_address: data.full_address || ''
       })
     }
     setLoading(false)
   }
 
   async function saveProfile() {
+    // CONTROLLO CAMPI OBBLIGATORI
+    if (!editForm.first_name?.trim() || !editForm.last_name?.trim() || !editForm.city?.trim() || !editForm.full_address?.trim()) {
+      alert("Tutti i campi sono obbligatori. Compila tutti i dati per salvare il profilo.")
+      return
+    }
+
     setSaving(true)
     try {
       const { error } = await supabase
@@ -50,7 +57,8 @@ export default function ProfilePage() {
         .update({
           first_name: editForm.first_name,
           last_name: editForm.last_name,
-          city: editForm.city
+          city: editForm.city,
+          full_address: editForm.full_address // Salvataggio del nuovo campo nel DB
         })
         .eq('id', user.id)
 
@@ -128,13 +136,13 @@ export default function ProfilePage() {
             )}
           </div>
           
-          <div className="space-y-4">
+          <div className="space-y-5">
             {isEditing ? (
               /* MODALITÀ MODIFICA */
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-xs font-medium text-stone-500 mb-1">Nome</p>
+                    <p className="text-xs font-medium text-stone-500 mb-1">Nome *</p>
                     <input 
                       type="text" 
                       value={editForm.first_name} 
@@ -143,7 +151,7 @@ export default function ProfilePage() {
                     />
                   </div>
                   <div>
-                    <p className="text-xs font-medium text-stone-500 mb-1">Cognome</p>
+                    <p className="text-xs font-medium text-stone-500 mb-1">Cognome *</p>
                     <input 
                       type="text" 
                       value={editForm.last_name} 
@@ -161,14 +169,26 @@ export default function ProfilePage() {
                     className="w-full p-2 border border-stone-100 bg-stone-50 rounded-xl text-sm text-stone-400"
                   />
                 </div>
-                <div>
-                  <p className="text-xs font-medium text-stone-500 mb-1">Città</p>
-                  <input 
-                    type="text" 
-                    value={editForm.city} 
-                    onChange={(e) => setEditForm({...editForm, city: e.target.value})}
-                    className="w-full p-2 border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-stone-900"
-                  />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs font-medium text-stone-500 mb-1">Città *</p>
+                    <input 
+                      type="text" 
+                      value={editForm.city} 
+                      onChange={(e) => setEditForm({...editForm, city: e.target.value})}
+                      className="w-full p-2 border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-stone-900"
+                    />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-stone-500 mb-1">Indirizzo completo *</p>
+                    <input 
+                      type="text" 
+                      placeholder="Via, Civico, CAP"
+                      value={editForm.full_address} 
+                      onChange={(e) => setEditForm({...editForm, full_address: e.target.value})}
+                      className="w-full p-2 border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-stone-900"
+                    />
+                  </div>
                 </div>
               </div>
             ) : (
@@ -180,17 +200,26 @@ export default function ProfilePage() {
                 </div>
                 <div>
                   <p className="text-xs font-medium text-stone-500">Email di contatto</p>
-                  <p className="text-base">{user?.email}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <p className="text-base">{user?.email}</p>
+                    <span className="flex items-center gap-1 bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-100">
+                      ✓ Verificata
+                    </span>
+                  </div>
                 </div>
-                <div className="flex gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <p className="text-xs font-medium text-stone-500">Città</p>
                     <p className="text-base capitalize">{profile?.city || 'Non specificata'}</p>
                   </div>
                   <div>
-                    <p className="text-xs font-medium text-stone-500">ID Utente</p>
-                    <p className="text-base">#{profile?.user_serial_id || '---'}</p>
+                    <p className="text-xs font-medium text-stone-500">Indirizzo completo</p>
+                    <p className="text-base capitalize">{profile?.full_address || 'Non specificato'}</p>
                   </div>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-stone-500">ID Utente</p>
+                  <p className="text-base">#{profile?.user_serial_id || '---'}</p>
                 </div>
               </>
             )}
