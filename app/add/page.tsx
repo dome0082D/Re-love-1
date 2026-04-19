@@ -9,7 +9,7 @@ function AddPageContent() {
   const searchParams = useSearchParams()
   const mode = searchParams.get('mode')
   const [loading, setLoading] = useState(false)
-  const [files, setFiles] = useState<File[]>([]) // Stato per i file allegati
+  const [files, setFiles] = useState<File[]>([]) 
   
   const [formData, setFormData] = useState({ 
     title: '', 
@@ -17,7 +17,7 @@ function AddPageContent() {
     brand: '',
     quantity: '1',
     price: mode === 'gift' ? '0' : '', 
-    notes: '', // Nuova voce note
+    notes: '', 
     condition: mode === 'new' ? 'Nuovo' : 'Usato' 
   })
 
@@ -27,7 +27,6 @@ function AddPageContent() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { alert("Accedi per pubblicare"); setLoading(false); return }
 
-    // Logica di caricamento allegati su Supabase Storage
     let uploadedUrls: string[] = [];
     if (files.length > 0) {
       for (const file of files) {
@@ -88,8 +87,9 @@ function AddPageContent() {
           
           <input required type="number" min="1" placeholder="Quantità" className="w-full p-4 bg-stone-50 border border-stone-100 rounded-xl text-sm outline-none focus:border-stone-400" value={formData.quantity} onChange={e => setFormData({...formData, quantity: e.target.value})} />
           
+          {/* MODIFICA EFFETTUATA QUI: Aggiunto step="0.01" per permettere i centesimi */}
           {mode !== 'gift' ? (
-            <input required type="number" placeholder="Prezzo (€)" className="w-full p-4 bg-stone-50 border border-stone-100 rounded-xl text-sm outline-none focus:border-stone-400" onChange={e => setFormData({...formData, price: e.target.value})} />
+            <input required type="number" step="0.01" min="0" placeholder="Prezzo (€)" className="w-full p-4 bg-stone-50 border border-stone-100 rounded-xl text-sm outline-none focus:border-stone-400" onChange={e => setFormData({...formData, price: e.target.value})} />
           ) : (
              <div className="p-4 bg-emerald-50 text-emerald-700 text-xs font-black uppercase text-center rounded-xl">Regalo: Prezzo 0€</div>
           )}
