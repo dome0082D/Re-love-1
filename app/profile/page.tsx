@@ -5,14 +5,14 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
 export default function ProfilePage() {
-  const [user, setUser] = useState(null)
-  const [profile, setProfile] = useState(null)
+  // Aggiunto <any> per risolvere l'errore di compilazione TypeScript
+  const [user, setUser] = useState<any>(null)
+  const [profile, setProfile] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [stripeLoading, setStripeLoading] = useState(false)
   
-  // Nuovi stati per gestire la modifica
   const [isEditing, setIsEditing] = useState(false)
-  const [editForm, setEditForm] = useState({ first_name: '', last_name: '', city: '' })
+  const [editForm, setEditForm] = useState<any>({ first_name: '', last_name: '', city: '' })
   const [saving, setSaving] = useState(false)
   
   const router = useRouter()
@@ -32,7 +32,6 @@ export default function ProfilePage() {
     const { data } = await supabase.from('profiles').select('*').eq('id', currentUser.id).single()
     setProfile(data)
     
-    // Popoliamo i campi di modifica con i dati attuali
     if (data) {
       setEditForm({
         first_name: data.first_name || '',
@@ -43,7 +42,6 @@ export default function ProfilePage() {
     setLoading(false)
   }
 
-  // NUOVA FUNZIONE: Salva le modifiche del profilo su Supabase
   async function saveProfile() {
     setSaving(true)
     try {
@@ -58,17 +56,15 @@ export default function ProfilePage() {
 
       if (error) throw error
 
-      // Aggiorna i dati visibili e chiude la modalità modifica
       setProfile({ ...profile, ...editForm })
       setIsEditing(false)
-    } catch (error) {
+    } catch (error: any) {
       alert("Errore durante il salvataggio: " + error.message)
     } finally {
       setSaving(false)
     }
   }
 
-  // FUNZIONE PER L'ONBOARDING DI STRIPE (COLLEGARE IBAN) - INVARIATA
   async function handleStripeOnboarding() {
     setStripeLoading(true)
     try {
