@@ -1,46 +1,48 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { supabase } from '@/lib/supabase'; 
+import { supabase } from '@/lib/supabase';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, { apiVersion: '2023-10-16' as any });
 
 export async function GET(req: Request) {
-   // Misura di sicurezza: assicurati che la chiamata provenga solo dal tuo Cron Job
-   if (req.headers.get('Authorization') !== `Bearer ${process.env.CRON_SECRET}`) {
-       return NextResponse.json({ error: 'Accesso negato' }, { status: 401 });
-   }
+  // Sicurezza: verifica il segreto CRON di Vercel
+  const authHeader = req.headers.get('authorization');
+  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
 
-   try {
-       // 1. Calcola la data limite (15 giorni fa)
-       const timeLimit = new Date();
-       timeLimit.setDate(timeLimit.getDate() - 15);
+  try {
+    const quindiciGiorniFa = new Date();
+    quindiciGiorniFa.setDate(quindiciGiorniFa.getDate() - 15);
 
-       // 2. Trova tutte le transazioni ancora in sospeso vecchie di 15 giorni
-       const { data: transactions } = await supabase
-           .from('transactions')
-           .select('*')
-           .eq('status', 'held')
-           .lt('created_at', timeLimit.toISOString());
+    // Trova ordini vecchi di 15 giorni non ancora completati
+    const { data: oldTrx } = await supabase
+      .from('transactions')
+      .select('*, announcements(user_id)')
+      .eq('status', 'held')
+      .lt('created_at', quindiciGiorniFa.toISOString());
 
-       if (!transactions || transactions.length === 0) {
-           return NextResponse.json({ message: "Nessuna transazione scaduta da sbloccare." });
-       }
+    if (!oldTrx || oldTrx.length === 0) return NextResponse.json({ message: "Nessun ordine da sbloccare." });
 
-       let releasedCount = 0;
+    for (const trx of oldTrx) {
+      const { data: seller } = await supabase.from('profiles').select('stripe_account_id').eq('id', trx.announcements.user_id).single();
+      
+      if (seller?.stripe_account_id) {
+        const amountCents = Math.round(trx.amount * 100 * 0.90);
+        
+        const transfer = await stripe.transfers.create({
+          amount: amountCents,
+          currency: 'eur',
+          destination: seller.stripe_account_id,
+          source_transaction: trx.stripe_payment_intent_id,
+        });
 
-       // 3. Esegui il ciclo per catturare i fondi e pagare i venditori in automatico
-       for (const trx of transactions) {
-           try {
-               await stripe.paymentIntents.capture(trx.stripe_payment_intent_id);
-               await supabase.from('transactions').update({ status: 'completato' }).eq('id', trx.id);
-               releasedCount++;
-           } catch (err) {
-               console.error(`Errore sblocco transazione ${trx.id}:`, err);
-           }
-       }
+        await supabase.from('transactions').update({ status: 'completato', stripe_transfer_id: transfer.id }).eq('id', trx.id);
+      }
+    }
 
-       return NextResponse.json({ success: true, released: releasedCount });
-   } catch (error: any) {
-       return NextResponse.json({ error: error.message }, { status: 500 });
-   }
+    return NextResponse.json({ success: true, processed: oldTrx.length });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 }

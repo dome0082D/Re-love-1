@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/stripe/cron-release",
+      "schedule": "0 0 * * *"
+    }
+  ]
+}

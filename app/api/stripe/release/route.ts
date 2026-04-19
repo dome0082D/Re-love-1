@@ -8,31 +8,48 @@ export async function POST(req: Request) {
   try {
     const { transactionId, buyerId } = await req.json();
 
-    // 1. Verifica che la transazione esista, sia in sospeso e appartenga all'acquirente
+    // 1. Recupera la transazione e l'account Stripe del venditore
     const { data: trx, error } = await supabase
       .from('transactions')
-      .select('*')
+      .select('*, announcements(user_id)')
       .eq('id', transactionId)
       .eq('buyer_id', buyerId)
       .eq('status', 'held')
       .single();
 
-    if (error || !trx) {
-      return NextResponse.json({ error: "Transazione non trovata o già sbloccata." }, { status: 400 });
-    }
+    if (error || !trx) return NextResponse.json({ error: "Transazione non trovata o già completata" }, { status: 400 });
 
-    // 2. Comunica a Stripe di rilasciare i fondi.
-    // N.B: Questo esegue in automatico il Transfer al venditore e ti lascia il 10% di Fee 
-    // in base alle regole che abbiamo settato in fase di Checkout.
-    await stripe.paymentIntents.capture(trx.stripe_payment_intent_id);
+    const { data: seller } = await supabase
+      .from('profiles')
+      .select('stripe_account_id')
+      .eq('id', trx.announcements.user_id)
+      .single();
 
-    // 3. Aggiorna lo stato nel database su 'completato' (come richiesto)
+    if (!seller?.stripe_account_id) return NextResponse.json({ error: "Il venditore non ha un account Stripe collegato" }, { status: 400 });
+
+    // 2. Calcola l'importo netto (Prezzo totale - 10% commissione)
+    const totalAmountCent = Math.round(trx.amount * 100);
+    const sellerAmountCent = Math.round(totalAmountCent * 0.90);
+
+    // 3. Esegui il trasferimento verso l'account Express del venditore
+    const transfer = await stripe.transfers.create({
+      amount: sellerAmountCent,
+      currency: 'eur',
+      destination: seller.stripe_account_id,
+      source_transaction: trx.stripe_payment_intent_id, // Collega il trasferimento al pagamento originale
+      description: `Sblocco fondi per ordine ${trx.id}`,
+    });
+
+    // 4. Aggiorna il DB
     await supabase
       .from('transactions')
-      .update({ status: 'completato' })
+      .update({ 
+        status: 'completato',
+        stripe_transfer_id: transfer.id 
+      })
       .eq('id', transactionId);
 
-    return NextResponse.json({ success: true, message: "Fondi sbloccati e inviati al venditore." });
+    return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
