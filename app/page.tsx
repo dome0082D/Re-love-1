@@ -9,25 +9,53 @@ export default function HomePage() {
   const [filtered, setFiltered] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   
+  // STATI RICERCA E FILTRI
   const [searchTerm, setSearchTerm] = useState('')
   const [searchBrand, setSearchBrand] = useState('')
   const [searchModel, setSearchModel] = useState('')
   const [activeType, setActiveType] = useState('all')
   const [category, setCategory] = useState('all')
+  
+  // STATI PER STAFF E PREVISIONE TESTO
   const [isStaffMenuOpen, setIsStaffMenuOpen] = useState(false)
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [suggestions, setSuggestions] = useState<string[]>([])
 
   const IS_STAFF = user?.email === 'dome0082@gmail.com';
 
   useEffect(() => { fetchData() }, [])
 
-  // LOGICA DI FILTRO CORRETTA E SINCRONIZZATA
+  // MOTORE DI RICERCA POTENZIATO E ANTI-CRASH
   useEffect(() => {
     let res = announcements
-    if (searchTerm) res = res.filter(a => a.title?.toLowerCase().includes(searchTerm.toLowerCase()))
-    if (searchBrand) res = res.filter(a => a.brand?.toLowerCase().includes(searchBrand.toLowerCase()))
-    if (searchModel) res = res.filter(a => a.model?.toLowerCase().includes(searchModel.toLowerCase()))
-    if (activeType !== 'all') res = res.filter(a => a.type === activeType)
-    if (category !== 'all') res = res.filter(a => a.category === category)
+
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      // Cerca in titolo, descrizione, marca e categoria in modo sicuro
+      res = res.filter(a => 
+        (a.title || '').toLowerCase().includes(term) ||
+        (a.description || '').toLowerCase().includes(term) ||
+        (a.brand || '').toLowerCase().includes(term) ||
+        (a.category || '').toLowerCase().includes(term)
+      );
+
+      // Genera i suggerimenti per la previsione del testo
+      const matches = new Set<string>();
+      announcements.forEach(a => {
+        if (a.title && a.title.toLowerCase().includes(term)) matches.add(a.title);
+        if (a.brand && a.brand.toLowerCase().includes(term)) matches.add(a.brand);
+        if (a.category && a.category.toLowerCase().includes(term)) matches.add(a.category);
+      });
+      setSuggestions(Array.from(matches).slice(0, 5)); // Mostra massimo 5 suggerimenti
+    } else {
+      setSuggestions([]);
+    }
+
+    if (searchBrand) res = res.filter(a => (a.brand || '').toLowerCase().includes(searchBrand.toLowerCase()))
+    if (searchModel) res = res.filter(a => (a.model || '').toLowerCase().includes(searchModel.toLowerCase()))
+    if (activeType !== 'all') res = res.filter(a => (a.type || '') === activeType)
+    if (category !== 'all') res = res.filter(a => (a.category || '') === category)
+    
     setFiltered(res)
   }, [searchTerm, searchBrand, searchModel, activeType, category, announcements])
 
@@ -68,7 +96,7 @@ export default function HomePage() {
 
       <main className="max-w-[1400px] mx-auto bg-white min-h-screen shadow-2xl flex flex-col">
         <nav className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b px-6 py-4 flex justify-between items-center">
-          <Link href="/" className="text-2xl font-black italic uppercase text-stone-800">MATERIALI</Link>
+          <Link href="/" className="text-2xl font-black italic uppercase text-stone-800 tracking-widest">MATERIALI</Link>
           <div className="flex gap-4 items-center">
             {user ? (
               <>
@@ -82,28 +110,50 @@ export default function HomePage() {
           </div>
         </nav>
 
-        {/* 1. HERO CON RICERCA FUNZIONANTE */}
+        {/* 1. HERO CON RICERCA E PREVISIONE TESTO */}
         <div className="px-6 mt-6">
-          <div className="relative h-[400px] rounded-3xl overflow-hidden border shadow-lg">
-            <img src="/gazebo.jpg" alt="Gazebo" className="absolute inset-0 w-full h-full object-cover" />
-            <div className="absolute inset-0 bg-stone-900/60 flex flex-col items-center justify-center p-8 text-center">
+          <div className="relative h-[400px] rounded-3xl overflow-visible border shadow-lg z-30">
+            <img src="/gazebo.jpg" alt="Gazebo" className="absolute inset-0 w-full h-full object-cover rounded-3xl" />
+            <div className="absolute inset-0 bg-stone-900/60 flex flex-col items-center justify-center p-8 text-center rounded-3xl">
               <h1 className="text-4xl md:text-6xl font-black text-white mb-8 italic uppercase drop-shadow-lg">Recupera, Regala, Vendi</h1>
+              
               <div className="w-full max-w-2xl relative">
                 <input 
                   type="text" 
-                  value={searchTerm} // Collegato allo stato!
+                  value={searchTerm}
                   placeholder="Cerca materiali o attrezzi..." 
                   className="w-full p-5 pl-14 rounded-2xl bg-white shadow-2xl outline-none text-lg text-stone-800 focus:ring-4 focus:ring-emerald-500/50 transition-all" 
                   onChange={(e) => setSearchTerm(e.target.value)} 
+                  onFocus={() => setShowSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowSuggestions(false), 200)} // Ritardo per permettere il click sul suggerimento
                 />
                 <span className="absolute left-5 top-5 text-2xl opacity-40">🔍</span>
+
+                {/* TENDINA PREVISIONE TESTO */}
+                {showSuggestions && suggestions.length > 0 && (
+                  <div className="absolute top-full left-0 w-full mt-2 bg-white rounded-xl shadow-2xl border border-stone-100 overflow-hidden text-left z-50">
+                    {suggestions.map((s, i) => (
+                      <div 
+                        key={i} 
+                        className="p-4 hover:bg-stone-50 cursor-pointer font-bold text-stone-700 border-b border-stone-100 last:border-0 truncate"
+                        onClick={() => {
+                          setSearchTerm(s);
+                          setShowSuggestions(false);
+                        }}
+                      >
+                        🔍 {s}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
               </div>
             </div>
           </div>
         </div>
 
         {/* 2. RIQUADRI USATO/NUOVO */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 px-6 mt-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 px-6 mt-8 relative z-10">
           <div className="relative h-[220px] rounded-2xl overflow-hidden group shadow-md">
             <img src="/usato.png" alt="Usato" className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
             <div className="absolute inset-0 bg-stone-900/50 flex items-center justify-center p-8 text-center">
@@ -122,8 +172,8 @@ export default function HomePage() {
         <div className="mx-6 mt-10 p-4 bg-stone-50 rounded-2xl border flex flex-wrap gap-4 items-center">
           <input 
             type="text" 
-            value={searchTerm} // Sincronizzato con l'altro input!
-            placeholder="Cerca Nome..." 
+            value={searchTerm} 
+            placeholder="Cerca Parola Chiave..." 
             className="p-3 bg-white border rounded-lg text-sm font-bold outline-none focus:border-emerald-500 shadow-sm w-full md:w-auto flex-grow" 
             onChange={(e)=>setSearchTerm(e.target.value)} 
           />
@@ -156,7 +206,6 @@ export default function HomePage() {
                   </div>
                   <div className="mt-5 pt-4 border-t flex justify-between items-center">
                     <span className="font-black text-stone-900 text-sm">€{ann.price}</span>
-                    {/* LINK RIPARATO */}
                     <Link href={user ? `/chat/${ann.user_id}?ann=${ann.id}` : '/register'} className="bg-stone-100 text-stone-700 hover:bg-emerald-600 hover:text-white px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-colors shadow-sm">Contatta</Link>
                   </div>
                 </div>
