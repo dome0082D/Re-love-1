@@ -1,10 +1,10 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
-export default function AddAnnouncement() {
+function AddForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const modeParam = searchParams.get('mode')
@@ -33,23 +33,18 @@ export default function AddAnnouncement() {
     e.preventDefault()
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return alert("Accedi!");
+    if (!user) { alert("Sessione scaduta!"); setLoading(false); return; }
 
-    let dbType = 'sell'
-    let dbCondition = 'Usato'
-
+    let dbType = 'sell'; let dbCondition = 'Usato';
     if (uiMode === 'sell_new') { dbType = 'sell'; dbCondition = 'Nuovo'; }
     if (uiMode === 'sell_used') { dbType = 'sell'; dbCondition = 'Usato'; }
     if (uiMode === 'offered') { dbType = 'offered'; dbCondition = 'Usato'; }
     if (uiMode === 'wanted') { dbType = 'wanted'; dbCondition = 'Usato'; }
 
-    let galleryUrls: string[] = []
-    let imageUrl = ""
-
+    let galleryUrls: string[] = []; let imageUrl = "";
     for (let i = 0; i < files.length; i++) {
-      const file = files[i]
-      const name = `${Math.random()}-${file.name}`
-      const { error } = await supabase.storage.from('announcements').upload(name, file)
+      const name = `${Math.random()}-${files[i].name}`
+      const { error } = await supabase.storage.from('announcements').upload(name, files[i])
       if (!error) {
         const { data: { publicUrl } } = supabase.storage.from('announcements').getPublicUrl(name)
         galleryUrls.push(publicUrl)
@@ -69,49 +64,39 @@ export default function AddAnnouncement() {
   }
 
   return (
-    <div className="min-h-screen bg-stone-50 p-4 flex items-center justify-center font-sans">
-      <main className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl p-8 md:p-10 border">
-        <h1 className="text-3xl font-black mb-8 uppercase text-stone-900 italic">Nuovo Annuncio</h1>
+    <main className="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl p-8 md:p-12 border">
+        <h1 className="text-3xl font-black mb-8 uppercase text-stone-900 italic tracking-tighter text-center">Nuovo Annuncio</h1>
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 p-1 bg-stone-100 rounded-2xl">
-            {[
-              { id: 'sell_new', label: 'Vendi Nuovo' },
-              { id: 'sell_used', label: 'Vendi Usato' },
-              { id: 'offered', label: 'Regala' },
-              { id: 'wanted', label: 'Cerco' }
-            ].map((mode) => (
-              <button key={mode.id} type="button" onClick={() => setUiMode(mode.id)} 
-                className={`py-4 rounded-xl text-[9px] font-black uppercase transition-all ${uiMode === mode.id ? 'bg-white text-emerald-600 shadow-md' : 'text-stone-500 hover:text-stone-700'}`}>
-                {mode.label}
-              </button>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 p-1.5 bg-stone-100 rounded-2xl">
+            {[{id:'sell_new',l:'Vendi Nuovo'},{id:'sell_used',l:'Vendi Usato'},{id:'offered',l:'Regala'},{id:'wanted',l:'Cerco'}].map(m=>(
+              <button key={m.id} type="button" onClick={()=>setUiMode(m.id)} className={`py-4 rounded-xl text-[9px] font-black uppercase transition-all ${uiMode===m.id?'bg-white text-emerald-600 shadow-md':'text-stone-500'}`}>{m.l}</button>
             ))}
           </div>
-          <input type="text" placeholder="Nome prodotto..." className="w-full p-4 bg-stone-50 border rounded-xl font-bold text-sm" onChange={(e)=>setTitle(e.target.value)} required />
+          <input type="text" placeholder="Cosa vendi?" className="w-full p-5 bg-stone-50 border rounded-2xl font-bold text-sm outline-none" onChange={(e)=>setTitle(e.target.value)} required />
           <div className="grid grid-cols-2 gap-4">
-            <input type="text" placeholder="Marca" className="w-full p-4 bg-stone-50 border rounded-xl font-bold text-sm" onChange={(e)=>setBrand(e.target.value)} />
-            <input type="text" placeholder="Modello" className="w-full p-4 bg-stone-50 border rounded-xl font-bold text-sm" onChange={(e)=>setModel(e.target.value)} />
+             <input type="text" placeholder="Marca" className="w-full p-5 bg-stone-50 border rounded-2xl font-bold text-sm outline-none" onChange={(e)=>setBrand(e.target.value)} />
+             <input type="text" placeholder="Modello" className="w-full p-5 bg-stone-50 border rounded-2xl font-bold text-sm outline-none" onChange={(e)=>setModel(e.target.value)} />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <select onChange={(e)=>setCategory(e.target.value)} className="w-full p-4 bg-stone-50 border rounded-xl text-xs font-black uppercase">
-              <option value="Edilizia">Edilizia</option><option value="Elettricità">Elettricità</option><option value="Idraulica">Idraulica</option><option value="Attrezzi">Attrezzi</option><option value="Altro">Altro</option>
+            <select onChange={(e)=>setCategory(e.target.value)} className="w-full p-5 bg-stone-50 border rounded-2xl text-xs font-black uppercase outline-none">
+              <option value="Edilizia">🧱 Edilizia</option><option value="Elettricità">⚡ Elettricità</option><option value="Idraulica">🚰 Idraulica</option><option value="Attrezzi">🛠️ Attrezzi</option><option value="Altro">📦 Altro</option>
             </select>
             <div className="grid grid-cols-2 gap-2">
-              <input type="number" step="0.01" placeholder="Prezzo (€)" className="w-full p-4 bg-stone-50 border rounded-xl font-bold text-sm" onChange={(e)=>setPrice(e.target.value)} required={uiMode.includes('sell')} />
-              <input type="number" min="1" value={quantity} className="w-full p-4 bg-stone-50 border rounded-xl font-bold text-sm" onChange={(e)=>setQuantity(e.target.value)} required />
+                <input type="number" step="0.01" placeholder="€ Prezzo" className="w-full p-5 bg-stone-50 border rounded-2xl font-bold text-sm outline-none" onChange={(e)=>setPrice(e.target.value)} required={uiMode.includes('sell')} />
+                <input type="number" min="1" value={quantity} className="w-full p-5 bg-stone-50 border rounded-2xl font-bold text-sm outline-none" onChange={(e)=>setQuantity(e.target.value)} required />
             </div>
           </div>
           <div className="relative">
-            <input type="file" accept="image/*" multiple className="hidden" id="file-upload" onChange={handleFileChange} />
-            <label htmlFor="file-upload" className="flex flex-col items-center justify-center w-full p-6 border-2 border-dashed rounded-2xl cursor-pointer bg-stone-50 text-[10px] font-black text-stone-500 uppercase tracking-widest">
-              {files.length > 0 ? `✅ ${files.length} Foto Caricate` : '📸 Aggiungi Foto'}
-            </label>
+            <input type="file" accept="image/*" multiple className="hidden" id="f-up" onChange={handleFileChange} />
+            <label htmlFor="f-up" className="flex flex-col items-center justify-center w-full p-8 border-2 border-dashed rounded-[2rem] cursor-pointer bg-stone-50 text-[10px] font-black text-stone-500 uppercase tracking-widest">{files.length>0?`✅ ${files.length} Foto Caricate`:'📸 Aggiungi Foto (Max 4)'}</label>
           </div>
-          <textarea placeholder="Descrizione materiale..." className="w-full p-4 bg-stone-50 border rounded-xl h-32 text-sm" onChange={(e)=>setDescription(e.target.value)} />
-          <button type="submit" disabled={loading} className="w-full bg-emerald-600 text-white py-5 rounded-2xl text-[11px] font-black uppercase shadow-xl hover:bg-emerald-700 transition-all">
-            {loading ? 'CARICAMENTO...' : 'PUBBLICA ORA'}
-          </button>
+          <textarea placeholder="Dettagli..." className="w-full p-5 bg-stone-50 border rounded-2xl outline-none h-40 text-sm" onChange={(e)=>setDescription(e.target.value)} />
+          <button type="submit" disabled={loading} className="w-full bg-emerald-600 text-white py-6 rounded-[1.5rem] text-[11px] font-black uppercase tracking-[0.2em] shadow-xl hover:bg-emerald-700 transition-all">{loading?'INVIO IN CORSO...':'PUBBLICA ORA'}</button>
         </form>
-      </main>
-    </div>
+    </main>
   )
+}
+
+export default function AddPage() {
+  return <div className="min-h-screen bg-stone-50 p-4 flex items-center justify-center font-sans"><Suspense fallback={<div>Loading...</div>}><AddForm /></Suspense></div>
 }
