@@ -91,7 +91,7 @@ export default function HomePage() {
   }
 
   const deleteAd = async (id: string) => {
-    if(!confirm("ELIMINA: Sei sicuro?")) return
+    if(!confirm("ELIMINA: Sei sicuro di voler cancellare questo annuncio?")) return
     await supabase.from('announcements').delete().eq('id', id)
     fetchData()
   }
@@ -99,7 +99,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-stone-50 font-sans text-stone-900 selection:bg-emerald-200 overflow-x-hidden">
       
-      {/* MENU STAFF FISSO */}
+      {/* MENU STAFF FISSO A SCOMPARSA */}
       {IS_STAFF && (
         <>
           <button onClick={() => setIsStaffMenuOpen(true)} className="fixed bottom-6 right-6 z-50 bg-emerald-700 text-white w-14 h-14 rounded-full shadow-lg font-black text-xl hover:scale-110 transition-all flex items-center justify-center">👑</button>
@@ -109,7 +109,7 @@ export default function HomePage() {
               <button onClick={() => setIsStaffMenuOpen(false)} className="text-stone-400 hover:text-white text-xl">✕</button>
             </div>
             <div className="space-y-4">
-              <Link href="/profile" className="block p-4 bg-stone-800 rounded-lg font-bold hover:bg-emerald-600 text-[10px] tracking-widest text-center transition-all">GESTIONE UTENTI</Link>
+              <Link href="/staff/users" className="block p-4 bg-stone-800 rounded-lg font-bold hover:bg-emerald-600 text-[10px] tracking-widest text-center transition-all">GESTIONE UTENTI</Link>
               <Link href="/chat" className="block p-4 bg-stone-800 rounded-lg font-bold hover:bg-emerald-600 text-[10px] tracking-widest text-center transition-all">MONITORAGGIO CHAT</Link>
             </div>
           </div>
@@ -203,6 +203,7 @@ export default function HomePage() {
               <option value="Elettricità">⚡ Elettricità</option>
               <option value="Idraulica">🚰 Idraulica</option>
               <option value="Attrezzi">🛠️ Attrezzi</option>
+              <option value="Altro">📦 Altro</option>
             </select>
 
             <select value={condition} onChange={(e)=>setCondition(e.target.value)} className="p-3 bg-white border border-stone-200 rounded-lg text-[11px] font-black uppercase outline-none focus:border-emerald-500 shadow-sm text-stone-700">
