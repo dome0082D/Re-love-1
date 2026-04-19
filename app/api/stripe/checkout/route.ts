@@ -1,43 +1,69 @@
-import { NextResponse } from 'next/server';
-import Stripe from 'stripe';
-import { supabase } from '@/lib/supabase';
+import { NextResponse } from "next/server";
+import Stripe from "stripe";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, { apiVersion: '2023-10-16' as any });
+// Inizializza Stripe con la tua chiave segreta
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: "2023-10-16", // Usa la tua versione di Stripe
+});
 
 export async function POST(req: Request) {
   try {
-    const { announcementId, buyerId, sellerId, amount, title } = await req.json();
-
-    // 1. Controlla se il venditore ha attivato Stripe
-    const { data: seller } = await supabase.from('profiles').select('stripe_account_id').eq('id', sellerId).single();
+    // 1. Riceve i dati dal tuo sito (dal tasto "Acquista in sicurezza")
+    const body = await req.json();
     
-    if (!seller || !seller.stripe_account_id) {
-       return NextResponse.json({ error: "Il venditore non ha ancora attivato i pagamenti sicuri." }, { status: 400 });
-    }
+    // Assicurati che i nomi di queste variabili corrispondano a quelli che invii dal frontend!
+    const { 
+      title, 
+      price, 
+      sellerStripeId, // L'ID acct_... del venditore
+      buyerId, // L'ID Supabase di chi compra (serve per "I miei acquisti")
+      productId // L'ID del prodotto (serve per "I miei acquisti")
+    } = body;
 
-    // 2. Calcola la tua commissione (10%)
-    const fee = Math.round(amount * 100 * 0.10);
+    // 2. Stripe lavora in centesimi. Convertiamo il prezzo (es. 1.20€ -> 120)
+    const unitAmount = Math.round(price * 100);
 
-    // 3. Crea la sessione Escrow
+    // 3. Calcolo della TUA commissione (es. 10%)
+    // Se l'acqua costa 120 centesimi, il 10% è 12 centesimi.
+    const platformFee = Math.round(unitAmount * 0.10); 
+
+    // 4. Creazione della sessione di pagamento Stripe Connect
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items: [{
-        price_data: { currency: 'eur', product_data: { name: title }, unit_amount: Math.round(amount * 100) },
-        quantity: 1,
-      }],
-      mode: 'payment',
+      payment_method_types: ["card"],
+      mode: "payment",
+      line_items: [
+        {
+          price_data: {
+            currency: "eur",
+            product_data: {
+              name: title || "Acqua",
+            },
+            unit_amount: unitAmount,
+          },
+          quantity: 1,
+        },
+      ],
+      // QUI È DOVE TRATTENI LA COMMISSIONE E PAGHI IL VENDITORE
       payment_intent_data: {
-        capture_method: 'manual', // I soldi vengono bloccati, NON incassati subito
-        transfer_data: { destination: seller.stripe_account_id },
-        application_fee_amount: fee,
+        application_fee_amount: platformFee,
+        transfer_data: {
+          destination: sellerStripeId,
+        },
       },
-      success_url: `${process.env.NEXT_PUBLIC_BASE_URL}/announcement/${announcementId}?payment=success`,
-      cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL}/announcement/${announcementId}`,
-      metadata: { announcementId, buyerId, sellerId } // Dati passati al Webhook
+      // I metadati servono al "Postino" (Webhook) per aggiornare il database
+      metadata: {
+        buyerId: buyerId,
+        productId: productId,
+      },
+      success_url: `${process.env.NEXT_PUBLIC_BASE_URL}/success`,
+      cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL}/cancel`,
     });
 
+    // 5. Restituisce l'URL della pagina di pagamento
     return NextResponse.json({ url: session.url });
+
   } catch (error: any) {
+    console.error("Errore durante il checkout:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
