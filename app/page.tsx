@@ -15,9 +15,9 @@ export default function HomePage() {
   const [searchModel, setSearchModel] = useState('')
   const [activeType, setActiveType] = useState('all')
   const [category, setCategory] = useState('all')
-  const [condition, setCondition] = useState('all') // Nuovo filtro
-  const [maxPrice, setMaxPrice] = useState('') // Nuovo filtro
-  const [sortBy, setSortBy] = useState('recent') // Nuovo filtro
+  const [condition, setCondition] = useState('all')
+  const [maxPrice, setMaxPrice] = useState('')
+  const [sortBy, setSortBy] = useState('recent')
   
   // STATI PER STAFF E PREVISIONE TESTO
   const [isStaffMenuOpen, setIsStaffMenuOpen] = useState(false)
@@ -28,54 +28,55 @@ export default function HomePage() {
 
   useEffect(() => { fetchData() }, [])
 
-  // MOTORE DI RICERCA BLINDATO (ANTI-CRASH)
+  // MOTORE DI RICERCA BLINDATO AL 100%
   useEffect(() => {
-    let res = [...announcements]; // Crea una copia sicura dell'array
+    let res = [...announcements];
 
-    // 1. Filtro Globale (Testo)
+    // 1. Filtro Globale (Testo) a prova di errore
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       res = res.filter(a => 
-        (a.title || '').toLowerCase().includes(term) ||
-        (a.description || '').toLowerCase().includes(term) ||
-        (a.brand || '').toLowerCase().includes(term) ||
-        (a.category || '').toLowerCase().includes(term) ||
-        (a.model || '').toLowerCase().includes(term)
+        String(a?.title || '').toLowerCase().includes(term) ||
+        String(a?.description || '').toLowerCase().includes(term) ||
+        String(a?.brand || '').toLowerCase().includes(term) ||
+        String(a?.category || '').toLowerCase().includes(term) ||
+        String(a?.model || '').toLowerCase().includes(term)
       );
 
-      // Genera Suggerimenti
+      // Genera Suggerimenti Sicuri
       const matches = new Set<string>();
       announcements.forEach(a => {
-        if (a.title && a.title.toLowerCase().includes(term)) matches.add(a.title);
-        if (a.brand && a.brand.toLowerCase().includes(term)) matches.add(a.brand);
+        if (a?.title && String(a.title).toLowerCase().includes(term)) matches.add(String(a.title));
+        if (a?.brand && String(a.brand).toLowerCase().includes(term)) matches.add(String(a.brand));
       });
       setSuggestions(Array.from(matches).slice(0, 5));
     } else {
       setSuggestions([]);
     }
 
-    // 2. Filtri Specifici Testuali
-    if (searchBrand) res = res.filter(a => (a.brand || '').toLowerCase().includes(searchBrand.toLowerCase()));
-    if (searchModel) res = res.filter(a => (a.model || '').toLowerCase().includes(searchModel.toLowerCase()));
+    // 2. Filtri Specifici Testuali (Forzati a stringa)
+    if (searchBrand) res = res.filter(a => String(a?.brand || '').toLowerCase().includes(searchBrand.toLowerCase()));
+    if (searchModel) res = res.filter(a => String(a?.model || '').toLowerCase().includes(searchModel.toLowerCase()));
     
     // 3. Filtri a Tendina
-    if (activeType !== 'all') res = res.filter(a => (a.type || '') === activeType);
-    if (category !== 'all') res = res.filter(a => (a.category || '') === category);
+    if (activeType !== 'all') res = res.filter(a => a?.type === activeType);
+    if (category !== 'all') res = res.filter(a => a?.category === category);
+    if (condition !== 'all') res = res.filter(a => (a?.condition || 'Usato') === condition);
     
-    // NB: Se un annuncio vecchio non ha "condition", diamo per scontato che sia "Usato"
-    if (condition !== 'all') res = res.filter(a => (a.condition || 'Usato') === condition);
-    
-    // 4. Filtro Prezzo Max
-    if (maxPrice) res = res.filter(a => (a.price || 0) <= parseFloat(maxPrice));
+    // 4. Filtro Prezzo Max (A prova di Not-A-Number)
+    if (maxPrice && !isNaN(parseFloat(maxPrice))) {
+      const max = parseFloat(maxPrice);
+      res = res.filter(a => (Number(a?.price) || 0) <= max);
+    }
 
-    // 5. Ordinamento (Sorting)
+    // 5. Ordinamento (Sorting Sicuro)
     if (sortBy === 'price_asc') {
-      res.sort((a, b) => (a.price || 0) - (b.price || 0));
+      res.sort((a, b) => (Number(a?.price) || 0) - (Number(b?.price) || 0));
     } else if (sortBy === 'price_desc') {
-      res.sort((a, b) => (b.price || 0) - (a.price || 0));
+      res.sort((a, b) => (Number(b?.price) || 0) - (Number(a?.price) || 0));
     } else {
-      // 'recent' (Default)
-      res.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      // Default: Più Recenti
+      res.sort((a, b) => new Date(b?.created_at || 0).getTime() - new Date(a?.created_at || 0).getTime());
     }
     
     setFiltered(res);
@@ -171,32 +172,32 @@ export default function HomePage() {
 
         {/* 2. RIQUADRI USATO/NUOVO */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 px-6 mt-8 relative z-10">
-          <div className="relative h-[220px] rounded-2xl overflow-hidden group shadow-md">
+          <div className="relative h-[220px] rounded-2xl overflow-hidden group shadow-md cursor-pointer" onClick={() => setCondition('Usato')}>
             <img src="/usato.png" alt="Usato" className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
-            <div className="absolute inset-0 bg-stone-900/50 flex items-center justify-center p-8 text-center">
-              <h3 className="text-2xl font-black text-white uppercase italic">"Non buttare, magari ad un altro serve"</h3>
+            <div className="absolute inset-0 bg-stone-900/50 group-hover:bg-stone-900/40 transition-colors flex items-center justify-center p-8 text-center">
+              <h3 className="text-2xl font-black text-white uppercase italic drop-shadow-md">"Non buttare, magari ad un altro serve"</h3>
             </div>
           </div>
-          <div className="relative h-[220px] rounded-2xl overflow-hidden group shadow-md">
+          <div className="relative h-[220px] rounded-2xl overflow-hidden group shadow-md cursor-pointer" onClick={() => setCondition('Nuovo')}>
             <img src="/nuovo.png" alt="Nuovo" className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
-            <div className="absolute inset-0 bg-stone-900/50 flex items-center justify-center p-8 text-center">
-              <h3 className="text-2xl font-black text-white uppercase italic">"È nuovo?, vendilo"</h3>
+            <div className="absolute inset-0 bg-stone-900/50 group-hover:bg-stone-900/40 transition-colors flex items-center justify-center p-8 text-center">
+              <h3 className="text-2xl font-black text-white uppercase italic drop-shadow-md">"È nuovo?, vendilo"</h3>
             </div>
           </div>
         </div>
 
-        {/* 3. RICERCA AVANZATA (Potenziata) */}
+        {/* 3. RICERCA AVANZATA */}
         <div className="mx-6 mt-10 p-6 bg-stone-50 rounded-3xl border border-stone-200 shadow-sm flex flex-col gap-4">
           <h2 className="text-[10px] font-black uppercase text-stone-400 tracking-widest mb-1">Ricerca Avanzata</h2>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <input type="text" value={searchTerm} placeholder="Cerca Parola Chiave..." className="p-3 bg-white border border-stone-200 rounded-lg text-sm font-bold outline-none focus:border-emerald-500 shadow-sm" onChange={(e)=>setSearchTerm(e.target.value)} />
-            <input type="text" placeholder="Marca" className="p-3 bg-white border border-stone-200 rounded-lg text-sm font-bold outline-none focus:border-emerald-500 shadow-sm" onChange={(e)=>setSearchBrand(e.target.value)} />
-            <input type="text" placeholder="Modello" className="p-3 bg-white border border-stone-200 rounded-lg text-sm font-bold outline-none focus:border-emerald-500 shadow-sm" onChange={(e)=>setSearchModel(e.target.value)} />
+            <input type="text" value={searchBrand} placeholder="Marca" className="p-3 bg-white border border-stone-200 rounded-lg text-sm font-bold outline-none focus:border-emerald-500 shadow-sm" onChange={(e)=>setSearchBrand(e.target.value)} />
+            <input type="text" value={searchModel} placeholder="Modello" className="p-3 bg-white border border-stone-200 rounded-lg text-sm font-bold outline-none focus:border-emerald-500 shadow-sm" onChange={(e)=>setSearchModel(e.target.value)} />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <select onChange={(e)=>setCategory(e.target.value)} className="p-3 bg-white border border-stone-200 rounded-lg text-[11px] font-black uppercase outline-none focus:border-emerald-500 shadow-sm text-stone-700">
+            <select value={category} onChange={(e)=>setCategory(e.target.value)} className="p-3 bg-white border border-stone-200 rounded-lg text-[11px] font-black uppercase outline-none focus:border-emerald-500 shadow-sm text-stone-700">
               <option value="all">Tutte le Categorie</option>
               <option value="Edilizia">🧱 Edilizia</option>
               <option value="Elettricità">⚡ Elettricità</option>
@@ -204,15 +205,15 @@ export default function HomePage() {
               <option value="Attrezzi">🛠️ Attrezzi</option>
             </select>
 
-            <select onChange={(e)=>setCondition(e.target.value)} className="p-3 bg-white border border-stone-200 rounded-lg text-[11px] font-black uppercase outline-none focus:border-emerald-500 shadow-sm text-stone-700">
+            <select value={condition} onChange={(e)=>setCondition(e.target.value)} className="p-3 bg-white border border-stone-200 rounded-lg text-[11px] font-black uppercase outline-none focus:border-emerald-500 shadow-sm text-stone-700">
               <option value="all">Condizione (Tutte)</option>
               <option value="Nuovo">✨ Nuovo</option>
               <option value="Usato">♻️ Usato</option>
             </select>
 
-            <input type="number" min="0" placeholder="Prezzo Max (€)" className="p-3 bg-white border border-stone-200 rounded-lg text-sm font-bold outline-none focus:border-emerald-500 shadow-sm" onChange={(e)=>setMaxPrice(e.target.value)} />
+            <input type="number" min="0" value={maxPrice} placeholder="Prezzo Max (€)" className="p-3 bg-white border border-stone-200 rounded-lg text-sm font-bold outline-none focus:border-emerald-500 shadow-sm" onChange={(e)=>setMaxPrice(e.target.value)} />
 
-            <select onChange={(e)=>setSortBy(e.target.value)} className="p-3 bg-white border border-stone-200 rounded-lg text-[11px] font-black uppercase outline-none focus:border-emerald-500 shadow-sm text-stone-700">
+            <select value={sortBy} onChange={(e)=>setSortBy(e.target.value)} className="p-3 bg-white border border-stone-200 rounded-lg text-[11px] font-black uppercase outline-none focus:border-emerald-500 shadow-sm text-stone-700">
               <option value="recent">🕒 Più Recenti</option>
               <option value="price_asc">💶 Prezzo: Dal più basso</option>
               <option value="price_desc">💶 Prezzo: Dal più alto</option>
@@ -232,7 +233,7 @@ export default function HomePage() {
         <div className="px-6 py-10 flex-grow pb-32">
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
             {filtered.map((ann) => (
-              <div key={ann.id} className="bg-white border rounded-2xl overflow-hidden hover:-translate-y-1 hover:shadow-2xl transition-all duration-300 flex flex-col group relative">
+              <div key={ann.id} className="bg-white border border-stone-200 rounded-2xl overflow-hidden hover:-translate-y-1 hover:shadow-2xl transition-all duration-300 flex flex-col group relative">
                 {IS_STAFF && <button onClick={()=>deleteAd(ann.id)} className="absolute top-2 left-2 z-20 bg-red-600 text-white px-3 py-1.5 rounded-md text-[9px] font-black opacity-0 group-hover:opacity-100 transition-opacity shadow-lg">ELIMINA</button>}
                 
                 <div className="h-44 bg-stone-100 relative overflow-hidden">
@@ -259,6 +260,7 @@ export default function HomePage() {
             <div className="py-20 text-center flex flex-col items-center">
                <span className="text-5xl mb-4 opacity-20">📦</span>
                <p className="text-stone-400 text-xs font-black uppercase tracking-widest">Nessun materiale trovato con questi filtri.</p>
+               <button onClick={() => { setSearchTerm(''); setSearchBrand(''); setSearchModel(''); setCategory('all'); setCondition('all'); setActiveType('all'); setMaxPrice(''); }} className="mt-4 px-6 py-2 bg-stone-200 hover:bg-stone-300 rounded-lg text-[10px] font-black uppercase text-stone-600 transition-colors">Azzera Filtri</button>
             </div>
           )}
         </div>
@@ -266,4 +268,3 @@ export default function HomePage() {
     </div>
   )
 }
-
