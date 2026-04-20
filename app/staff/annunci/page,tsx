@@ -1,0 +1,8 @@
+export default function StaffAnnunci() {
+  return (
+    <div className="min-h-screen bg-stone-50 p-10 text-center pt-20">
+      <h1 className="text-4xl font-black uppercase italic text-stone-900 mb-4">Moderazione Annunci</h1>
+      <p className="text-stone-500">Pannello in costruzione...</p>
+    </div>
+  )
+}
