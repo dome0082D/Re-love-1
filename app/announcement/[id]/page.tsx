@@ -1,4 +1,3 @@
-'use client'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useParams, useRouter } from 'next/navigation'
@@ -57,15 +56,30 @@ export default function AnnouncementPage() {
     }
     
     setActionLoading(true)
+
+    // RECUPERA IL CONTO STRIPE DEL VENDITORE DAL DATABASE
+    const { data: sellerProfile } = await supabase
+      .from('profiles')
+      .select('stripe_account_id')
+      .eq('id', ann.user_id)
+      .single();
+
+    if (!sellerProfile || !sellerProfile.stripe_account_id) {
+      alert("Il venditore non ha ancora configurato il suo conto per ricevere pagamenti.");
+      setActionLoading(false);
+      return;
+    }
+
     const res = await fetch('/api/stripe/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        announcementId: ann.id,
+        // ETICHETTE AGGIORNATE PER IL CAMERIERE (BACKEND)
+        title: `${ann.title} (x${selectedQuantity})`,
+        price: ann.price * selectedQuantity,
+        sellerStripeId: sellerProfile.stripe_account_id,
         buyerId: user.id,
-        sellerId: ann.user_id,
-        amount: ann.price * selectedQuantity,
-        title: `${ann.title} (x${selectedQuantity})`
+        productId: ann.id
       })
     })
     const data = await res.json()
