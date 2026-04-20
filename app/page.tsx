@@ -3,7 +3,7 @@
 import { useEffect, useState, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 function HomePageContent() {
   const [user, setUser] = useState<any>(null)
@@ -15,7 +15,11 @@ function HomePageContent() {
   const [condition, setCondition] = useState('all')
   const [distance, setDistance] = useState(0) // 0 = Tutte
   const [isStaffOpen, setIsStaffOpen] = useState(false)
+  
   const router = useRouter()
+  // SENSORE PER L'URL: Legge se c'è scritto "?type=offered" nel link
+  const searchParams = useSearchParams()
+  const typeFilter = searchParams.get('type')
 
   const IS_STAFF = user?.email === 'dome0082@gmail.com';
 
@@ -57,16 +61,18 @@ function HomePageContent() {
     }
   }
 
+  // LOGICA DI FILTRAGGIO AGGIORNATA
   const filteredAnnouncements = announcements.filter(a => {
     const matchMain = String(a.title || '').toLowerCase().includes(mainSearch.toLowerCase());
     const matchAdNumber = adNumberSearch === '' || String(a.id).includes(adNumberSearch);
     const matchCat = searchCategory === 'all' || a.category === searchCategory;
     const matchCond = condition === 'all' || a.condition === condition;
+    const matchQty = a.quantity !== 0; // Nasconde gli esauriti
     
-    // NUOVO FILTRO: Nasconde automaticamente gli oggetti esauriti (quantità = 0)
-    const matchQty = a.quantity !== 0; 
+    // NUOVO FILTRO: Se c'è "?type=offered" nell'URL, mostra solo i regali. Altrimenti mostrali tutti.
+    const matchType = !typeFilter || a.type === typeFilter; 
 
-    return matchMain && matchAdNumber && matchCat && matchCond && matchQty;
+    return matchMain && matchAdNumber && matchCat && matchCond && matchQty && matchType;
   });
 
   const showcaseNew = filteredAnnouncements.filter(a => a.condition === 'Nuovo').slice(0, 5);
@@ -78,6 +84,14 @@ function HomePageContent() {
         <button onClick={() => setIsStaffOpen(true)} className="fixed bottom-6 right-6 z-50 bg-stone-900 text-emerald-400 w-14 h-14 rounded-full shadow-lg font-black flex items-center justify-center border border-emerald-400 hover:scale-110 transition-all">👑</button>
       )}
 
+      {/* SEZIONE FILTRO ATTIVO (Mostra un banner se stai guardando solo i regali) */}
+      {typeFilter === 'offered' && (
+        <div className="bg-emerald-500 text-white text-center p-3 text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-4">
+          <span>Stai visualizzando solo gli oggetti in regalo 🎁</span>
+          <Link href="/" className="underline hover:text-stone-200">Rimuovi Filtro ✕</Link>
+        </div>
+      )}
+
       {/* TESTATA */}
       <div className="relative h-[220px] flex flex-col items-center justify-center p-6 text-center overflow-hidden border-b border-stone-200 bg-white">
           <img src="/gazebo.jpg" className="absolute inset-0 w-full h-full object-cover opacity-30" alt="Sfondo" />
@@ -87,17 +101,8 @@ function HomePageContent() {
               <input type="text" placeholder="Cerca materiale..." className="w-full p-4 pl-12 rounded-2xl bg-white border border-stone-200 outline-none text-sm focus:border-stone-400 shadow-sm" onChange={(e)=>setMainSearch(e.target.value)} />
               <span className="absolute left-4 top-4 opacity-30 text-lg">🔍</span>
             </div>
-            <div className="mt-4 text-[10px] font-black uppercase flex justify-center gap-4 text-stone-600">
-               {user ? (
-                 <>
-                  <Link href="/profile" className="hover:text-emerald-600">Mio Profilo</Link>
-                  <Link href="/dashboard/preferiti" className="hover:text-emerald-600">Preferiti ❤️</Link>
-                  <button onClick={() => supabase.auth.signOut().then(() => window.location.reload())} className="hover:text-red-500">Esci</button>
-                 </>
-               ) : (
-                 <Link href="/login" className="hover:text-emerald-600">Accedi / Registrati</Link>
-               )}
-            </div>
+            
+            {/* HO RIMOSSO IL VECCHIO MENU ACCEDI QUI, ORA C'È LA NAVBAR IN ALTO */}
           </div>
       </div>
 
@@ -117,32 +122,36 @@ function HomePageContent() {
           </button>
         </section>
 
-        {/* BOX AZIONI */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Link href="/add?mode=new" className="group relative h-48 rounded-2xl border border-stone-200 overflow-hidden bg-white hover:border-stone-400 transition-all shadow-sm flex items-center justify-center text-center">
-             <img src="/nuovo.png" className="absolute inset-0 w-full h-full object-cover opacity-20" alt="Nuovo" />
-             <div className="relative z-10 p-6"><h3 className="text-2xl font-black uppercase italic text-stone-900">Vendi Nuovo</h3></div>
-          </Link>
-          <Link href="/add?mode=used" className="group relative h-48 rounded-2xl border border-stone-200 overflow-hidden bg-white hover:border-stone-400 transition-all shadow-sm flex items-center justify-center text-center">
-             <img src="/usato.png" className="absolute inset-0 w-full h-full object-cover opacity-20" alt="Usato" />
-             <div className="relative z-10 p-6"><h3 className="text-2xl font-black uppercase italic text-stone-900">Vendi Usato</h3></div>
-          </Link>
-          <Link href="/add?mode=gift" className="group relative h-48 rounded-2xl border-2 border-emerald-500 overflow-hidden bg-white hover:bg-emerald-50 transition-all shadow-md flex items-center justify-center text-center">
-             <img src="/regala.jpeg" className="absolute inset-0 w-full h-full object-cover opacity-30" alt="Regala" />
-             <div className="relative z-10 p-6"><h3 className="text-lg font-black uppercase italic text-emerald-800 leading-tight">Non sai cosa fartene e non vuoi i soldi?<br/>Regalalo</h3></div>
-          </Link>
-        </div>
+        {/* BOX AZIONI (Li nascondiamo se l'utente sta cercando solo i regali) */}
+        {!typeFilter && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <Link href="/add?mode=new" className="group relative h-48 rounded-2xl border border-stone-200 overflow-hidden bg-white hover:border-stone-400 transition-all shadow-sm flex items-center justify-center text-center">
+               <img src="/nuovo.png" className="absolute inset-0 w-full h-full object-cover opacity-20" alt="Nuovo" />
+               <div className="relative z-10 p-6"><h3 className="text-2xl font-black uppercase italic text-stone-900">Vendi Nuovo</h3></div>
+            </Link>
+            <Link href="/add?mode=used" className="group relative h-48 rounded-2xl border border-stone-200 overflow-hidden bg-white hover:border-stone-400 transition-all shadow-sm flex items-center justify-center text-center">
+               <img src="/usato.png" className="absolute inset-0 w-full h-full object-cover opacity-20" alt="Usato" />
+               <div className="relative z-10 p-6"><h3 className="text-2xl font-black uppercase italic text-stone-900">Vendi Usato</h3></div>
+            </Link>
+            <Link href="/add?mode=gift" className="group relative h-48 rounded-2xl border-2 border-emerald-500 overflow-hidden bg-white hover:bg-emerald-50 transition-all shadow-md flex items-center justify-center text-center">
+               <img src="/regala.jpeg" className="absolute inset-0 w-full h-full object-cover opacity-30" alt="Regala" />
+               <div className="relative z-10 p-6"><h3 className="text-lg font-black uppercase italic text-emerald-800 leading-tight">Non sai cosa fartene e non vuoi i soldi?<br/>Regalalo</h3></div>
+            </Link>
+          </div>
+        )}
 
         {/* FEED ANNUNCI */}
         <section className="mt-16">
-          <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-stone-400 mb-6 border-b pb-2">Vetrina Top Nuovo</h2>
+          <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-stone-400 mb-6 border-b pb-2">
+            {typeFilter === 'offered' ? 'In Evidenza (Regalo)' : 'Vetrina Top Nuovo'}
+          </h2>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             {showcaseNew.map(ann => (
               <Link href={`/announcement/${ann.id}`} key={ann.id} className="group bg-white p-3 rounded-xl shadow-sm border border-stone-100 relative">
                 <button onClick={(e) => toggleFavorite(e, ann.id)} className="absolute top-4 right-4 z-20 bg-white/80 rounded-full p-2 text-xs">{favorites.includes(ann.id) ? '❤️' : '🤍'}</button>
                 <div className="aspect-square rounded-lg overflow-hidden bg-stone-50 border border-stone-100 mb-3"><img src={ann.image_url || "/nuovo.png"} className="w-full h-full object-cover" /></div>
                 <h4 className="text-[11px] font-bold uppercase truncate">{ann.title}</h4>
-                <p className="text-emerald-600 font-black text-sm mt-1">€ {ann.price}</p>
+                <p className="text-emerald-600 font-black text-sm mt-1">{ann.type === 'offered' ? 'GRATIS' : `€ ${ann.price}`}</p>
                 <button className="mt-3 w-full bg-stone-50 text-stone-800 text-[9px] font-black uppercase py-2 rounded-lg group-hover:bg-stone-900 group-hover:text-white transition-colors">Vedi Dettagli</button>
               </Link>
             ))}
@@ -151,19 +160,24 @@ function HomePageContent() {
 
         <section className="mt-12">
           <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-stone-400 mb-6 border-b pb-2">Tutti gli Oggetti</h2>
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-            {others.map(ann => (
-              <Link href={`/announcement/${ann.id}`} key={ann.id} className="bg-white rounded-xl overflow-hidden border border-stone-200 shadow-sm flex flex-col group relative">
-                <button onClick={(e) => toggleFavorite(e, ann.id)} className="absolute top-2 left-2 z-20 bg-white/80 rounded-full p-1.5 text-[10px]">{favorites.includes(ann.id) ? '❤️' : '🤍'}</button>
-                <div className="h-32 bg-stone-50 relative"><img src={ann.image_url || "/usato.png"} className="w-full h-full object-cover" /></div>
-                <div className="p-3">
-                    <h4 className="text-[11px] font-bold uppercase truncate">{ann.title}</h4>
-                    <p className="text-[13px] font-black mt-1">{ann.type === 'offered' ? 'GRATIS' : `€ ${ann.price}`}</p>
-                    <button className="mt-3 w-full bg-stone-50 text-stone-800 text-[9px] font-black uppercase py-2 rounded-lg group-hover:bg-stone-900 group-hover:text-white transition-colors">Dettagli</button>
-                </div>
-              </Link>
-            ))}
-          </div>
+          
+          {others.length === 0 ? (
+            <p className="text-center text-sm font-bold text-stone-500 py-10">Nessun oggetto trovato con questi filtri.</p>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+              {others.map(ann => (
+                <Link href={`/announcement/${ann.id}`} key={ann.id} className="bg-white rounded-xl overflow-hidden border border-stone-200 shadow-sm flex flex-col group relative hover:border-emerald-400 transition-colors">
+                  <button onClick={(e) => toggleFavorite(e, ann.id)} className="absolute top-2 left-2 z-20 bg-white/80 rounded-full p-1.5 text-[10px]">{favorites.includes(ann.id) ? '❤️' : '🤍'}</button>
+                  <div className="h-32 bg-stone-50 relative"><img src={ann.image_url || "/usato.png"} className="w-full h-full object-cover" /></div>
+                  <div className="p-3">
+                      <h4 className="text-[11px] font-bold uppercase truncate">{ann.title}</h4>
+                      <p className="text-[13px] font-black mt-1">{ann.type === 'offered' ? 'GRATIS' : `€ ${ann.price}`}</p>
+                      <button className="mt-3 w-full bg-stone-50 text-stone-800 text-[9px] font-black uppercase py-2 rounded-lg group-hover:bg-stone-900 group-hover:text-white transition-colors">Dettagli</button>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
         </section>
       </main>
 
