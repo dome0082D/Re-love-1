@@ -1,108 +1,56 @@
 'use client'
-import { useState, useEffect, Suspense } from 'react'
-import { supabase } from '@/lib/supabase'
-import { useRouter, useSearchParams } from 'next/navigation'
+
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
-function AddPageContent() {
-  const router = useRouter()
+export default function AddPage() {
   const searchParams = useSearchParams()
   const mode = searchParams.get('mode')
-  const [loading, setLoading] = useState(false)
-  const [files, setFiles] = useState<File[]>([]) 
-  const [coords, setCoords] = useState<{lat: number, lon: number} | null>(null)
-  
-  const [formData, setFormData] = useState({ 
-    title: '', 
-    category: 'Casa', 
-    brand: '',
-    quantity: '1',
-    price: mode === 'gift' ? '0' : '', 
-    notes: '', 
-    condition: mode === 'new' ? 'Nuovo' : 'Usato' 
-  })
 
-  // Rileva la posizione GPS al caricamento
-  useEffect(() => {
-    if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition((pos) => {
-        setCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude });
-      });
-    }
-  }, []);
-
-  async function handleSubmit(e: any) {
-    e.preventDefault()
-    setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { alert("Accedi per pubblicare"); setLoading(false); return }
-
-    // 1. Caricamento immagini nello Storage
-    let uploadedUrls: string[] = [];
-    if (files.length > 0) {
-      for (const file of files) {
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${Math.random()}.${fileExt}`;
-        const filePath = `${user.id}/${fileName}`;
+  // 1. SE L'UTENTE NON HA ANCORA SCELTO, MOSTRA I 3 BOTTONI
+  if (!mode) {
+    return (
+      <div className="min-h-screen bg-stone-50 p-4 md:p-10 flex flex-col items-center pt-10">
+        <h1 className="text-4xl md:text-6xl font-black uppercase italic mb-2 tracking-tighter text-stone-900 text-center">Cosa pubblichi?</h1>
+        <p className="text-stone-400 font-bold uppercase text-[10px] md:text-xs tracking-widest mb-10 text-center">Seleziona la modalità corretta</p>
         
-        const { error: uploadError } = await supabase.storage.from('images').upload(filePath, file);
-        if (!uploadError) {
-           const { data: publicUrlData } = supabase.storage.from('images').getPublicUrl(filePath);
-           uploadedUrls.push(publicUrlData.publicUrl);
-        }
-      }
-    }
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-5xl">
+          <Link href="/add?mode=new" className="bg-white p-8 rounded-3xl border border-stone-200 text-center hover:border-emerald-500 shadow-md">
+            <span className="text-6xl block mb-4">✨</span>
+            <h3 className="text-2xl font-black uppercase italic text-stone-900">Nuovo</h3>
+            <p className="text-xs font-medium text-stone-500 mt-2">Articoli mai usati o eccedenze.</p>
+          </Link>
 
-    const mainImageUrl = uploadedUrls.length > 0 ? uploadedUrls[0] : '';
+          <Link href="/add?mode=used" className="bg-white p-8 rounded-3xl border border-stone-200 text-center hover:border-blue-500 shadow-md">
+            <span className="text-6xl block mb-4">♻️</span>
+            <h3 className="text-2xl font-black uppercase italic text-stone-900">Usato</h3>
+            <p className="text-xs font-medium text-stone-500 mt-2">Materiali di seconda mano.</p>
+          </Link>
 
-    // 2. Creazione payload con coordinate PostGIS
-    const payload = {
-      title: formData.title,
-      category: formData.category,
-      brand: formData.brand,
-      quantity: parseInt(formData.quantity) || 1,
-      price: parseFloat(formData.price) || 0,
-      notes: formData.notes,
-      image_url: mainImageUrl, 
-      image_urls: uploadedUrls, 
-      condition: formData.condition,
-      type: mode === 'gift' ? 'offered' : 'sell',
-      user_id: user.id,
-      contact_email: user.email,
-      location: coords ? `POINT(${coords.lon} ${coords.lat})` : null
-    }
-
-    const { error } = await supabase.from('announcements').insert([payload])
-    if (error) alert(error.message); else router.push('/')
-    setLoading(false)
+          <Link href="/add?mode=gift" className="bg-white p-8 rounded-3xl border-4 border-emerald-500 text-center bg-emerald-50 shadow-lg">
+            <span className="text-6xl block mb-4">🎁</span>
+            <h3 className="text-2xl font-black uppercase italic text-emerald-800">Regalo</h3>
+            <p className="text-xs font-medium text-emerald-700 mt-2">Dona a chi ne ha bisogno.</p>
+          </Link>
+        </div>
+      </div>
+    )
   }
 
+  // 2. SE HA SCELTO, MOSTRA IL FORM (INSERISCI QUI IL TUO FORM ORIGINALE)
   return (
-    <div className="min-h-screen bg-stone-50 flex items-center justify-center p-4">
-      <div className="bg-white w-full max-w-md rounded-3xl p-8 border border-stone-200 shadow-sm">
-        <h2 className="text-2xl font-black uppercase italic mb-6">Pubblica Annuncio</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <input required placeholder="Titolo" className="w-full p-4 bg-stone-50 border border-stone-100 rounded-xl text-sm outline-none focus:border-stone-400" onChange={e => setFormData({...formData, title: e.target.value})} />
-          <select className="w-full p-4 bg-stone-50 border border-stone-100 rounded-xl text-sm outline-none" onChange={e => setFormData({...formData, category: e.target.value})}>
-            <option>Casa</option><option>Elettronica</option><option>Libri</option><option>Sport</option><option>Altro</option>
-          </select>
-          <input placeholder="Marca" className="w-full p-4 bg-stone-50 border border-stone-100 rounded-xl text-sm outline-none focus:border-stone-400" onChange={e => setFormData({...formData, brand: e.target.value})} />
-          <input required type="number" min="1" placeholder="Quantità" className="w-full p-4 bg-stone-50 border border-stone-100 rounded-xl text-sm outline-none focus:border-stone-400" value={formData.quantity} onChange={e => setFormData({...formData, quantity: e.target.value})} />
-          {mode !== 'gift' ? (
-            <input required type="number" step="0.01" min="0" placeholder="Prezzo (€)" className="w-full p-4 bg-stone-50 border border-stone-100 rounded-xl text-sm outline-none focus:border-stone-400" onChange={e => setFormData({...formData, price: e.target.value})} />
-          ) : (
-             <div className="p-4 bg-emerald-50 text-emerald-700 text-xs font-black uppercase text-center rounded-xl">Regalo: Prezzo 0€</div>
-          )}
-          <textarea placeholder="Note e descrizione..." className="w-full p-4 bg-stone-50 border border-stone-100 rounded-xl text-sm outline-none focus:border-stone-400 min-h-[100px]" onChange={e => setFormData({...formData, notes: e.target.value})}></textarea>
-          <div className="p-4 bg-stone-50 border border-stone-100 rounded-xl">
-             <label className="text-[9px] font-black uppercase text-stone-400 block mb-2">Allega Immagini</label>
-             <input type="file" multiple accept="image/*" className="w-full text-xs outline-none" onChange={e => setFiles(Array.from(e.target.files || []))} />
-          </div>
-          <button disabled={loading} className="w-full bg-stone-900 text-white p-4 rounded-2xl font-black uppercase text-xs hover:bg-emerald-600 transition-all">{loading ? 'Caricamento...' : 'Conferma'}</button>
-          <Link href="/" className="block text-center text-[9px] font-black uppercase text-stone-300 pt-2 hover:text-stone-900 transition-colors">Annulla</Link>
-        </form>
+    <div className="min-h-screen bg-stone-50 p-4 md:p-10 flex flex-col items-center">
+      <div className="w-full max-w-3xl bg-white p-6 md:p-10 rounded-[2rem] shadow-xl border border-stone-200">
+        <div className="mb-8 border-b pb-4">
+          <span className="bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest mb-2 inline-block">
+            Modalità: {mode === 'new' ? 'Nuovo' : mode === 'used' ? 'Usato' : 'Regalo'}
+          </span>
+          <h2 className="text-3xl font-black uppercase italic text-stone-900">Compila l'Annuncio</h2>
+        </div>
+        
+        {/* QUI SOTTO LASCIA IL CODICE DEL FORM CHE AVEVI GIÀ SCRITTO */}
+        <p className="text-sm font-bold text-stone-400">Il form si caricherà qui sotto...</p>
       </div>
     </div>
   )
 }
-export default function AddPage() { return <Suspense><AddPageContent /></Suspense> }
