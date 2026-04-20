@@ -12,11 +12,10 @@ export default function ProfilePage() {
   const [stripeLoading, setStripeLoading] = useState(false)
   
   const [isEditing, setIsEditing] = useState(false)
-  // Aggiunto full_address allo stato del modulo
   const [editForm, setEditForm] = useState<any>({ first_name: '', last_name: '', city: '', full_address: '' })
   const [saving, setSaving] = useState(false)
 
-  // NUOVI STATI PER LA VETRINA PERSONALE
+  // STATI PER LA VETRINA PERSONALE
   const [myAds, setMyAds] = useState<any[]>([])
   const [soldAds, setSoldAds] = useState<any[]>([])
   const [boughtAds, setBoughtAds] = useState<any[]>([])
@@ -47,7 +46,7 @@ export default function ProfilePage() {
       })
     }
 
-    // --- NUOVA LOGICA: CARICAMENTO ANNUNCI E ACQUISTI ---
+    // --- CARICAMENTO ANNUNCI E ACQUISTI ---
     
     // 1. Prendi gli annunci creati da questo utente
     const { data: ads } = await supabase
@@ -57,19 +56,17 @@ export default function ProfilePage() {
       .order('created_at', { ascending: false })
 
     if (ads) {
-      // Divide tra "Ancora disponibili" e "Esauriti (Venduti)"
       setMyAds(ads.filter(a => (a.quantity !== undefined ? a.quantity : 1) > 0))
       setSoldAds(ads.filter(a => (a.quantity !== undefined ? a.quantity : 1) <= 0))
     }
 
-    // 2. Prendi i MIEI ACQUISTI (interroga la tabella transactions del Webhook)
+    // 2. Prendi i MIEI ACQUISTI (interroga la tabella transactions)
     const { data: txs } = await supabase
       .from('transactions')
       .select('*')
       .eq('buyer_id', currentUser.id)
 
     if (txs && txs.length > 0) {
-      // Recupera gli ID degli annunci comprati e scarica i dettagli
       const annIds = txs.map(t => t.announcement_id)
       const { data: bought } = await supabase
         .from('announcements')
@@ -77,13 +74,11 @@ export default function ProfilePage() {
         .in('id', annIds)
       if (bought) setBoughtAds(bought)
     }
-    // ----------------------------------------------------
 
     setLoading(false)
   }
 
   async function saveProfile() {
-    // CONTROLLO CAMPI OBBLIGATORI
     if (!editForm.first_name?.trim() || !editForm.last_name?.trim() || !editForm.city?.trim() || !editForm.full_address?.trim()) {
       alert("Tutti i campi sono obbligatori. Compila tutti i dati per salvare il profilo.")
       return
@@ -97,7 +92,7 @@ export default function ProfilePage() {
           first_name: editForm.first_name,
           last_name: editForm.last_name,
           city: editForm.city,
-          full_address: editForm.full_address // Salvataggio del nuovo campo nel DB
+          full_address: editForm.full_address
         })
         .eq('id', user.id)
 
@@ -137,28 +132,60 @@ export default function ProfilePage() {
     }
   }
 
+  // NUOVA FUNZIONE: ELIMINA ANNUNCIO
+  async function handleDelete(e: any, id: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!window.confirm("Vuoi davvero eliminare questo annuncio? L'operazione è irreversibile.")) return;
+    
+    const { error } = await supabase.from('announcements').delete().eq('id', id);
+    if (error) {
+      alert("Errore durante l'eliminazione: " + error.message);
+    } else {
+      // Aggiorna la vista eliminandolo istantaneamente dallo schermo
+      setMyAds(myAds.filter(a => a.id !== id));
+      setSoldAds(soldAds.filter(a => a.id !== id));
+    }
+  }
+
   if (loading) return <div className="p-10 text-center text-sm text-stone-500">Caricamento profilo...</div>
 
-  // FUNZIONE GRAFICA PER DISEGNARE LE GRIGLIE DEGLI ANNUNCI
-  const renderGrid = (items: any[], emptyMessage: string) => {
+  // FUNZIONE GRAFICA PER DISEGNARE LE GRIGLIE (Ora accetta "isOwner" per mostrare i tasti Modifica/Elimina)
+  const renderGrid = (items: any[], emptyMessage: string, isOwner: boolean = false) => {
     if (items.length === 0) return <p className="text-sm text-stone-500 italic px-2">{emptyMessage}</p>
     return (
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         {items.map(ann => (
-          <Link href={`/announcement/${ann.id}`} key={ann.id} className="bg-white rounded-xl overflow-hidden border border-stone-200 shadow-sm flex flex-col group relative hover:border-stone-400 transition-all">
-            <div className="aspect-square bg-stone-50 relative">
-              <img src={ann.image_url || "/usato.png"} className="w-full h-full object-cover" alt={ann.title} />
-            </div>
+          <div key={ann.id} className="bg-white rounded-xl overflow-hidden border border-stone-200 shadow-sm flex flex-col relative hover:border-stone-400 transition-all">
+            <Link href={`/announcement/${ann.id}`} className="aspect-square bg-stone-50 relative block group">
+              <img src={ann.image_url || "/usato.png"} className="w-full h-full object-cover group-hover:opacity-90 transition-opacity" alt={ann.title} />
+            </Link>
             <div className="p-3 flex flex-col justify-between flex-grow">
-               <div>
+               <Link href={`/announcement/${ann.id}`} className="block">
                   <h4 className="text-[11px] font-bold uppercase truncate">{ann.title}</h4>
                   <p className="text-[13px] font-black mt-1">
                     {ann.type === 'offered' ? 'GRATIS' : `€ ${ann.price}`}
                   </p>
-               </div>
-               <button className="mt-3 w-full bg-stone-50 text-stone-800 text-[9px] font-black uppercase py-2 rounded-lg group-hover:bg-stone-900 group-hover:text-white transition-colors">Vedi Dettagli</button>
+               </Link>
+               
+               {isOwner ? (
+                 <div className="mt-3 grid grid-cols-2 gap-2">
+                   {/* Tasto Modifica */}
+                   <Link href={`/edit/${ann.id}`} className="text-center bg-stone-100 text-stone-600 text-[9px] font-black uppercase py-2 rounded-lg hover:bg-blue-500 hover:text-white transition-colors">
+                     ✏️ Modifica
+                   </Link>
+                   {/* Tasto Elimina */}
+                   <button onClick={(e) => handleDelete(e, ann.id)} className="w-full bg-stone-100 text-stone-600 text-[9px] font-black uppercase py-2 rounded-lg hover:bg-red-500 hover:text-white transition-colors">
+                     🗑️ Elimina
+                   </button>
+                 </div>
+               ) : (
+                 <Link href={`/announcement/${ann.id}`} className="mt-3 block text-center w-full bg-stone-50 text-stone-800 text-[9px] font-black uppercase py-2 rounded-lg hover:bg-stone-900 hover:text-white transition-colors">
+                   Vedi Dettagli
+                 </Link>
+               )}
             </div>
-          </Link>
+          </div>
         ))}
       </div>
     )
@@ -316,7 +343,7 @@ export default function ProfilePage() {
           )}
         </div>
 
-        {/* MENU RAPIDO NAVIGAZIONE (Mantenuto l'originale) */}
+        {/* MENU RAPIDO NAVIGAZIONE */}
         <div className="grid grid-cols-2 gap-4">
             <Link href="/dashboard/acquisti" className="bg-white p-6 rounded-3xl border border-stone-200 shadow-sm hover:border-stone-400 transition-all group">
                 <span className="text-2xl block mb-2 group-hover:scale-110 transition-transform">📦</span>
@@ -328,22 +355,24 @@ export default function ProfilePage() {
             </Link>
         </div>
 
-        {/* --- NUOVE SEZIONI VETRINA PERSONALE --- */}
+        {/* --- SEZIONI VETRINA PERSONALE --- */}
         
         {/* SEZIONE 1: I MIEI ANNUNCI IN VENDITA */}
         <div className="bg-white rounded-3xl p-8 border border-stone-200 shadow-sm mt-8">
           <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-emerald-600 mb-6 flex items-center gap-2">
             <span className="bg-emerald-100 p-2 rounded-lg">🏷️</span> In Vendita
           </h2>
-          {renderGrid(myAds, "Non hai ancora inserito nessun annuncio.")}
+          {/* IL TRUE SIGNIFICA "SÌ, MOSTRA I TASTI ELIMINA/MODIFICA" */}
+          {renderGrid(myAds, "Non hai ancora inserito nessun annuncio.", true)}
         </div>
 
-        {/* SEZIONE 2: I MIEI ACQUISTI (Storico visualizzato direttamente qui) */}
+        {/* SEZIONE 2: I MIEI ACQUISTI */}
         <div className="bg-white rounded-3xl p-8 border border-stone-200 shadow-sm mt-4">
           <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-blue-600 mb-6 flex items-center gap-2">
             <span className="bg-blue-100 p-2 rounded-lg">🛍️</span> Oggetti Acquistati
           </h2>
-          {renderGrid(boughtAds, "Non hai ancora effettuato nessun acquisto.")}
+          {/* IL FALSE SIGNIFICA "NO TASTI, QUI SI GUARDA E BASTA" */}
+          {renderGrid(boughtAds, "Non hai ancora effettuato nessun acquisto.", false)}
         </div>
 
         {/* SEZIONE 3: I MIEI OGGETTI VENDUTI */}
@@ -351,7 +380,8 @@ export default function ProfilePage() {
           <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-stone-600 mb-6 flex items-center gap-2">
             <span className="bg-stone-200 p-2 rounded-lg">✅</span> Oggetti Venduti (Esauriti)
           </h2>
-          {renderGrid(soldAds, "Non hai ancora venduto nessun oggetto.")}
+          {/* IL TRUE SIGNIFICA "SÌ, MOSTRA I TASTI ELIMINA/MODIFICA" */}
+          {renderGrid(soldAds, "Non hai ancora venduto nessun oggetto.", true)}
         </div>
         {/* --------------------------------------- */}
 

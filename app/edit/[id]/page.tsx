@@ -1,101 +1,168 @@
 'use client'
+
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 
-export default function EditAnnouncement() {
+export default function EditAnnouncementPage() {
   const { id } = useParams()
   const router = useRouter()
+  
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [uiMode, setUiMode] = useState('sell_used')
-  const [title, setTitle] = useState('')
-  const [brand, setBrand] = useState('')
-  const [model, setModel] = useState('')
-  const [description, setDescription] = useState('')
-  const [price, setPrice] = useState('')
-  const [quantity, setQuantity] = useState('1')
-  const [category, setCategory] = useState('Edilizia')
+  const [user, setUser] = useState<any>(null)
+  
+  const [formData, setFormData] = useState({
+    title: '',
+    price: 0,
+    quantity: 1,
+    category: 'Altro',
+    condition: 'Usato',
+    notes: '',
+    brand: ''
+  })
 
-  useEffect(() => { loadAd() }, [])
+  useEffect(() => {
+    async function fetchAnnouncement() {
+      // 1. Controlla chi è loggato
+      const { data: { user: currentUser } } = await supabase.auth.getUser()
+      if (!currentUser) {
+        router.push('/login')
+        return
+      }
+      setUser(currentUser)
 
-  async function loadAd() {
-    const { data: { user } } = await supabase.auth.getUser()
-    const { data: ad } = await supabase.from('announcements').select('*').eq('id', id).single()
+      // 2. Scarica i vecchi dati dell'annuncio
+      const { data, error } = await supabase
+        .from('announcements')
+        .select('*')
+        .eq('id', id)
+        .single()
+
+      if (error || !data) {
+        alert("Annuncio non trovato.")
+        router.push('/profile')
+        return
+      }
+
+      // 3. SICUREZZA: Solo il proprietario può modificare
+      if (data.user_id !== currentUser.id) {
+        alert("Non sei autorizzato a modificare questo annuncio.")
+        router.push('/profile')
+        return
+      }
+
+      // 4. Inserisce i vecchi dati nel modulo pronti per essere cambiati
+      setFormData({
+        title: data.title || '',
+        price: data.price || 0,
+        quantity: data.quantity !== undefined ? data.quantity : 1,
+        category: data.category || 'Altro',
+        condition: data.condition || 'Usato',
+        notes: data.notes || '',
+        brand: data.brand || ''
+      })
+      
+      setLoading(false)
+    }
     
-    if (!ad || !user || (ad.user_id !== user.id && user.email !== 'dome0082@gmail.com')) return router.push('/')
+    if (id) fetchAnnouncement()
+  }, [id, router])
 
-    setTitle(ad.title || '');
-    setBrand(ad.brand || '');
-    setModel(ad.model || '');
-    setDescription(ad.description || '');
-    setPrice(ad.price?.toString() || '0');
-    setQuantity(ad.quantity?.toString() || '1');
-    setCategory(ad.category || 'Edilizia');
-
-    // Imposta la UI in base ai dati del DB
-    if (ad.type === 'sell' && ad.condition === 'Nuovo') setUiMode('sell_new')
-    else if (ad.type === 'sell' && ad.condition === 'Usato') setUiMode('sell_used')
-    else if (ad.type === 'offered') setUiMode('offered')
-    else if (ad.type === 'wanted') setUiMode('wanted')
-
-    setLoading(false);
-  }
-
-  const handleUpdate = async (e: React.FormEvent) => {
+  async function handleSave(e: any) {
     e.preventDefault()
     setSaving(true)
-    
-    let dbType = 'sell'
-    let dbCondition = 'Usato'
-    if (uiMode === 'sell_new') { dbType = 'sell'; dbCondition = 'Nuovo'; }
-    if (uiMode === 'sell_used') { dbType = 'sell'; dbCondition = 'Usato'; }
-    if (uiMode === 'offered') { dbType = 'offered'; dbCondition = 'Usato'; }
-    if (uiMode === 'wanted') { dbType = 'wanted'; dbCondition = 'Usato'; }
 
-    await supabase.from('announcements').update({ 
-      title, brand, model, description, category, 
-      type: dbType, condition: dbCondition,
-      price: parseFloat(price) || 0, quantity: parseInt(quantity) || 1
-    }).eq('id', id)
+    // 5. Salva i nuovi dati sovrascrivendo i vecchi
+    const { error } = await supabase
+      .from('announcements')
+      .update({
+        title: formData.title,
+        price: formData.price,
+        quantity: formData.quantity,
+        category: formData.category,
+        condition: formData.condition,
+        notes: formData.notes,
+        brand: formData.brand
+      })
+      .eq('id', id)
+      .eq('user_id', user.id) // Doppia sicurezza
 
-    router.push('/profile')
+    if (error) {
+      alert("Errore durante il salvataggio: " + error.message)
+      setSaving(false)
+    } else {
+      alert("Annuncio aggiornato con successo!")
+      router.push('/profile') // Torna al profilo
+    }
   }
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center font-black uppercase text-xs">Caricamento...</div>
+  if (loading) return <div className="p-10 text-center font-black uppercase text-xs text-stone-500">Caricamento annuncio...</div>
 
   return (
-    <div className="min-h-screen bg-stone-50 p-4 flex items-center justify-center font-sans">
-      <main className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl p-8 md:p-10 border">
-        <h1 className="text-3xl font-black mb-8 uppercase text-emerald-600 italic">Modifica Annuncio</h1>
-        <form onSubmit={handleUpdate} className="space-y-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 p-1 bg-stone-100 rounded-2xl">
-            {[{ id: 'sell_new', label: 'Vendi Nuovo' }, { id: 'sell_used', label: 'Vendi Usato' }, { id: 'offered', label: 'Regala' }, { id: 'wanted', label: 'Cerco' }].map((mode) => (
-              <button key={mode.id} type="button" onClick={() => setUiMode(mode.id)} className={`py-4 rounded-xl text-[9px] font-black uppercase transition-all ${uiMode === mode.id ? 'bg-white text-emerald-600 shadow-md' : 'text-stone-500'}`}>{mode.label}</button>
-            ))}
+    <div className="min-h-screen bg-stone-50 p-6 font-sans text-stone-900 pb-20 flex items-center justify-center">
+      <div className="max-w-2xl w-full bg-white rounded-3xl p-8 border border-stone-200 shadow-sm">
+        
+        <div className="flex justify-between items-center mb-8 border-b border-stone-200 pb-4">
+          <h1 className="text-2xl font-black uppercase italic text-stone-900">Modifica Annuncio</h1>
+          <Link href="/profile" className="text-[10px] font-black uppercase tracking-widest text-stone-400 hover:text-stone-900 transition-colors">
+            ← Annulla
+          </Link>
+        </div>
+
+        <form onSubmit={handleSave} className="space-y-4">
+          <div>
+            <label className="block text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">Titolo dell'oggetto *</label>
+            <input required type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="w-full p-4 border border-stone-200 rounded-xl text-sm font-bold outline-none focus:border-emerald-500" />
           </div>
-          <input type="text" value={title} className="w-full p-4 bg-stone-50 border rounded-xl font-bold text-sm outline-none" onChange={(e)=>setTitle(e.target.value)} required />
+
           <div className="grid grid-cols-2 gap-4">
-             <input type="text" value={brand} placeholder="Marca" className="w-full p-4 bg-stone-50 border rounded-xl font-bold text-sm" onChange={(e)=>setBrand(e.target.value)} />
-             <input type="text" value={model} placeholder="Modello" className="w-full p-4 bg-stone-50 border rounded-xl font-bold text-sm" onChange={(e)=>setModel(e.target.value)} />
+            <div>
+              <label className="block text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">Prezzo (€) *</label>
+              <input required type="number" step="0.01" min="0" value={formData.price} onChange={e => setFormData({...formData, price: parseFloat(e.target.value)})} className="w-full p-4 border border-stone-200 rounded-xl text-sm font-bold outline-none focus:border-emerald-500" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">Quantità Disponibile *</label>
+              <input required type="number" min="0" value={formData.quantity} onChange={e => setFormData({...formData, quantity: parseInt(e.target.value)})} className="w-full p-4 border border-stone-200 rounded-xl text-sm font-bold outline-none focus:border-emerald-500" />
+            </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-             <select value={category} onChange={(e)=>setCategory(e.target.value)} className="w-full p-4 bg-stone-50 border rounded-xl text-xs font-black uppercase outline-none">
-                <option value="Edilizia">Edilizia</option><option value="Elettricità">Elettricità</option><option value="Idraulica">Idraulica</option><option value="Attrezzi">Attrezzi</option><option value="Altro">Altro</option>
-             </select>
-             <div className="grid grid-cols-2 gap-2">
-                <input type="number" step="0.01" value={price} className="w-full p-4 bg-stone-50 border rounded-xl font-bold text-sm" onChange={(e)=>setPrice(e.target.value)} required={uiMode.includes('sell')} />
-                <input type="number" min="1" value={quantity} className="w-full p-4 bg-stone-50 border rounded-xl font-bold text-sm" onChange={(e)=>setQuantity(e.target.value)} required />
-             </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">Categoria</label>
+              <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} className="w-full p-4 border border-stone-200 rounded-xl text-sm font-bold outline-none focus:border-emerald-500 cursor-pointer">
+                <option value="Casa">Casa</option>
+                <option value="Elettronica">Elettronica</option>
+                <option value="Libri">Libri</option>
+                <option value="Sport">Sport</option>
+                <option value="Altro">Altro</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">Condizione</label>
+              <select value={formData.condition} onChange={e => setFormData({...formData, condition: e.target.value})} className="w-full p-4 border border-stone-200 rounded-xl text-sm font-bold outline-none focus:border-emerald-500 cursor-pointer">
+                <option value="Nuovo">Nuovo</option>
+                <option value="Usato">Usato</option>
+              </select>
+            </div>
           </div>
-          <textarea value={description} className="w-full p-4 bg-stone-50 border rounded-xl h-32 text-sm" onChange={(e)=>setDescription(e.target.value)} />
-          <button type="submit" disabled={saving} className="w-full bg-emerald-600 text-white py-5 rounded-2xl text-[11px] font-black uppercase shadow-xl">
-            {saving ? 'SALVATAGGIO...' : 'AGGIORNA ANNUNCIO'}
+
+          <div>
+            <label className="block text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">Marca (Opzionale)</label>
+            <input type="text" value={formData.brand} onChange={e => setFormData({...formData, brand: e.target.value})} className="w-full p-4 border border-stone-200 rounded-xl text-sm font-bold outline-none focus:border-emerald-500" />
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">Descrizione / Note</label>
+            <textarea rows={5} value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} className="w-full p-4 border border-stone-200 rounded-xl text-sm font-bold outline-none focus:border-emerald-500 resize-none"></textarea>
+          </div>
+
+          <button disabled={saving} type="submit" className="w-full bg-emerald-500 text-white font-black uppercase text-[10px] tracking-widest p-4 rounded-xl hover:bg-emerald-600 transition-colors mt-8 shadow-sm">
+            {saving ? 'Salvataggio...' : 'Salva Modifiche'}
           </button>
         </form>
-        <Link href="/profile" className="block text-center mt-6 text-[10px] font-bold text-stone-400 uppercase tracking-widest hover:text-stone-600">← Annulla</Link>
-      </main>
+      </div>
     </div>
   )
 }
