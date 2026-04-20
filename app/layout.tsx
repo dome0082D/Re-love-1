@@ -3,7 +3,7 @@ import './globals.css'
 import Navbar from '@/components/Navbar'
 
 export const metadata: Metadata = {
-  title: 'Materiali - Vendi, Compra, Regala',
+  title: 'LIBERO SCAMBIO - Il tuo Marketplace professionale',
   description: 'Il marketplace dedicato ai materiali. Trova il nuovo, l\'usato o oggetti in regalo vicino a te.',
 }
 
@@ -15,13 +15,10 @@ export default function RootLayout({
   return (
     <html lang="it">
       <body className="bg-stone-50 text-stone-900 font-sans antialiased min-h-screen flex flex-col">
-        
         <Navbar />
-        
         <main className="flex-grow">
           {children}
         </main>
-
       </body>
     </html>
   )
