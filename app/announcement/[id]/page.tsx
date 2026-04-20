@@ -48,6 +48,7 @@ export default function AnnouncementPage() {
   }
 
   const handleSecureBuy = async () => {
+    // ECCO IL LUCCHETTO! Blocca chi non è registrato.
     if (!user) { 
       alert("Devi accedere per acquistare."); 
       return; 
@@ -76,7 +77,6 @@ export default function AnnouncementPage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        // ETICHETTE AGGIORNATE PER IL CAMERIERE (BACKEND)
         title: `${ann.title} (x${selectedQuantity})`,
         price: ann.price * selectedQuantity,
         sellerStripeId: sellerProfile.stripe_account_id,
@@ -96,7 +96,6 @@ export default function AnnouncementPage() {
   if (loading) return <div className="p-10 text-center font-black uppercase text-xs">Caricamento in corso...</div>
   if (!ann) return <div className="p-10 text-center font-black uppercase text-xs text-red-500">Annuncio non trovato.</div>
 
-  // CORREZIONE BUG QUANTITÀ: se quantity è 0, ora rimane 0 e non diventa 1
   const maxQty = ann.quantity !== undefined ? ann.quantity : 1;
 
   return (
@@ -127,7 +126,6 @@ export default function AnnouncementPage() {
               
               <h1 className="text-3xl font-black uppercase italic text-stone-900 mb-2">{ann.title}</h1>
               
-              {/* LINK AL PROFILO PUBBLICO DEL VENDITORE */}
               <Link href={`/user/${ann.user_id}`} className="group flex items-center gap-2 mb-4">
                 <span className="text-[10px] font-black uppercase text-stone-400 group-hover:text-emerald-500 transition-colors">Venduto da:</span>
                 <span className="text-xs font-bold text-stone-800 border-b border-stone-200 group-hover:border-emerald-500 transition-all">Vedi Profilo Pubblico</span>
@@ -188,7 +186,6 @@ export default function AnnouncementPage() {
                     : 'bg-emerald-500 text-white hover:bg-emerald-600'
                   }`}
                 >
-                  {/* SE LA QUANTITÀ È 0, SCRIVE "ESAURITO" */}
                   {actionLoading ? 'Elaborazione...' : user?.id === ann.user_id ? 'Tuo Oggetto (Acquisto Disabilitato)' : maxQty <= 0 ? 'ESAURITO' : 'Acquista in Sicurezza'}
                 </button>
               )}
