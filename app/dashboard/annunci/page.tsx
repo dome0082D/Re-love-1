@@ -8,35 +8,59 @@ import { useRouter } from 'next/navigation'
 export default function DashboardAnnunci() {
   const [announcements, setAnnouncements] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [payLoading, setPayLoading] = useState<string | null>(null)
   const router = useRouter()
 
   useEffect(() => {
-    async function fetchMyAds() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        router.push('/login')
-        return
-      }
-
-      const { data, error } = await supabase
-        .from('announcements')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-
-      if (!error && data) {
-        setAnnouncements(data)
-      }
-      setLoading(false)
-    }
     fetchMyAds()
   }, [router])
+
+  async function fetchMyAds() {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      router.push('/login')
+      return
+    }
+
+    const { data, error } = await supabase
+      .from('announcements')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+
+    if (!error && data) {
+      setAnnouncements(data)
+    }
+    setLoading(false)
+  }
 
   const handleDelete = async (id: string) => {
     if (confirm('Sei sicuro di voler eliminare questo annuncio?')) {
       await supabase.from('announcements').delete().eq('id', id)
       setAnnouncements(announcements.filter(a => a.id !== id))
     }
+  }
+
+  // Funzione per simulare il pagamento e attivare la sponsorizzazione
+  // In seguito la collegheremo a Stripe
+  const handleSponsor = async (adId: string) => {
+    setPayLoading(adId)
+    
+    // Simuliamo un ritardo di pagamento
+    setTimeout(async () => {
+      const { error } = await supabase
+        .from('announcements')
+        .update({ is_sponsored: true })
+        .eq('id', adId)
+
+      if (!error) {
+        alert("Pagamento riuscito! L'annuncio è ora in Vetrina Top 🚀")
+        fetchMyAds()
+      } else {
+        alert("Errore durante l'attivazione.")
+      }
+      setPayLoading(null)
+    }, 1500)
   }
 
   return (
@@ -59,23 +83,44 @@ export default function DashboardAnnunci() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {announcements.map((ad) => (
-              <div key={ad.id} className="bg-white rounded-2xl overflow-hidden border border-stone-100 shadow-sm flex flex-col">
+              <div key={ad.id} className={`bg-white rounded-2xl overflow-hidden border ${ad.is_sponsored ? 'border-emerald-400 shadow-md' : 'border-stone-100 shadow-sm'} flex flex-col relative`}>
+                
+                {ad.is_sponsored && (
+                  <div className="absolute top-0 right-0 bg-emerald-500 text-white text-[8px] font-bold uppercase px-3 py-1 rounded-bl-xl z-10 tracking-widest shadow-sm">
+                    Sponsorizzato ✨
+                  </div>
+                )}
+
                 <div className="h-40 bg-stone-50 relative">
                   <img src={ad.image_url || '/usato.png'} className="w-full h-full object-cover" />
                   <span className="absolute top-2 left-2 bg-white/90 text-[10px] font-bold uppercase px-2 py-1 rounded-md shadow-sm">{ad.condition}</span>
                 </div>
+
                 <div className="p-4 flex-1 flex flex-col justify-between">
                   <div>
                     <h3 className="text-sm font-bold uppercase truncate text-stone-900 mb-1">{ad.title}</h3>
                     <p className="text-lg font-bold text-emerald-600 mb-4">€ {ad.price}</p>
                   </div>
-                  <div className="flex gap-2">
-                    <Link href={`/announcement/${ad.id}`} className="flex-1 text-center bg-stone-100 text-stone-700 text-[10px] font-bold uppercase py-2 rounded-lg hover:bg-stone-200 transition-all">
-                      Vedi
-                    </Link>
-                    <button onClick={() => handleDelete(ad.id)} className="flex-1 bg-red-50 text-red-500 text-[10px] font-bold uppercase py-2 rounded-lg hover:bg-red-100 transition-all">
-                      Elimina
-                    </button>
+                  
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <Link href={`/announcement/${ad.id}`} className="flex-1 text-center bg-stone-100 text-stone-700 text-[10px] font-bold uppercase py-2 rounded-lg hover:bg-stone-200 transition-all">
+                        Vedi
+                      </Link>
+                      <button onClick={() => handleDelete(ad.id)} className="flex-1 bg-red-50 text-red-500 text-[10px] font-bold uppercase py-2 rounded-lg hover:bg-red-100 transition-all">
+                        Elimina
+                      </button>
+                    </div>
+
+                    {!ad.is_sponsored && (
+                      <button 
+                        onClick={() => handleSponsor(ad.id)}
+                        disabled={payLoading === ad.id}
+                        className="w-full bg-stone-900 text-emerald-400 text-[9px] font-bold uppercase py-3 rounded-lg hover:bg-emerald-500 hover:text-white transition-all shadow-sm border border-emerald-400/30"
+                      >
+                        {payLoading === ad.id ? 'Elaborazione...' : '🚀 Sponsorizza (2€)'}
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
