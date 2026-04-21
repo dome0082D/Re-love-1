@@ -87,8 +87,10 @@ function HomePageContent() {
         <button onClick={() => setIsStaffOpen(true)} className="fixed bottom-8 right-8 z-[99] bg-stone-900 text-emerald-400 w-16 h-16 rounded-full shadow-lg font-bold flex items-center justify-center border-2 border-emerald-400 hover:scale-105 active:scale-95 transition-all text-2xl">👑</button>
       )}
 
+      {/* HERO SECTION */}
       <div className="relative h-[400px] flex flex-col items-center justify-center p-6 text-center overflow-hidden border-b border-stone-200 bg-white">
-          <img src="/gazebo.jpg" className="absolute inset-0 w-full h-full object-cover opacity-15 scale-105 pointer-events-none" alt="Background" />
+          {/* MODIFICATA OPACITÀ QUI: da opacity-15 a opacity-50 per più colore */}
+          <img src="/gazebo.jpg" className="absolute inset-0 w-full h-full object-cover opacity-50 scale-105 pointer-events-none" alt="Background" />
           <div className="relative z-10 w-full max-w-4xl px-4 flex flex-col items-center">
             
             <h1 
@@ -110,6 +112,7 @@ function HomePageContent() {
 
       <main className="max-w-7xl mx-auto px-4 md:px-8 -mt-12 relative z-20">
         
+        {/* SEZIONE FILTRI */}
         <section className="mb-12 grid grid-cols-1 md:grid-cols-3 gap-6 bg-white p-6 rounded-3xl shadow-md border border-stone-100 items-center">
           <div className="flex flex-col gap-2">
             <label className="text-[9px] font-bold uppercase text-stone-400 ml-2 tracking-widest">Settore</label>
@@ -136,18 +139,22 @@ function HomePageContent() {
           </div>
         </section>
 
+        {/* I 3 RIQUADRI MACRO-AZIONI */}
         {!catFilter && !typeFilter && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
             <Link href="/add?mode=new" className="group relative h-64 rounded-3xl border border-stone-200 overflow-hidden bg-white hover:border-emerald-400 transition-all shadow-sm flex items-center justify-center text-center">
-               <img src="/nuovo.png" className="absolute inset-0 w-full h-full object-cover opacity-10 group-hover:scale-105 transition-transform duration-[1s]" alt="Nuovo" />
+               {/* MODIFICATA OPACITÀ QUI: da opacity-10 a opacity-40 per più colore */}
+               <img src="/nuovo.png" className="absolute inset-0 w-full h-full object-cover opacity-40 group-hover:scale-105 transition-transform duration-[1s]" alt="Nuovo" />
                <div className="relative z-10 p-6"><h3 className="text-3xl font-bold uppercase italic text-stone-900 leading-tight">Vendi<br/>Nuovo</h3><p className="text-[10px] font-medium uppercase mt-4 text-stone-500 tracking-widest">Ideale per fondi di magazzino</p></div>
             </Link>
             <Link href="/add?mode=used" className="group relative h-64 rounded-3xl border border-stone-200 overflow-hidden bg-white hover:border-blue-400 transition-all shadow-sm flex items-center justify-center text-center">
-               <img src="/usato.png" className="absolute inset-0 w-full h-full object-cover opacity-10 group-hover:scale-105 transition-transform duration-[1s]" alt="Usato" />
+               {/* MODIFICATA OPACITÀ QUI: da opacity-10 a opacity-40 per più colore */}
+               <img src="/usato.png" className="absolute inset-0 w-full h-full object-cover opacity-40 group-hover:scale-105 transition-transform duration-[1s]" alt="Usato" />
                <div className="relative z-10 p-6"><h3 className="text-3xl font-bold uppercase italic text-stone-900 leading-tight">Vendi<br/>Usato</h3><p className="text-[10px] font-medium uppercase mt-4 text-stone-500 tracking-widest">Dai una seconda vita</p></div>
             </Link>
             <Link href="/add?mode=gift" className="group relative h-64 rounded-3xl border-2 border-emerald-500 overflow-hidden bg-white hover:bg-emerald-50 transition-all shadow-md flex items-center justify-center text-center">
-               <img src="/regala.jpeg" className="absolute inset-0 w-full h-full object-cover opacity-15 group-hover:scale-105 transition-transform duration-[1s]" alt="Regalo" />
+               {/* MODIFICATA OPACITÀ QUI: da opacity-15 a opacity-45 per più colore */}
+               <img src="/regala.jpeg" className="absolute inset-0 w-full h-full object-cover opacity-45 group-hover:scale-105 transition-transform duration-[1s]" alt="Regalo" />
                <div className="relative z-10 p-8"><h3 className="text-3xl font-bold uppercase italic text-emerald-800 leading-none mb-3">Regalo<br/>Solidale</h3><span className="text-5xl block mt-2">🎁</span></div>
             </Link>
           </div>
