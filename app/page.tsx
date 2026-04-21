@@ -77,8 +77,15 @@ function HomePageContent() {
     return titleMatch && categoryMatch && conditionMatch && typeMatch && availableMatch
   })
 
-  const topItems = filteredData.filter(i => i.condition === 'Nuovo').slice(0, 5)
-  const regularItems = filteredData.filter(i => !topItems.find(t => t.id === i.id))
+  // LOGICA AGGIUNTA: Gli sponsorizzati sorpassano tutti gli altri!
+  const sortedData = [...filteredData].sort((a, b) => {
+    if (a.is_sponsored && !b.is_sponsored) return -1;
+    if (!a.is_sponsored && b.is_sponsored) return 1;
+    return 0; 
+  })
+
+  const topItems = sortedData.filter(i => i.condition === 'Nuovo').slice(0, 5)
+  const regularItems = sortedData.filter(i => !topItems.find(t => t.id === i.id))
 
   return (
     <div className="min-h-screen bg-stone-50 font-sans text-stone-900 pb-20">
@@ -89,7 +96,6 @@ function HomePageContent() {
 
       {/* HERO SECTION */}
       <div className="relative h-[400px] flex flex-col items-center justify-center p-6 text-center overflow-hidden border-b border-stone-200 bg-white">
-          {/* MODIFICATA OPACITÀ QUI: da opacity-15 a opacity-50 per più colore */}
           <img src="/gazebo.jpg" className="absolute inset-0 w-full h-full object-cover opacity-50 scale-105 pointer-events-none" alt="Background" />
           <div className="relative z-10 w-full max-w-4xl px-4 flex flex-col items-center">
             
@@ -143,17 +149,14 @@ function HomePageContent() {
         {!catFilter && !typeFilter && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
             <Link href="/add?mode=new" className="group relative h-64 rounded-3xl border border-stone-200 overflow-hidden bg-white hover:border-emerald-400 transition-all shadow-sm flex items-center justify-center text-center">
-               {/* MODIFICATA OPACITÀ QUI: da opacity-10 a opacity-40 per più colore */}
                <img src="/nuovo.png" className="absolute inset-0 w-full h-full object-cover opacity-40 group-hover:scale-105 transition-transform duration-[1s]" alt="Nuovo" />
                <div className="relative z-10 p-6"><h3 className="text-3xl font-bold uppercase italic text-stone-900 leading-tight">Vendi<br/>Nuovo</h3><p className="text-[10px] font-medium uppercase mt-4 text-stone-500 tracking-widest">Ideale per fondi di magazzino</p></div>
             </Link>
             <Link href="/add?mode=used" className="group relative h-64 rounded-3xl border border-stone-200 overflow-hidden bg-white hover:border-blue-400 transition-all shadow-sm flex items-center justify-center text-center">
-               {/* MODIFICATA OPACITÀ QUI: da opacity-10 a opacity-40 per più colore */}
                <img src="/usato.png" className="absolute inset-0 w-full h-full object-cover opacity-40 group-hover:scale-105 transition-transform duration-[1s]" alt="Usato" />
                <div className="relative z-10 p-6"><h3 className="text-3xl font-bold uppercase italic text-stone-900 leading-tight">Vendi<br/>Usato</h3><p className="text-[10px] font-medium uppercase mt-4 text-stone-500 tracking-widest">Dai una seconda vita</p></div>
             </Link>
             <Link href="/add?mode=gift" className="group relative h-64 rounded-3xl border-2 border-emerald-500 overflow-hidden bg-white hover:bg-emerald-50 transition-all shadow-md flex items-center justify-center text-center">
-               {/* MODIFICATA OPACITÀ QUI: da opacity-15 a opacity-45 per più colore */}
                <img src="/regala.jpeg" className="absolute inset-0 w-full h-full object-cover opacity-45 group-hover:scale-105 transition-transform duration-[1s]" alt="Regalo" />
                <div className="relative z-10 p-8"><h3 className="text-3xl font-bold uppercase italic text-emerald-800 leading-none mb-3">Regalo<br/>Solidale</h3><span className="text-5xl block mt-2">🎁</span></div>
             </Link>
@@ -181,7 +184,15 @@ function HomePageContent() {
           </div>
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-6">
             {topItems.map(item => (
-              <div key={item.id} className="group bg-white p-4 rounded-3xl shadow-sm border border-stone-100 hover:shadow-md transition-all relative">
+              <div key={item.id} className={`group bg-white p-4 rounded-3xl shadow-sm border ${item.is_sponsored ? 'border-emerald-400 shadow-emerald-100 shadow-md ring-1 ring-emerald-400/30' : 'border-stone-100'} hover:shadow-md transition-all relative overflow-hidden`}>
+                
+                {/* ETICHETTA SPONSORIZZATO AGGIUNTA QUI */}
+                {item.is_sponsored && (
+                  <div className="absolute top-0 left-0 bg-emerald-500 text-white text-[8px] font-bold uppercase px-3 py-1.5 rounded-br-2xl z-40 tracking-widest shadow-sm">
+                    In Evidenza ✨
+                  </div>
+                )}
+
                 <button onClick={(e) => handleToggleFavorite(e, item.id)} className="absolute top-6 right-6 z-30 bg-white/90 w-8 h-8 flex items-center justify-center rounded-full shadow-sm text-lg hover:scale-110 transition-all">{favorites.includes(item.id) ? '❤️' : '🤍'}</button>
                 <Link href={`/announcement/${item.id}`}>
                   <div className="aspect-square rounded-2xl overflow-hidden bg-stone-50 mb-4 relative border-2 border-white shadow-inner">
@@ -206,7 +217,15 @@ function HomePageContent() {
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-5">
             {regularItems.map(item => (
-              <div key={item.id} className="group bg-white rounded-2xl overflow-hidden border border-stone-100 shadow-sm hover:border-emerald-300 hover:shadow-md transition-all flex flex-col h-full relative">
+              <div key={item.id} className={`group bg-white rounded-2xl overflow-hidden border ${item.is_sponsored ? 'border-emerald-400 shadow-emerald-100 shadow-md ring-1 ring-emerald-400/30' : 'border-stone-100'} hover:border-emerald-300 hover:shadow-md transition-all flex flex-col h-full relative`}>
+                
+                {/* ETICHETTA SPONSORIZZATO AGGIUNTA QUI */}
+                {item.is_sponsored && (
+                  <div className="absolute top-0 left-0 bg-emerald-500 text-white text-[8px] font-bold uppercase px-3 py-1.5 rounded-br-xl z-40 tracking-widest shadow-sm">
+                    In Evidenza 🚀
+                  </div>
+                )}
+
                 <button onClick={(e) => handleToggleFavorite(e, item.id)} className="absolute top-3 right-3 z-30 bg-white/80 w-8 h-8 flex items-center justify-center rounded-full text-xs shadow-sm hover:scale-110 transition-all">{favorites.includes(item.id) ? '❤️' : '🤍'}</button>
                 <Link href={`/announcement/${item.id}`} className="flex flex-col h-full">
                   <div className="h-36 bg-stone-50 relative overflow-hidden"><img src={item.image_url || "/usato.png"} className="w-full h-full object-cover group-hover:scale-105 transition-transform" /></div>
