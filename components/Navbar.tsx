@@ -8,6 +8,8 @@ import { useCartStore } from '@/store/cartStore'
 export default function Navbar() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isQuickMenuOpen, setIsQuickMenuOpen] = useState(false)
+  // NUOVO STATO AGGIUNTO PER LA TENDINA DELLE NOTIFICHE
+  const [isNotifOpen, setIsNotifOpen] = useState(false) 
   const [user, setUser] = useState<any>(null)
   const [categories, setCategories] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
@@ -106,17 +108,45 @@ export default function Navbar() {
             ➕ Pubblica Annuncio
           </Link>
 
-          <button className="relative p-2 text-xl text-stone-500 hover:bg-stone-50 rounded-full transition-all">
-            🔔
-            {notifications > 0 && (
-              <span className="absolute top-1 right-1 bg-red-500 text-white text-[9px] w-4 h-4 flex items-center justify-center rounded-full font-bold border border-white">
-                {notifications}
-              </span>
+          {/* INIZIO MODIFICA: BLOCCO NOTIFICHE CON TENDINA */}
+          <div className="relative">
+            <button 
+              onClick={() => {
+                setIsNotifOpen(!isNotifOpen);
+                setIsQuickMenuOpen(false); // Chiude l'altro menu se è aperto
+              }} 
+              className="relative p-2 text-xl text-stone-500 hover:bg-stone-50 rounded-full transition-all"
+            >
+              🔔
+              {notifications > 0 && (
+                <span className="absolute top-1 right-1 bg-red-500 text-white text-[9px] w-4 h-4 flex items-center justify-center rounded-full font-bold border border-white">
+                  {notifications}
+                </span>
+              )}
+            </button>
+            
+            {/* La Tendina */}
+            {isNotifOpen && (
+              <div className="absolute right-0 mt-2 w-64 bg-white border border-stone-200 rounded-2xl shadow-xl p-4 z-[6000]">
+                <div className="flex justify-between items-center border-b border-stone-100 pb-2 mb-2">
+                  <h4 className="text-[10px] font-bold uppercase tracking-widest text-stone-400">Notifiche</h4>
+                  <button onClick={() => setIsNotifOpen(false)} className="text-stone-400 hover:text-stone-800 text-xs font-bold">✕</button>
+                </div>
+                <div className="py-6 text-center">
+                  <span className="text-4xl block mb-3">📭</span>
+                  <p className="text-[10px] text-stone-500 font-bold uppercase tracking-widest">Tutto tace</p>
+                  <p className="text-[9px] text-stone-400 font-medium mt-1">Nessuna nuova notifica.</p>
+                </div>
+              </div>
             )}
-          </button>
+          </div>
+          {/* FINE MODIFICA */}
 
           <div className="relative">
-            <button onClick={() => setIsQuickMenuOpen(!isQuickMenuOpen)} className="p-2 text-xl text-stone-500 hover:bg-stone-50 rounded-full transition-all">
+            <button onClick={() => {
+              setIsQuickMenuOpen(!isQuickMenuOpen);
+              setIsNotifOpen(false); // Chiude le notifiche se si apre questo menu
+            }} className="p-2 text-xl text-stone-500 hover:bg-stone-50 rounded-full transition-all">
               ⋮
             </button>
             {isQuickMenuOpen && (
@@ -141,7 +171,7 @@ export default function Navbar() {
 
       {(isSidebarOpen || isCartOpen) && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[9998] transition-opacity" 
-             onClick={() => { setIsSidebarOpen(false); closeCart(); setIsQuickMenuOpen(false); }} />
+             onClick={() => { setIsSidebarOpen(false); closeCart(); setIsQuickMenuOpen(false); setIsNotifOpen(false); }} />
       )}
 
       <div className={`fixed top-0 left-0 h-full w-full max-w-[320px] bg-white z-[9999] shadow-2xl transition-transform duration-300 ease-in-out transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
@@ -234,20 +264,17 @@ export default function Navbar() {
             ))
           )}
         </div>
-
-        <div className="p-6 border-t border-stone-100 bg-white">
-          <div className="flex justify-between items-center mb-4 px-2">
-            <span className="font-bold text-xs uppercase tracking-[0.2em] text-stone-400">Totale</span>
-            <span className="text-2xl font-bold text-stone-900 tracking-tight">€ {total.toFixed(2)}</span>
+        {items.length > 0 && (
+          <div className="p-6 border-t border-stone-100 bg-stone-50">
+            <div className="flex justify-between items-center mb-4">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-stone-400">Totale</span>
+              <span className="text-2xl font-bold text-stone-900">€ {total.toFixed(2)}</span>
+            </div>
+            <button onClick={handleCheckout} disabled={loading} className="w-full bg-stone-900 text-white font-bold uppercase tracking-widest py-4 rounded-xl hover:bg-emerald-500 transition-all shadow-md disabled:opacity-50">
+              {loading ? 'Elaborazione...' : 'Procedi all\'Acquisto'}
+            </button>
           </div>
-          <button 
-            onClick={handleCheckout}
-            disabled={items.length === 0 || loading} 
-            className="w-full bg-stone-900 text-white py-4 rounded-xl font-bold uppercase text-[11px] tracking-[0.2em] shadow-lg hover:bg-emerald-600 transition-all disabled:opacity-40"
-          >
-            {loading ? 'Elaborazione Stripe...' : 'Paga Sicuro'}
-          </button>
-        </div>
+        )}
       </div>
     </>
   )

@@ -12,19 +12,11 @@ function AddPageContent() {
   
   const [loading, setLoading] = useState(false)
   const [categories, setCategories] = useState<any[]>([])
-  const [imageUrls, setImageUrls] = useState<string[]>(['']) 
+  const [files, setFiles] = useState<File[]>([]) 
 
   useEffect(() => {
     supabase.from('categories').select('*').then(({ data }) => setCategories(data || []))
   }, [])
-
-  const addImageField = () => setImageUrls([...imageUrls, ''])
-  
-  const updateImageField = (index: number, val: string) => {
-    const newUrls = [...imageUrls]
-    newUrls[index] = val
-    setImageUrls(newUrls)
-  }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -33,14 +25,29 @@ function AddPageContent() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { alert('Devi accedere per pubblicare!'); setLoading(false); return; }
 
-    // RIGA CORRETTA QUI
     const form = e.target as HTMLFormElement
     const formData = new FormData(form)
     
     const condition = mode === 'new' ? 'Nuovo' : mode === 'used' ? 'Usato' : 'Regalo'
     const price = mode === 'gift' ? 0 : parseFloat(formData.get('price') as string)
     const quantity = parseInt(formData.get('quantity') as string) || 1
-    const validImages = imageUrls.filter(url => url.trim() !== '')
+
+    let uploadedUrls: string[] = []
+
+    if (files.length > 0) {
+      for (const file of files) {
+        const fileExt = file.name.split('.').pop()
+        const fileName = `${Math.random()}.${fileExt}`
+        const filePath = `${user.id}/${fileName}`
+        
+        const { error: uploadError } = await supabase.storage.from('images').upload(filePath, file)
+        
+        if (!uploadError) {
+          const { data } = supabase.storage.from('images').getPublicUrl(filePath)
+          uploadedUrls.push(data.publicUrl)
+        }
+      }
+    }
 
     const { error } = await supabase.from('announcements').insert([{
       user_id: user.id,
@@ -50,8 +57,8 @@ function AddPageContent() {
       quantity: quantity,
       category_id: parseInt(formData.get('category_id') as string),
       condition: condition,
-      image_urls: validImages,
-      image_url: validImages.length > 0 ? validImages[0] : '/usato.png'
+      image_urls: uploadedUrls,
+      image_url: uploadedUrls.length > 0 ? uploadedUrls[0] : '/usato.png'
     }])
 
     if (!error) {
@@ -133,24 +140,39 @@ function AddPageContent() {
             <textarea name="description" required rows={4} className="w-full p-3 mt-1 bg-stone-50 rounded-xl border border-stone-100 outline-none focus:border-emerald-400 text-sm font-medium text-stone-800" placeholder="Descrivi il prodotto..."></textarea>
           </div>
 
-          <div className="bg-stone-50 p-4 rounded-xl border border-stone-100">
-             <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-2 block">Allegati (URL Immagini)</label>
-             {imageUrls.map((url, index) => (
+          {/* IL NUOVO TASTINO ALLEGATO */}
+          <div className="bg-stone-50 p-5 rounded-xl border border-stone-200">
+             <span className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-3 block">Immagini del prodotto</span>
+             
+             <label className="flex items-center justify-center gap-2 bg-white text-stone-700 px-6 py-4 rounded-xl text-[11px] font-bold uppercase tracking-widest hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-400 cursor-pointer transition-all border-2 border-stone-200 border-dashed w-full shadow-sm">
+                <span className="text-lg">📎</span> + AGGIUNGI ALLEGATO
                 <input 
-                  key={index} 
-                  value={url} 
-                  onChange={(e) => updateImageField(index, e.target.value)} 
-                  className="w-full p-2 mb-2 bg-white rounded-lg border border-stone-200 outline-none text-xs text-stone-700" 
-                  placeholder={`Link immagine ${index + 1}`} 
+                  type="file" 
+                  multiple 
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files) setFiles(Array.from(e.target.files))
+                  }}
                 />
-             ))}
-             <button type="button" onClick={addImageField} className="text-[10px] font-bold text-emerald-600 uppercase mt-1 hover:underline">
-               + Aggiungi altro allegato
-             </button>
+             </label>
+
+             {files.length > 0 && (
+               <div className="mt-4 bg-emerald-50 p-3 rounded-lg border border-emerald-100">
+                 <p className="text-[10px] font-bold text-emerald-700 mb-2">✓ {files.length} file allegati pronti:</p>
+                 <div className="flex flex-col gap-1">
+                   {files.map((f, i) => (
+                     <span key={i} className="text-[9px] font-medium text-emerald-600 truncate bg-white px-2 py-1 rounded border border-emerald-100">
+                       {f.name}
+                     </span>
+                   ))}
+                 </div>
+               </div>
+             )}
           </div>
 
-          <button disabled={loading} type="submit" className="w-full bg-stone-900 text-white font-bold uppercase text-[11px] tracking-widest p-4 rounded-xl hover:bg-emerald-500 transition-all shadow-md disabled:opacity-50">
-            {loading ? 'Pubblicazione...' : 'Conferma e Pubblica'}
+          <button disabled={loading} type="submit" className="w-full bg-stone-900 text-white font-bold uppercase text-[11px] tracking-widest p-4 rounded-xl hover:bg-emerald-500 transition-all shadow-md disabled:opacity-50 mt-4">
+            {loading ? 'Caricamento file e pubblicazione...' : 'Conferma e Pubblica'}
           </button>
         </form>
       </div>
