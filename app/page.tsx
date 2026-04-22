@@ -154,20 +154,37 @@ function HomePageContent() {
           </div>
         </section>
 
-        {/* I 3 RIQUADRI MACRO-AZIONI */}
+        {/* I 3 RIQUADRI MACRO-AZIONI AGGIORNATI COME RICHIESTO */}
         {!catFilter && !typeFilter && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
-            <Link href="/add?mode=new" className="group relative h-64 rounded-3xl border border-stone-200 overflow-hidden bg-white hover:border-rose-400 transition-all shadow-sm flex items-center justify-center text-center">
-               <img src="/nuovo.png" className="absolute inset-0 w-full h-full object-cover opacity-30 group-hover:opacity-60 group-hover:scale-105 transition-all duration-[0.5s]" alt="Nuovo" />
-               <div className="relative z-10 p-6 bg-white/70 backdrop-blur-sm rounded-2xl"><h3 className="text-3xl font-bold uppercase italic text-stone-900 leading-tight">Vendi<br/>Nuovo</h3><p className="text-[10px] font-medium uppercase mt-2 text-rose-600 tracking-widest">Mai usato o sigillato</p></div>
+            <Link href="/add?mode=new" className="group flex flex-col rounded-3xl border border-stone-200 overflow-hidden bg-white hover:border-rose-400 transition-all shadow-sm text-center hover:-translate-y-1">
+               <div className="relative h-56 w-full overflow-hidden bg-stone-50">
+                 <img src="/nuovo.png" className="w-full h-full object-contain p-4 group-hover:scale-105 transition-all duration-[0.5s]" alt="Nuovo" />
+               </div>
+               <div className="p-6 bg-white flex-1 flex flex-col justify-center border-t border-stone-100">
+                 <h3 className="text-2xl font-bold uppercase italic text-stone-900 leading-tight">Vendi Nuovo</h3>
+                 <p className="text-[10px] font-medium uppercase mt-2 text-rose-600 tracking-widest">Mai usato o sigillato</p>
+               </div>
             </Link>
-            <Link href="/add?mode=used" className="group relative h-64 rounded-3xl border border-stone-200 overflow-hidden bg-white hover:border-orange-400 transition-all shadow-sm flex items-center justify-center text-center">
-               <img src="/usato.png" className="absolute inset-0 w-full h-full object-cover opacity-30 group-hover:opacity-60 group-hover:scale-105 transition-all duration-[0.5s]" alt="Usato" />
-               <div className="relative z-10 p-6 bg-white/70 backdrop-blur-sm rounded-2xl"><h3 className="text-3xl font-bold uppercase italic text-stone-900 leading-tight">Vendi<br/>Usato</h3><p className="text-[10px] font-medium uppercase mt-2 text-orange-600 tracking-widest">Dai una seconda vita</p></div>
+            
+            <Link href="/add?mode=used" className="group flex flex-col rounded-3xl border border-stone-200 overflow-hidden bg-white hover:border-orange-400 transition-all shadow-sm text-center hover:-translate-y-1">
+               <div className="relative h-56 w-full overflow-hidden bg-stone-50">
+                 <img src="/usato.png" className="w-full h-full object-contain p-4 group-hover:scale-105 transition-all duration-[0.5s]" alt="Usato" />
+               </div>
+               <div className="p-6 bg-white flex-1 flex flex-col justify-center border-t border-stone-100">
+                 <h3 className="text-2xl font-bold uppercase italic text-stone-900 leading-tight">Vendi Usato</h3>
+                 <p className="text-[10px] font-medium uppercase mt-2 text-orange-600 tracking-widest">Dai una seconda vita</p>
+               </div>
             </Link>
-            <Link href="/add?mode=gift" className="group relative h-64 rounded-3xl border border-stone-200 overflow-hidden bg-white hover:border-red-400 transition-all shadow-sm flex items-center justify-center text-center">
-               <img src="/regalo.png" className="absolute inset-0 w-full h-full object-cover opacity-30 group-hover:opacity-60 group-hover:scale-105 transition-all duration-[0.5s]" alt="Regalo" />
-               <div className="relative z-10 p-6 bg-white/70 backdrop-blur-sm rounded-2xl"><h3 className="text-3xl font-bold uppercase italic text-stone-900 leading-tight">Regalo<br/>Solidale</h3><p className="text-[10px] font-medium uppercase mt-2 text-red-500 tracking-widest">Dona a chi ha bisogno</p></div>
+            
+            <Link href="/add?mode=gift" className="group flex flex-col rounded-3xl border border-stone-200 overflow-hidden bg-white hover:border-red-400 transition-all shadow-sm text-center hover:-translate-y-1">
+               <div className="relative h-56 w-full overflow-hidden bg-stone-50">
+                 <img src="/regalo.png" className="w-full h-full object-contain p-4 group-hover:scale-105 transition-all duration-[0.5s]" alt="Regalo" />
+               </div>
+               <div className="p-6 bg-white flex-1 flex flex-col justify-center border-t border-stone-100">
+                 <h3 className="text-2xl font-bold uppercase italic text-stone-900 leading-tight">Regalo Solidale</h3>
+                 <p className="text-[10px] font-medium uppercase mt-2 text-red-500 tracking-widest">Dona a chi ha bisogno</p>
+               </div>
             </Link>
           </div>
         )}
@@ -225,7 +242,6 @@ function HomePageContent() {
           </div>
           
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-5">
-            {/* PAGINAZIONE APPLICATA QUI (slice(0, visibleCount)) */}
             {regularItems.slice(0, visibleCount).map(item => (
               <div key={item.id} className={`group bg-white rounded-2xl overflow-hidden shadow-sm border ${item.is_sponsored ? 'border-orange-400 ring-1 ring-orange-400/30' : 'border-stone-100'} hover:shadow-md hover:border-rose-300 transition-all flex flex-col relative`}>
                 
@@ -253,7 +269,6 @@ function HomePageContent() {
             ))}
           </div>
 
-          {/* BOTTONE CARICA ALTRI (Si vede solo se ci sono ancora annunci da mostrare) */}
           {regularItems.length > visibleCount && (
             <div className="mt-12 flex justify-center w-full">
               <button 
