@@ -92,7 +92,7 @@ export default function DashboardAnnunci() {
       <div className="max-w-5xl mx-auto">
         <div className="flex justify-between items-center mb-8 border-b border-stone-200 pb-4">
           <h1 className="text-2xl font-bold uppercase italic text-stone-900">Gestione Annunci</h1>
-          <Link href="/add" className="bg-emerald-500 text-white px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-emerald-600 transition-all">
+          <Link href="/add" className="bg-gradient-to-r from-rose-500 to-orange-400 text-white px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:scale-[1.02] hover:shadow-md transition-all shadow-sm">
             + Nuovo
           </Link>
         </div>
@@ -107,23 +107,23 @@ export default function DashboardAnnunci() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {announcements.map((ad) => (
-              <div key={ad.id} className={`bg-white rounded-2xl overflow-hidden border ${ad.is_sponsored ? 'border-emerald-400 shadow-md' : 'border-stone-100 shadow-sm'} flex flex-col relative`}>
+              <div key={ad.id} className={`bg-white rounded-2xl overflow-hidden border ${ad.is_sponsored ? 'border-orange-400 ring-1 ring-orange-400/30 shadow-md' : 'border-stone-100 shadow-sm'} flex flex-col relative`}>
                 
                 {ad.is_sponsored && (
-                  <div className="absolute top-0 right-0 bg-emerald-500 text-white text-[8px] font-bold uppercase px-3 py-1 rounded-bl-xl z-10 tracking-widest shadow-sm">
+                  <div className="absolute top-0 right-0 bg-gradient-to-r from-rose-500 to-orange-400 text-white text-[8px] font-bold uppercase px-3 py-1 rounded-bl-xl z-10 tracking-widest shadow-sm">
                     Sponsorizzato ✨
                   </div>
                 )}
 
                 <div className="h-40 bg-stone-50 relative">
                   <img src={ad.image_url || '/usato.png'} className="w-full h-full object-cover" />
-                  <span className="absolute top-2 left-2 bg-white/90 text-[10px] font-bold uppercase px-2 py-1 rounded-md shadow-sm">{ad.condition}</span>
+                  <span className="absolute top-2 left-2 bg-white/90 text-stone-700 text-[10px] font-bold uppercase px-2 py-1 rounded-md shadow-sm">{ad.condition}</span>
                 </div>
 
                 <div className="p-4 flex-1 flex flex-col justify-between">
                   <div>
                     <h3 className="text-sm font-bold uppercase truncate text-stone-900 mb-1">{ad.title}</h3>
-                    <p className="text-lg font-bold text-emerald-600 mb-4">€ {ad.price}</p>
+                    <p className="text-lg font-bold text-rose-600 mb-4">€ {ad.price}</p>
                   </div>
                   
                   <div className="space-y-2">
@@ -140,7 +140,7 @@ export default function DashboardAnnunci() {
                       <button 
                         onClick={() => handleSponsor(ad.id)}
                         disabled={payLoading === ad.id}
-                        className="w-full bg-stone-900 text-emerald-400 text-[9px] font-bold uppercase py-3 rounded-lg hover:bg-emerald-500 hover:text-white transition-all shadow-sm border border-emerald-400/30"
+                        className="w-full bg-stone-900 text-orange-400 text-[9px] font-bold uppercase py-3 rounded-lg hover:bg-rose-500 hover:text-white transition-all shadow-sm border border-orange-400/30"
                       >
                         {payLoading === ad.id ? 'Apertura cassa...' : '🚀 Sponsorizza (2€)'}
                       </button>

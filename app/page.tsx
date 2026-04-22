@@ -16,6 +16,9 @@ function HomePageContent() {
   const [distance, setDistance] = useState(0) 
   const [isStaffOpen, setIsStaffOpen] = useState(false)
   
+  // STATO AGGIUNTO PER LA PAGINAZIONE
+  const [visibleCount, setVisibleCount] = useState(12)
+  
   const router = useRouter()
   const searchParams = useSearchParams()
   const catFilter = searchParams.get('cat')
@@ -91,26 +94,26 @@ function HomePageContent() {
     <div className="min-h-screen bg-stone-50 font-sans text-stone-900 pb-20">
       
       {IS_STAFF && (
-        <button onClick={() => setIsStaffOpen(true)} className="fixed bottom-8 right-8 z-[99] bg-stone-900 text-emerald-400 w-16 h-16 rounded-full shadow-lg font-bold flex items-center justify-center border-2 border-emerald-400 hover:scale-105 active:scale-95 transition-all text-2xl">👑</button>
+        <button onClick={() => setIsStaffOpen(true)} className="fixed bottom-8 right-8 z-[99] bg-stone-900 text-rose-400 w-16 h-16 rounded-full shadow-lg font-bold flex items-center justify-center border-2 border-rose-400 hover:scale-105 active:scale-95 transition-all text-2xl">👑</button>
       )}
 
-      {/* HERO SECTION */}
-      <div className="relative h-[400px] flex flex-col items-center justify-center p-6 text-center overflow-hidden border-b border-stone-200 bg-white">
-          <img src="/gazebo.jpg" className="absolute inset-0 w-full h-full object-cover opacity-50 scale-105 pointer-events-none" alt="Background" />
+      {/* HERO SECTION MODIFICATA CON RE-LOVE */}
+      <div className="relative h-[400px] flex flex-col items-center justify-center p-6 text-center overflow-hidden border-b border-rose-100 bg-white">
+          <div className="absolute inset-0 w-full h-full bg-gradient-to-br from-rose-50 to-orange-50 opacity-80 pointer-events-none"></div>
           <div className="relative z-10 w-full max-w-4xl px-4 flex flex-col items-center">
             
             <h1 
-              className="text-6xl md:text-[90px] text-stone-900 leading-none mb-3 drop-shadow-sm"
-              style={{ fontFamily: "'Brush Script MT', 'Lucida Handwriting', cursive", fontWeight: 400 }}
+              className="text-6xl md:text-[110px] text-transparent bg-clip-text bg-gradient-to-r from-rose-500 to-orange-400 leading-none mb-3 drop-shadow-sm pb-4"
+              style={{ fontFamily: "'Brush Script MT', 'Lucida Handwriting', cursive", fontWeight: 700 }}
             >
-              Libero Scambio
+              Re-love
             </h1>
             <p className="text-[10px] md:text-[12px] font-bold uppercase tracking-[0.6em] text-stone-400 mb-10 ml-2">
               Vendi • Compra • Regala
             </p>
             
             <div className="relative group w-full max-w-2xl">
-              <input type="text" placeholder="Cerca tra migliaia di prodotti..." className="w-full p-5 pl-14 rounded-3xl bg-white border border-stone-200 outline-none text-sm font-medium focus:border-emerald-400 shadow-sm transition-all" onChange={(e) => setMainSearch(e.target.value)} />
+              <input type="text" placeholder="Cerca vestiti, elettronica, arredamento..." className="w-full p-5 pl-14 rounded-3xl bg-white border border-stone-200 outline-none text-sm font-medium focus:border-rose-400 focus:shadow-lg focus:shadow-rose-100 transition-all" onChange={(e) => setMainSearch(e.target.value)} />
               <span className="absolute left-5 top-5 opacity-40 text-xl">🔍</span>
             </div>
           </div>
@@ -118,28 +121,34 @@ function HomePageContent() {
 
       <main className="max-w-7xl mx-auto px-4 md:px-8 -mt-12 relative z-20">
         
-        {/* SEZIONE FILTRI */}
+        {/* SEZIONE FILTRI AGGIORNATA CON NUOVE CATEGORIE */}
         <section className="mb-12 grid grid-cols-1 md:grid-cols-3 gap-6 bg-white p-6 rounded-3xl shadow-md border border-stone-100 items-center">
           <div className="flex flex-col gap-2">
-            <label className="text-[9px] font-bold uppercase text-stone-400 ml-2 tracking-widest">Settore</label>
-            <select onChange={(e) => setSearchCategory(e.target.value)} className="p-3 bg-stone-50 rounded-xl text-[11px] font-bold uppercase tracking-wide outline-none border border-stone-100 hover:bg-stone-100 transition-colors cursor-pointer">
+            <label className="text-[9px] font-bold uppercase text-stone-400 ml-2 tracking-widest">Categoria</label>
+            <select onChange={(e) => setSearchCategory(e.target.value)} className="p-3 bg-stone-50 rounded-xl text-[11px] font-bold uppercase tracking-wide outline-none border border-stone-100 hover:bg-rose-50 hover:border-rose-200 transition-colors cursor-pointer text-stone-700">
               <option value="all">Tutte le Categorie</option>
-              <option value="Edilizia">🏗️ Edilizia</option>
-              <option value="Elettricità">⚡ Elettricità</option>
-              <option value="Idraulica">💧 Idraulica</option>
-              <option value="Giardinaggio">🌿 Giardinaggio</option>
+              <option value="Abbigliamento e Accessori">👕 Abbigliamento e Accessori</option>
+              <option value="Elettronica e Informatica">💻 Elettronica e Informatica</option>
+              <option value="Casa, Arredamento e Giardino">🛋️ Casa, Arredo, Giardino</option>
+              <option value="Alimentari e Bevande">🍎 Alimentari e Bevande</option>
+              <option value="Libri, Film e Musica">📚 Libri, Film e Musica</option>
+              <option value="Salute e Bellezza">💄 Salute e Bellezza</option>
+              <option value="Sport e Tempo Libero">⚽ Sport e Tempo Libero</option>
+              <option value="Motori e Veicoli">🚗 Motori e Veicoli</option>
+              <option value="Altro / Varie">📦 Altro / Varie</option>
             </select>
           </div>
           <div className="flex flex-col gap-2">
-            <label className="text-[9px] font-bold uppercase text-stone-400 ml-2 tracking-widest">Stato Oggetto</label>
-            <select onChange={(e) => setSearchCondition(e.target.value)} className="p-3 bg-stone-50 rounded-xl text-[11px] font-bold uppercase tracking-wide outline-none border border-stone-100 hover:bg-stone-100 transition-colors cursor-pointer">
+            <label className="text-[9px] font-bold uppercase text-stone-400 ml-2 tracking-widest">Condizione Oggetto</label>
+            <select onChange={(e) => setSearchCondition(e.target.value)} className="p-3 bg-stone-50 rounded-xl text-[11px] font-bold uppercase tracking-wide outline-none border border-stone-100 hover:bg-rose-50 hover:border-rose-200 transition-colors cursor-pointer text-stone-700">
               <option value="all">Tutte le Condizioni</option>
               <option value="Nuovo">✨ Nuovo</option>
               <option value="Usato">♻️ Usato</option>
+              <option value="Regalo">🎁 In Regalo</option>
             </select>
           </div>
           <div className="flex flex-col gap-2 pt-5">
-            <button onClick={handleNearbySearch} className={`p-3 rounded-xl text-[11px] font-bold uppercase tracking-widest transition-all shadow-sm flex items-center justify-center gap-2 ${distance > 0 ? 'bg-emerald-500 text-white shadow-emerald-200' : 'bg-stone-900 text-white hover:bg-emerald-500'}`}>
+            <button onClick={handleNearbySearch} className={`p-3 rounded-xl text-[11px] font-bold uppercase tracking-widest transition-all shadow-sm flex items-center justify-center gap-2 ${distance > 0 ? 'bg-gradient-to-r from-rose-500 to-orange-400 text-white shadow-rose-200' : 'bg-stone-900 text-white hover:bg-stone-800'}`}>
               {distance > 0 ? '📍 Filtro 20km Attivo' : '📍 Cerca Vicino a me'}
             </button>
           </div>
@@ -148,47 +157,46 @@ function HomePageContent() {
         {/* I 3 RIQUADRI MACRO-AZIONI */}
         {!catFilter && !typeFilter && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
-            <Link href="/add?mode=new" className="group relative h-64 rounded-3xl border border-stone-200 overflow-hidden bg-white hover:border-emerald-400 transition-all shadow-sm flex items-center justify-center text-center">
-               <img src="/nuovo.png" className="absolute inset-0 w-full h-full object-cover opacity-40 group-hover:scale-105 transition-transform duration-[1s]" alt="Nuovo" />
-               <div className="relative z-10 p-6"><h3 className="text-3xl font-bold uppercase italic text-stone-900 leading-tight">Vendi<br/>Nuovo</h3><p className="text-[10px] font-medium uppercase mt-4 text-stone-500 tracking-widest">Ideale per fondi di magazzino</p></div>
+            <Link href="/add?mode=new" className="group relative h-64 rounded-3xl border border-stone-200 overflow-hidden bg-white hover:border-rose-400 transition-all shadow-sm flex items-center justify-center text-center">
+               <img src="/nuovo.png" className="absolute inset-0 w-full h-full object-cover opacity-30 group-hover:opacity-60 group-hover:scale-105 transition-all duration-[0.5s]" alt="Nuovo" />
+               <div className="relative z-10 p-6 bg-white/70 backdrop-blur-sm rounded-2xl"><h3 className="text-3xl font-bold uppercase italic text-stone-900 leading-tight">Vendi<br/>Nuovo</h3><p className="text-[10px] font-medium uppercase mt-2 text-rose-600 tracking-widest">Mai usato o sigillato</p></div>
             </Link>
-            <Link href="/add?mode=used" className="group relative h-64 rounded-3xl border border-stone-200 overflow-hidden bg-white hover:border-blue-400 transition-all shadow-sm flex items-center justify-center text-center">
-               <img src="/usato.png" className="absolute inset-0 w-full h-full object-cover opacity-40 group-hover:scale-105 transition-transform duration-[1s]" alt="Usato" />
-               <div className="relative z-10 p-6"><h3 className="text-3xl font-bold uppercase italic text-stone-900 leading-tight">Vendi<br/>Usato</h3><p className="text-[10px] font-medium uppercase mt-4 text-stone-500 tracking-widest">Dai una seconda vita</p></div>
+            <Link href="/add?mode=used" className="group relative h-64 rounded-3xl border border-stone-200 overflow-hidden bg-white hover:border-orange-400 transition-all shadow-sm flex items-center justify-center text-center">
+               <img src="/usato.png" className="absolute inset-0 w-full h-full object-cover opacity-30 group-hover:opacity-60 group-hover:scale-105 transition-all duration-[0.5s]" alt="Usato" />
+               <div className="relative z-10 p-6 bg-white/70 backdrop-blur-sm rounded-2xl"><h3 className="text-3xl font-bold uppercase italic text-stone-900 leading-tight">Vendi<br/>Usato</h3><p className="text-[10px] font-medium uppercase mt-2 text-orange-600 tracking-widest">Dai una seconda vita</p></div>
             </Link>
-            <Link href="/add?mode=gift" className="group relative h-64 rounded-3xl border-2 border-emerald-500 overflow-hidden bg-white hover:bg-emerald-50 transition-all shadow-md flex items-center justify-center text-center">
-               <img src="/regala.jpeg" className="absolute inset-0 w-full h-full object-cover opacity-45 group-hover:scale-105 transition-transform duration-[1s]" alt="Regalo" />
-               <div className="relative z-10 p-8"><h3 className="text-3xl font-bold uppercase italic text-emerald-800 leading-none mb-3">Regalo<br/>Solidale</h3><span className="text-5xl block mt-2">🎁</span></div>
+            <Link href="/add?mode=gift" className="group relative h-64 rounded-3xl border border-stone-200 overflow-hidden bg-white hover:border-red-400 transition-all shadow-sm flex items-center justify-center text-center">
+               <img src="/regalo.png" className="absolute inset-0 w-full h-full object-cover opacity-30 group-hover:opacity-60 group-hover:scale-105 transition-all duration-[0.5s]" alt="Regalo" />
+               <div className="relative z-10 p-6 bg-white/70 backdrop-blur-sm rounded-2xl"><h3 className="text-3xl font-bold uppercase italic text-stone-900 leading-tight">Regalo<br/>Solidale</h3><p className="text-[10px] font-medium uppercase mt-2 text-red-500 tracking-widest">Dona a chi ha bisogno</p></div>
             </Link>
           </div>
         )}
 
-        {/* BANNER PUBBLICITARIO */}
-        <div className="bg-stone-900 rounded-3xl p-6 mb-16 flex flex-col md:flex-row items-center justify-between shadow-lg border border-stone-800">
+        {/* BANNER PUBBLICITARIO RE-LOVE */}
+        <div className="bg-gradient-to-r from-stone-900 to-stone-800 rounded-3xl p-6 mb-16 flex flex-col md:flex-row items-center justify-between shadow-xl border border-stone-800">
           <div className="flex items-center gap-6 mb-4 md:mb-0">
             <span className="text-5xl drop-shadow-md">🚀</span>
             <div>
-              <h4 className="text-[12px] font-bold uppercase tracking-widest text-emerald-400">Spazio Pubblicitario</h4>
-              <p className="text-[11px] text-stone-300 font-medium mt-1 uppercase tracking-wider">Aumenta la visibilità della tua azienda. Sponsorizzati qui!</p>
+              <h4 className="text-[12px] font-bold uppercase tracking-widest text-orange-400">Spazio Pubblicitario</h4>
+              <p className="text-[11px] text-stone-300 font-medium mt-1 uppercase tracking-wider">Metti in evidenza i tuoi annunci Re-love. Sponsorizzati qui!</p>
             </div>
           </div>
-          <a href="mailto:dome0082@gmail.com" className="bg-emerald-500 text-white px-6 py-3 rounded-xl text-[11px] font-bold uppercase tracking-widest hover:bg-emerald-400 transition-all shadow-md shadow-emerald-500/20 w-full md:w-auto text-center">
-            Contattami: dome0082@gmail.com
+          <a href="mailto:dome0082@gmail.com" className="bg-gradient-to-r from-rose-500 to-orange-400 text-white px-6 py-3 rounded-xl text-[11px] font-bold uppercase tracking-widest hover:shadow-lg hover:scale-105 transition-all w-full md:w-auto text-center border border-rose-400">
+            Contattaci per info
           </a>
         </div>
 
         <section className="mb-20">
           <div className="flex justify-between items-end mb-8 border-b border-stone-200 pb-4">
             <h2 className="text-[14px] font-bold uppercase tracking-[0.4em] text-stone-900">Vetrina Top Nuovo</h2>
-            <Link href="/?condition=Nuovo" className="text-[10px] font-bold uppercase text-emerald-600 hover:text-emerald-800 transition-colors">Catalogo completo →</Link>
+            <Link href="/?condition=Nuovo" className="text-[10px] font-bold uppercase text-rose-600 hover:text-rose-800 transition-colors">Vedi tutti →</Link>
           </div>
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-6">
             {topItems.map(item => (
-              <div key={item.id} className={`group bg-white p-4 rounded-3xl shadow-sm border ${item.is_sponsored ? 'border-emerald-400 shadow-emerald-100 shadow-md ring-1 ring-emerald-400/30' : 'border-stone-100'} hover:shadow-md transition-all relative overflow-hidden`}>
+              <div key={item.id} className={`group bg-white p-4 rounded-3xl shadow-sm border ${item.is_sponsored ? 'border-orange-400 shadow-orange-100 shadow-md ring-1 ring-orange-400/30' : 'border-stone-100'} hover:shadow-md transition-all relative overflow-hidden`}>
                 
-                {/* ETICHETTA SPONSORIZZATO AGGIUNTA QUI */}
                 {item.is_sponsored && (
-                  <div className="absolute top-0 left-0 bg-emerald-500 text-white text-[8px] font-bold uppercase px-3 py-1.5 rounded-br-2xl z-40 tracking-widest shadow-sm">
+                  <div className="absolute top-0 left-0 bg-gradient-to-r from-rose-500 to-orange-400 text-white text-[8px] font-bold uppercase px-3 py-1.5 rounded-br-2xl z-40 tracking-widest shadow-sm">
                     In Evidenza ✨
                   </div>
                 )}
@@ -200,10 +208,10 @@ function HomePageContent() {
                   </div>
                   <h4 className="text-[12px] font-medium uppercase truncate text-stone-900 mb-1 px-1">{item.title}</h4>
                   <div className="flex justify-between items-center px-1 mb-3">
-                    <p className="text-xl font-bold text-emerald-600 tracking-tight">€ {item.price}</p>
+                    <p className="text-xl font-bold text-rose-600 tracking-tight">€ {item.price}</p>
                     <p className="text-[9px] text-stone-400 font-medium tracking-tighter">Disp: {item.quantity}</p>
                   </div>
-                  <button className="mt-2 w-full bg-stone-100 text-stone-800 text-[10px] font-bold uppercase py-3 rounded-xl group-hover:bg-emerald-500 group-hover:text-white transition-all">Vedi Dettagli</button>
+                  <button className="mt-2 w-full bg-stone-100 text-stone-800 text-[10px] font-bold uppercase py-3 rounded-xl group-hover:bg-rose-500 group-hover:text-white transition-all">Vedi Dettagli</button>
                 </Link>
               </div>
             ))}
@@ -212,56 +220,62 @@ function HomePageContent() {
 
         <section>
           <div className="flex justify-between items-end mb-8 border-b border-stone-200 pb-4">
-            <h2 className="text-[14px] font-bold uppercase tracking-[0.4em] text-stone-400">Tutti i Materiali</h2>
+            <h2 className="text-[14px] font-bold uppercase tracking-[0.4em] text-stone-400">Tutti gli Annunci</h2>
             <p className="text-[10px] font-medium uppercase text-stone-400 tracking-[0.2em]">{regularItems.length} Inserzioni</p>
           </div>
+          
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-5">
-            {regularItems.map(item => (
-              <div key={item.id} className={`group bg-white rounded-2xl overflow-hidden border ${item.is_sponsored ? 'border-emerald-400 shadow-emerald-100 shadow-md ring-1 ring-emerald-400/30' : 'border-stone-100'} hover:border-emerald-300 hover:shadow-md transition-all flex flex-col h-full relative`}>
+            {/* PAGINAZIONE APPLICATA QUI (slice(0, visibleCount)) */}
+            {regularItems.slice(0, visibleCount).map(item => (
+              <div key={item.id} className={`group bg-white rounded-2xl overflow-hidden shadow-sm border ${item.is_sponsored ? 'border-orange-400 ring-1 ring-orange-400/30' : 'border-stone-100'} hover:shadow-md hover:border-rose-300 transition-all flex flex-col relative`}>
                 
-                {/* ETICHETTA SPONSORIZZATO AGGIUNTA QUI */}
                 {item.is_sponsored && (
-                  <div className="absolute top-0 left-0 bg-emerald-500 text-white text-[8px] font-bold uppercase px-3 py-1.5 rounded-br-xl z-40 tracking-widest shadow-sm">
-                    In Evidenza 🚀
+                  <div className="absolute top-0 left-0 bg-gradient-to-r from-rose-500 to-orange-400 text-white text-[7px] font-bold uppercase px-2 py-1 rounded-br-xl z-40 tracking-widest">
+                    Top 🌟
                   </div>
                 )}
-
-                <button onClick={(e) => handleToggleFavorite(e, item.id)} className="absolute top-3 right-3 z-30 bg-white/80 w-8 h-8 flex items-center justify-center rounded-full text-xs shadow-sm hover:scale-110 transition-all">{favorites.includes(item.id) ? '❤️' : '🤍'}</button>
-                <Link href={`/announcement/${item.id}`} className="flex flex-col h-full">
-                  <div className="h-36 bg-stone-50 relative overflow-hidden"><img src={item.image_url || "/usato.png"} className="w-full h-full object-cover group-hover:scale-105 transition-transform" /></div>
-                  <div className="p-4 flex-1 flex flex-col justify-between">
-                    <div>
-                      <h4 className="text-[11px] font-medium uppercase truncate text-stone-900 mb-1">{item.title}</h4>
-                      <p className="text-lg font-bold text-stone-900">{item.type === 'offered' ? 'GRATIS 🎁' : `€ ${item.price}`}</p>
-                      <p className="text-[9px] text-stone-400 mt-1">Quantità: {item.quantity}</p>
-                    </div>
-                    <button className="mt-4 w-full bg-stone-50 text-stone-600 text-[9px] font-bold uppercase py-2 rounded-lg group-hover:bg-stone-800 group-hover:text-white transition-all">Scopri</button>
-                  </div>
+                
+                <Link href={`/announcement/${item.id}`} className="aspect-square bg-stone-50 relative block overflow-hidden">
+                  <button onClick={(e) => handleToggleFavorite(e, item.id)} className="absolute top-2 right-2 z-30 bg-white/80 w-6 h-6 flex items-center justify-center rounded-full shadow-sm text-xs hover:scale-110 transition-all">{favorites.includes(item.id) ? '❤️' : '🤍'}</button>
+                  <img src={item.image_url || "/usato.png"} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-[0.8s]" />
+                  <div className="absolute bottom-2 left-2 bg-white/90 backdrop-blur-sm px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-widest text-stone-600 shadow-sm">{item.condition}</div>
                 </Link>
+                <div className="p-3 flex flex-col justify-between flex-grow">
+                  <Link href={`/announcement/${item.id}`} className="block">
+                    <h4 className="text-[10px] font-bold uppercase line-clamp-2 text-stone-800 leading-tight mb-1">{item.title}</h4>
+                    <p className="text-[14px] font-black text-rose-600 mt-1">€ {item.price}</p>
+                  </Link>
+                  <Link href={`/announcement/${item.id}`} className="mt-3 block text-center w-full bg-stone-50 text-stone-600 text-[9px] font-bold uppercase py-2 rounded-lg hover:bg-stone-900 hover:text-white transition-colors">
+                    Acquista
+                  </Link>
+                </div>
               </div>
             ))}
           </div>
-        </section>
-      </main>
 
-      {isStaffOpen && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-6 bg-stone-900/60 backdrop-blur-sm">
-          <div className="bg-white w-full max-w-lg rounded-3xl p-10 shadow-2xl relative text-center border-2 border-emerald-400">
-             <button onClick={() => setIsStaffOpen(false)} className="absolute top-6 right-6 text-stone-400 hover:text-stone-800 font-bold text-2xl">✕</button>
-             <div className="text-6xl mb-4 drop-shadow-sm">👑</div>
-             <h2 className="text-3xl font-bold uppercase italic mb-2 text-stone-800">Admin Panel</h2>
-             <p className="text-stone-400 font-medium uppercase text-[10px] tracking-widest mb-8 border-b border-stone-100 pb-4">Controllo Globale</p>
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Link href="/staff/users" className="group p-6 bg-stone-50 rounded-xl font-bold uppercase text-[11px] tracking-wider border border-stone-100 hover:bg-stone-800 hover:text-white transition-all flex flex-col items-center gap-2"><span className="text-3xl group-hover:scale-110 transition-transform">👥</span>Utenti</Link>
-                <Link href="/staff/annunci" className="group p-6 bg-stone-50 rounded-xl font-bold uppercase text-[11px] tracking-wider border border-stone-100 hover:bg-stone-800 hover:text-white transition-all flex flex-col items-center gap-2"><span className="text-3xl group-hover:scale-110 transition-transform">📝</span>Moderazione</Link>
-             </div>
-          </div>
-        </div>
-      )}
+          {/* BOTTONE CARICA ALTRI (Si vede solo se ci sono ancora annunci da mostrare) */}
+          {regularItems.length > visibleCount && (
+            <div className="mt-12 flex justify-center w-full">
+              <button 
+                onClick={() => setVisibleCount(prev => prev + 12)}
+                className="bg-white border-2 border-rose-200 text-rose-600 px-8 py-4 rounded-full text-[11px] font-bold uppercase tracking-widest hover:bg-rose-50 hover:border-rose-400 transition-all shadow-sm"
+              >
+                ↓ Carica altri annunci ({regularItems.length - visibleCount} rimanenti)
+              </button>
+            </div>
+          )}
+
+        </section>
+
+      </main>
     </div>
   )
 }
 
 export default function HomePage() {
-   return <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-stone-50"><p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 animate-pulse">Sincronizzazione in corso...</p></div>}><HomePageContent /></Suspense>
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-stone-50 flex items-center justify-center font-bold uppercase tracking-widest text-stone-400 text-xs">Caricamento Vetrina...</div>}>
+      <HomePageContent />
+    </Suspense>
+  )
 }

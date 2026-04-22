@@ -118,7 +118,8 @@ export default function ProfilePage() {
       const data = await res.json()
       
       if (data.url) {
-        if (!profile.stripe_account_id) {
+        // LA CORREZIONE È QUI: AGGIUNTO IL PUNTO INTERROGATIVO
+        if (!profile?.stripe_account_id) { 
           await supabase.from('profiles').update({ stripe_account_id: data.accountId }).eq('id', user.id)
         }
         window.location.href = data.url
@@ -126,6 +127,7 @@ export default function ProfilePage() {
         alert("Errore Stripe: " + data.error)
       }
     } catch (err) {
+      console.error(err)
       alert("Errore durante il collegamento a Stripe.")
     } finally {
       setStripeLoading(false)
@@ -150,7 +152,7 @@ export default function ProfilePage() {
 
   if (loading) return <div className="p-10 text-center text-sm text-stone-500">Caricamento profilo...</div>
 
-  // FUNZIONE GRAFICA PER DISEGNARE LE GRIGLIE (Ora accetta "isOwner" per mostrare i tasti Modifica/Elimina)
+  // FUNZIONE GRAFICA PER DISEGNARE LE GRIGLIE
   const renderGrid = (items: any[], emptyMessage: string, isOwner: boolean = false) => {
     if (items.length === 0) return <p className="text-sm text-stone-500 italic px-2">{emptyMessage}</p>
     return (
@@ -308,87 +310,50 @@ export default function ProfilePage() {
                     <p className="text-base capitalize">{profile?.full_address || 'Non specificato'}</p>
                   </div>
                 </div>
-                <div>
-                  <p className="text-xs font-medium text-stone-500">ID Utente</p>
-                  <p className="text-base">#{profile?.user_serial_id || '---'}</p>
-                </div>
               </>
             )}
           </div>
         </div>
 
-        {/* SEZIONE PAGAMENTI (STRIPE CONNECT) */}
+        {/* RICEZIONE PAGAMENTI STRIPE */}
         <div className="bg-white rounded-3xl p-8 border border-stone-200 shadow-sm">
-          <h2 className="text-lg font-semibold text-stone-900 mb-1">Ricezione pagamenti</h2>
-          <p className="text-sm text-stone-500 mb-6">
-            Per vendere oggetti e ricevere i soldi sul tuo conto, devi configurare il tuo portafoglio Stripe.
-          </p>
-
-          {profile?.stripe_onboarding_complete ? (
-            <div className="flex items-center gap-3 p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
-              <span className="text-xl">✅</span>
-              <div>
-                <p className="text-sm font-semibold text-emerald-800">Conto Stripe collegato</p>
-                <p className="text-xs text-emerald-600 mt-0.5">Sei pronto a ricevere pagamenti in sicurezza.</p>
-              </div>
-            </div>
-          ) : (
-            <button 
-              onClick={handleStripeOnboarding}
-              disabled={stripeLoading}
-              className="w-full bg-emerald-500 text-white p-3.5 rounded-2xl font-medium text-sm hover:bg-emerald-600 transition-all shadow-sm"
-            >
-              {stripeLoading ? 'Connessione in corso...' : 'Attiva ricezione pagamenti'}
-            </button>
-          )}
+          <h2 className="text-xl font-semibold text-stone-900 mb-2">Ricezione pagamenti</h2>
+          <p className="text-sm text-stone-500 mb-6">Per vendere oggetti e ricevere i soldi sul tuo conto, devi configurare il tuo portafoglio Stripe.</p>
+          <button 
+            onClick={handleStripeOnboarding} 
+            disabled={stripeLoading}
+            className="w-full bg-[#008953] text-white font-bold py-3 rounded-xl hover:bg-[#007044] transition-colors disabled:opacity-50"
+          >
+            {stripeLoading ? 'Connessione in corso...' : 'Attiva ricezione pagamenti'}
+          </button>
         </div>
 
-        {/* MENU RAPIDO NAVIGAZIONE */}
+        {/* PULSANTI RAPIDI */}
         <div className="grid grid-cols-2 gap-4">
-            <Link href="/dashboard/acquisti" className="bg-white p-6 rounded-3xl border border-stone-200 shadow-sm hover:border-stone-400 transition-all group">
-                <span className="text-2xl block mb-2 group-hover:scale-110 transition-transform">📦</span>
-                <p className="text-sm font-medium text-stone-900">I miei acquisti</p>
-            </Link>
-            <Link href="/dashboard/preferiti" className="bg-white p-6 rounded-3xl border border-stone-200 shadow-sm hover:border-stone-400 transition-all group">
-                <span className="text-2xl block mb-2 group-hover:scale-110 transition-transform">❤️</span>
-                <p className="text-sm font-medium text-stone-900">I miei preferiti</p>
-            </Link>
+          <div className="bg-white rounded-2xl p-6 border border-stone-200 shadow-sm text-center flex flex-col items-center justify-center">
+            <span className="text-2xl block mb-2">📦</span>
+            <p className="text-xs font-bold text-stone-700">I miei acquisti</p>
+          </div>
+          <div className="bg-white rounded-2xl p-6 border border-stone-200 shadow-sm text-center flex flex-col items-center justify-center">
+            <span className="text-2xl block mb-2">❤️</span>
+            <p className="text-xs font-bold text-stone-700">I miei preferiti</p>
+          </div>
         </div>
 
-        {/* --- SEZIONI VETRINA PERSONALE --- */}
-        
-        {/* SEZIONE 1: I MIEI ANNUNCI IN VENDITA */}
-        <div className="bg-white rounded-3xl p-8 border border-stone-200 shadow-sm mt-8">
-          <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-emerald-600 mb-6 flex items-center gap-2">
-            <span className="bg-emerald-100 p-2 rounded-lg">🏷️</span> In Vendita
+        {/* IN VENDITA */}
+        <div className="bg-white rounded-3xl p-8 border border-stone-200 shadow-sm">
+          <h2 className="text-[11px] font-bold uppercase tracking-widest text-stone-400 mb-4 flex items-center gap-2">
+            <span>💸</span> IN VENDITA
           </h2>
-          {/* IL TRUE SIGNIFICA "SÌ, MOSTRA I TASTI ELIMINA/MODIFICA" */}
           {renderGrid(myAds, "Non hai ancora inserito nessun annuncio.", true)}
         </div>
 
-        {/* SEZIONE 2: I MIEI ACQUISTI */}
-        <div className="bg-white rounded-3xl p-8 border border-stone-200 shadow-sm mt-4">
-          <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-blue-600 mb-6 flex items-center gap-2">
-            <span className="bg-blue-100 p-2 rounded-lg">🛍️</span> Oggetti Acquistati
+        {/* OGGETTI ACQUISTATI */}
+        <div className="bg-white rounded-3xl p-8 border border-stone-200 shadow-sm">
+          <h2 className="text-[11px] font-bold uppercase tracking-widest text-stone-400 mb-4 flex items-center gap-2">
+            <span>🛍️</span> OGGETTI ACQUISTATI
           </h2>
-          {/* IL FALSE SIGNIFICA "NO TASTI, QUI SI GUARDA E BASTA" */}
           {renderGrid(boughtAds, "Non hai ancora effettuato nessun acquisto.", false)}
-        </div>
-
-        {/* SEZIONE 3: I MIEI OGGETTI VENDUTI */}
-        <div className="bg-stone-100 rounded-3xl p-8 border border-stone-200 shadow-sm mt-4 opacity-90">
-          <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-stone-600 mb-6 flex items-center gap-2">
-            <span className="bg-stone-200 p-2 rounded-lg">✅</span> Oggetti Venduti (Esauriti)
-          </h2>
-          {/* IL TRUE SIGNIFICA "SÌ, MOSTRA I TASTI ELIMINA/MODIFICA" */}
-          {renderGrid(soldAds, "Non hai ancora venduto nessun oggetto.", true)}
-        </div>
-        {/* --------------------------------------- */}
-
-        <div className="pt-6 text-center">
-          <Link href="/" className="text-sm font-medium text-stone-400 hover:text-stone-900 transition-colors">
-            ← Torna alla vetrina
-          </Link>
         </div>
 
       </div>

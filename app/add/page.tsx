@@ -73,26 +73,26 @@ function AddPageContent() {
   if (!mode) {
     return (
       <div className="min-h-screen bg-stone-50 p-6 md:p-10 flex flex-col items-center pt-10">
-        <h1 className="text-3xl md:text-5xl font-medium uppercase italic mb-2 tracking-tight text-stone-900 text-center" style={{ fontFamily: "'Brush Script MT', cursive" }}>Cosa pubblichi?</h1>
+        <h1 className="text-3xl md:text-5xl font-medium uppercase italic mb-2 tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-rose-500 to-orange-400 text-center" style={{ fontFamily: "'Brush Script MT', cursive" }}>Cosa pubblichi?</h1>
         <p className="text-stone-400 font-bold uppercase text-[11px] tracking-widest mb-10 text-center">Seleziona la modalità</p>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full max-w-4xl">
-          <Link href="/add?mode=new" className="bg-white p-6 rounded-2xl border border-stone-200 text-center hover:border-emerald-400 shadow-sm transition-all hover:-translate-y-1">
-            <span className="text-5xl block mb-4">✨</span>
+          <Link href="/add?mode=new" className="bg-white p-6 rounded-2xl border border-stone-200 text-center hover:border-rose-400 shadow-sm transition-all hover:-translate-y-1">
+            <img src="/nuovo.png" alt="Nuovo" className="w-full object-cover rounded-xl mb-4" />
             <h3 className="text-xl font-bold uppercase italic text-stone-900">Nuovo</h3>
             <p className="text-[11px] font-medium text-stone-500 mt-2">Articoli mai usati o eccedenze.</p>
           </Link>
 
-          <Link href="/add?mode=used" className="bg-white p-6 rounded-2xl border border-stone-200 text-center hover:border-blue-400 shadow-sm transition-all hover:-translate-y-1">
-            <span className="text-5xl block mb-4">♻️</span>
+          <Link href="/add?mode=used" className="bg-white p-6 rounded-2xl border border-stone-200 text-center hover:border-orange-400 shadow-sm transition-all hover:-translate-y-1">
+            <img src="/usato.png" alt="Usato" className="w-full object-cover rounded-xl mb-4" />
             <h3 className="text-xl font-bold uppercase italic text-stone-900">Usato</h3>
             <p className="text-[11px] font-medium text-stone-500 mt-2">Materiali di seconda mano.</p>
           </Link>
 
-          <Link href="/add?mode=gift" className="bg-emerald-50 p-6 rounded-2xl border-2 border-emerald-400 text-center shadow-md transition-all hover:-translate-y-1">
-            <span className="text-5xl block mb-4">🎁</span>
-            <h3 className="text-xl font-bold uppercase italic text-emerald-800">Regalo</h3>
-            <p className="text-[11px] font-medium text-emerald-700 mt-2">Dona a chi ne ha bisogno.</p>
+          <Link href="/add?mode=gift" className="bg-rose-50 p-6 rounded-2xl border-2 border-rose-400 text-center shadow-md transition-all hover:-translate-y-1">
+            <img src="/regalo.png" alt="Regalo" className="w-full object-cover rounded-xl mb-4" />
+            <h3 className="text-xl font-bold uppercase italic text-rose-800">Regalo</h3>
+            <p className="text-[11px] font-medium text-rose-700 mt-2">Dona a chi ne ha bisogno.</p>
           </Link>
         </div>
       </div>
@@ -112,39 +112,39 @@ function AddPageContent() {
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400">Titolo Annuncio</label>
-            <input name="title" required type="text" className="w-full p-3 mt-1 bg-stone-50 rounded-xl border border-stone-100 outline-none focus:border-emerald-400 text-sm font-medium text-stone-800" placeholder="Es. Trapano Bosch" />
+            <input name="title" required type="text" className="w-full p-3 mt-1 bg-stone-50 rounded-xl border border-stone-100 outline-none focus:border-rose-400 text-sm font-medium text-stone-800" placeholder="Es. Trapano Bosch" />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400">Categoria</label>
-              <select name="category_id" required className="w-full p-3 mt-1 bg-stone-50 rounded-xl border border-stone-100 outline-none focus:border-emerald-400 text-sm font-medium text-stone-800">
+              <select name="category_id" required className="w-full p-3 mt-1 bg-stone-50 rounded-xl border border-stone-100 outline-none focus:border-rose-400 text-sm font-medium text-stone-800">
                 {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
               </select>
             </div>
             <div>
               <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400">Quantità</label>
-              <input name="quantity" required type="number" min="1" defaultValue="1" className="w-full p-3 mt-1 bg-stone-50 rounded-xl border border-stone-100 outline-none focus:border-emerald-400 text-sm font-medium text-stone-800" placeholder="1" />
+              <input name="quantity" required type="number" min="1" defaultValue="1" className="w-full p-3 mt-1 bg-stone-50 rounded-xl border border-stone-100 outline-none focus:border-rose-400 text-sm font-medium text-stone-800" placeholder="1" />
             </div>
           </div>
 
           {mode !== 'gift' && (
             <div>
               <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400">Prezzo (€)</label>
-              <input name="price" required type="number" step="0.01" className="w-full p-3 mt-1 bg-stone-50 rounded-xl border border-stone-100 outline-none focus:border-emerald-400 text-sm font-medium text-stone-800" placeholder="0.00" />
+              <input name="price" required type="number" step="0.01" className="w-full p-3 mt-1 bg-stone-50 rounded-xl border border-stone-100 outline-none focus:border-rose-400 text-sm font-medium text-stone-800" placeholder="0.00" />
             </div>
           )}
 
           <div>
             <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400">Descrizione</label>
-            <textarea name="description" required rows={4} className="w-full p-3 mt-1 bg-stone-50 rounded-xl border border-stone-100 outline-none focus:border-emerald-400 text-sm font-medium text-stone-800" placeholder="Descrivi il prodotto..."></textarea>
+            <textarea name="description" required rows={4} className="w-full p-3 mt-1 bg-stone-50 rounded-xl border border-stone-100 outline-none focus:border-rose-400 text-sm font-medium text-stone-800" placeholder="Descrivi il prodotto..."></textarea>
           </div>
 
           {/* IL NUOVO TASTINO ALLEGATO */}
           <div className="bg-stone-50 p-5 rounded-xl border border-stone-200">
              <span className="text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-3 block">Immagini del prodotto</span>
              
-             <label className="flex items-center justify-center gap-2 bg-white text-stone-700 px-6 py-4 rounded-xl text-[11px] font-bold uppercase tracking-widest hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-400 cursor-pointer transition-all border-2 border-stone-200 border-dashed w-full shadow-sm">
+             <label className="flex items-center justify-center gap-2 bg-white text-stone-700 px-6 py-4 rounded-xl text-[11px] font-bold uppercase tracking-widest hover:bg-rose-50 hover:text-rose-700 hover:border-rose-400 cursor-pointer transition-all border-2 border-stone-200 border-dashed w-full shadow-sm">
                 <span className="text-lg">📎</span> + AGGIUNGI ALLEGATO
                 <input 
                   type="file" 
@@ -158,11 +158,11 @@ function AddPageContent() {
              </label>
 
              {files.length > 0 && (
-               <div className="mt-4 bg-emerald-50 p-3 rounded-lg border border-emerald-100">
-                 <p className="text-[10px] font-bold text-emerald-700 mb-2">✓ {files.length} file allegati pronti:</p>
+               <div className="mt-4 bg-rose-50 p-3 rounded-lg border border-rose-100">
+                 <p className="text-[10px] font-bold text-rose-700 mb-2">✓ {files.length} file allegati pronti:</p>
                  <div className="flex flex-col gap-1">
                    {files.map((f, i) => (
-                     <span key={i} className="text-[9px] font-medium text-emerald-600 truncate bg-white px-2 py-1 rounded border border-emerald-100">
+                     <span key={i} className="text-[9px] font-medium text-rose-600 truncate bg-white px-2 py-1 rounded border border-rose-100">
                        {f.name}
                      </span>
                    ))}
@@ -171,7 +171,7 @@ function AddPageContent() {
              )}
           </div>
 
-          <button disabled={loading} type="submit" className="w-full bg-stone-900 text-white font-bold uppercase text-[11px] tracking-widest p-4 rounded-xl hover:bg-emerald-500 transition-all shadow-md disabled:opacity-50 mt-4">
+          <button disabled={loading} type="submit" className="w-full bg-stone-900 text-white font-bold uppercase text-[11px] tracking-widest p-4 rounded-xl hover:bg-rose-500 transition-all shadow-md disabled:opacity-50 mt-4">
             {loading ? 'Caricamento file e pubblicazione...' : 'Conferma e Pubblica'}
           </button>
         </form>
