@@ -245,16 +245,16 @@ export default function Navbar() {
           ) : (
             items.map((item) => (
               <div key={item.id} className="flex gap-4 p-4 bg-white rounded-2xl border border-stone-200 group relative transition-all shadow-sm hover:shadow-md">
-                <button onClick={() => removeItem(item.id)} className="absolute -top-2 -right-2 bg-red-500 text-white w-6 h-6 flex items-center justify-center rounded-full opacity-0 group-hover:opacity-100 transition-opacity text-xs shadow-md">✕</button>
-                <img src={item.imageUrl} alt={item.title} className="w-20 h-20 object-cover rounded-xl border border-stone-100" />
+                <button onClick={() => removeItem(item.id)} className="absolute -top-2 -right-2 bg-red-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shadow-md hover:scale-110 transition-all z-10">✕</button>
+                <img src={(item as any).imageUrl || '/usato.png'} alt={item.title} className="w-20 h-20 object-cover rounded-xl border border-stone-200" />
                 <div className="flex-1 flex flex-col justify-between">
                   <h3 className="font-bold text-sm text-stone-800 line-clamp-2">{item.title}</h3>
                   <div className="flex justify-between items-center mt-2">
-                    <p className="font-black text-rose-500">€ {Number(item.price).toFixed(2)}</p>
+                    <p className="font-black text-rose-500">€ {(Number(item.price)).toFixed(2)}</p>
                     <div className="flex items-center gap-3 bg-stone-50 rounded-lg p-1 border border-stone-100">
-                      <button onClick={() => updateQuantity(item.id, Math.max(1, item.quantity - 1))} className="w-6 h-6 flex items-center justify-center bg-white rounded shadow-sm text-stone-600 font-bold hover:bg-stone-200 transition-colors">-</button>
+                      <button onClick={() => updateQuantity(item.id, Math.max(1, item.quantity - 1))} className="w-6 h-6 flex items-center justify-center bg-white rounded-md shadow-sm font-bold text-stone-600 hover:text-rose-500 transition-all">-</button>
                       <span className="text-xs font-bold w-4 text-center">{item.quantity}</span>
-                      <button onClick={() => updateQuantity(item.id, Math.min(item.maxQuantity, item.quantity + 1))} className="w-6 h-6 flex items-center justify-center bg-white rounded shadow-sm text-stone-600 font-bold hover:bg-stone-200 transition-colors">+</button>
+                      <button onClick={() => updateQuantity(item.id, Math.min((item as any).maxQuantity || 99, item.quantity + 1))} className="w-6 h-6 flex items-center justify-center bg-white rounded-md shadow-sm font-bold text-stone-600 hover:text-emerald-500 transition-all">+</button>
                     </div>
                   </div>
                 </div>
@@ -264,17 +264,13 @@ export default function Navbar() {
         </div>
 
         {items.length > 0 && (
-          <div className="p-6 border-t border-stone-100 bg-stone-50">
+          <div className="p-6 bg-white border-t border-stone-100">
             <div className="flex justify-between items-center mb-6">
-              <span className="font-bold uppercase text-[11px] tracking-widest text-stone-500">Totale</span>
-              <span className="text-2xl font-black text-stone-900">€ {total.toFixed(2)}</span>
+              <span className="text-sm font-bold uppercase tracking-widest text-stone-400">Totale</span>
+              <span className="text-2xl font-black text-rose-600">€ {total.toFixed(2)}</span>
             </div>
-            <button 
-              onClick={handleCheckout} 
-              disabled={loading}
-              className="w-full bg-stone-900 text-white py-4 rounded-xl font-bold uppercase tracking-widest text-xs hover:bg-stone-800 hover:shadow-lg transition-all disabled:opacity-50"
-            >
-              {loading ? 'Elaborazione in corso...' : 'Vai alla cassa →'}
+            <button onClick={handleCheckout} disabled={loading} className="w-full bg-gradient-to-r from-rose-500 to-orange-400 text-white py-4 rounded-2xl font-black uppercase tracking-widest text-[11px] shadow-md hover:scale-[1.02] transition-all disabled:opacity-50">
+              {loading ? 'Attendi...' : 'Procedi al Checkout'}
             </button>
           </div>
         )}
