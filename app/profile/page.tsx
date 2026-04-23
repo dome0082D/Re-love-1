@@ -1,11 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
-export default function ProfilePage() {
+function ProfileContent() {
   const [user, setUser] = useState<any>(null)
   const [profile, setProfile] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -15,12 +15,14 @@ export default function ProfilePage() {
   const [editForm, setEditForm] = useState<any>({ first_name: '', last_name: '', city: '', full_address: '' })
   const [saving, setSaving] = useState(false)
 
-  // STATI PER LA VETRINA PERSONALE
+  // LE TUE VETRINE ORIGINALI
   const [myAds, setMyAds] = useState<any[]>([])
   const [soldAds, setSoldAds] = useState<any[]>([])
   const [boughtAds, setBoughtAds] = useState<any[]>([])
   
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const isOnboardingSuccess = searchParams.get('onboarding') === 'success'
 
   useEffect(() => {
     loadProfile()
@@ -46,9 +48,7 @@ export default function ProfilePage() {
       })
     }
 
-    // --- CARICAMENTO ANNUNCI E ACQUISTI ---
-    
-    // 1. Prendi gli annunci creati da questo utente
+    // --- CARICAMENTO ANNUNCI E ACQUISTI (LA TUA LOGICA ORIGINALE) ---
     const { data: ads } = await supabase
       .from('announcements')
       .select('*')
@@ -60,7 +60,6 @@ export default function ProfilePage() {
       setSoldAds(ads.filter(a => (a.quantity !== undefined ? a.quantity : 1) <= 0))
     }
 
-    // 2. Prendi i MIEI ACQUISTI (interroga la tabella transactions)
     const { data: txs } = await supabase
       .from('transactions')
       .select('*')
@@ -80,7 +79,7 @@ export default function ProfilePage() {
 
   async function saveProfile() {
     if (!editForm.first_name?.trim() || !editForm.last_name?.trim() || !editForm.city?.trim() || !editForm.full_address?.trim()) {
-      alert("Tutti i campi sono obbligatori. Compila tutti i dati per salvare il profilo.")
+      alert("Tutti i campi sono obbligatori.")
       return
     }
 
@@ -97,11 +96,10 @@ export default function ProfilePage() {
         .eq('id', user.id)
 
       if (error) throw error
-
       setProfile({ ...profile, ...editForm })
       setIsEditing(false)
     } catch (error: any) {
-      alert("Errore durante il salvataggio: " + error.message)
+      alert("Errore salvataggio: " + error.message)
     } finally {
       setSaving(false)
     }
@@ -116,73 +114,56 @@ export default function ProfilePage() {
         body: JSON.stringify({ userId: user.id, email: user.email })
       })
       const data = await res.json()
-      
       if (data.url) {
-        // LA CORREZIONE È QUI: AGGIUNTO IL PUNTO INTERROGATIVO
-        if (!profile?.stripe_account_id) { 
-          await supabase.from('profiles').update({ stripe_account_id: data.accountId }).eq('id', user.id)
-        }
         window.location.href = data.url
       } else {
         alert("Errore Stripe: " + data.error)
       }
     } catch (err) {
-      console.error(err)
-      alert("Errore durante il collegamento a Stripe.")
+      alert("Errore collegamento Stripe.")
     } finally {
       setStripeLoading(false)
     }
   }
 
-  // NUOVA FUNZIONE: ELIMINA ANNUNCIO
   async function handleDelete(e: any, id: string) {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!window.confirm("Vuoi davvero eliminare questo annuncio? L'operazione è irreversibile.")) return;
-    
+    e.preventDefault(); e.stopPropagation();
+    if (!window.confirm("Vuoi davvero eliminare questo annuncio?")) return;
     const { error } = await supabase.from('announcements').delete().eq('id', id);
-    if (error) {
-      alert("Errore durante l'eliminazione: " + error.message);
-    } else {
-      // Aggiorna la vista eliminandolo istantaneamente dallo schermo
+    if (!error) {
       setMyAds(myAds.filter(a => a.id !== id));
       setSoldAds(soldAds.filter(a => a.id !== id));
     }
   }
 
-  if (loading) return <div className="p-10 text-center text-sm text-stone-500">Caricamento profilo...</div>
-
-  // FUNZIONE GRAFICA PER DISEGNARE LE GRIGLIE
+  // IL TUO RENDERGRID ORIGINALE CON STILE RE-LOVE
   const renderGrid = (items: any[], emptyMessage: string, isOwner: boolean = false) => {
-    if (items.length === 0) return <p className="text-sm text-stone-500 italic px-2">{emptyMessage}</p>
+    if (items.length === 0) return <p className="text-[10px] font-bold text-stone-400 italic py-4">{emptyMessage}</p>
     return (
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         {items.map(ann => (
-          <div key={ann.id} className="bg-white rounded-xl overflow-hidden border border-stone-200 shadow-sm flex flex-col relative hover:border-stone-400 transition-all">
-            <Link href={`/announcement/${ann.id}`} className="aspect-square bg-stone-50 relative block group">
-              <img src={ann.image_url || "/usato.png"} className="w-full h-full object-cover group-hover:opacity-90 transition-opacity" alt={ann.title} />
+          <div key={ann.id} className="bg-white rounded-2xl overflow-hidden border border-stone-100 shadow-sm flex flex-col hover:border-rose-300 transition-all">
+            <Link href={`/announcement/${ann.id}`} className="aspect-square bg-stone-50 relative block overflow-hidden">
+              <img src={ann.image_url || "/usato.png"} className="w-full h-full object-cover hover:scale-105 transition-transform duration-500" alt={ann.title} />
             </Link>
             <div className="p-3 flex flex-col justify-between flex-grow">
-               <Link href={`/announcement/${ann.id}`} className="block">
-                  <h4 className="text-[11px] font-bold uppercase truncate">{ann.title}</h4>
-                  <p className="text-[13px] font-black mt-1">
-                    {ann.type === 'offered' ? 'GRATIS' : `€ ${ann.price}`}
+               <div>
+                  <h4 className="text-[10px] font-black uppercase truncate text-stone-800">{ann.title}</h4>
+                  <p className="text-xs font-black text-rose-500 mt-1">
+                    {ann.price === 0 ? 'GRATIS' : `€ ${ann.price}`}
                   </p>
-               </Link>
-               
+               </div>
                {isOwner ? (
                  <div className="mt-3 grid grid-cols-2 gap-2">
-                   {/* Tasto Modifica */}
-                   <Link href={`/edit/${ann.id}`} className="text-center bg-stone-100 text-stone-600 text-[9px] font-black uppercase py-2 rounded-lg hover:bg-blue-500 hover:text-white transition-colors">
+                   <Link href={`/edit/${ann.id}`} className="text-center bg-stone-100 text-stone-600 text-[8px] font-black uppercase py-2 rounded-lg hover:bg-stone-900 hover:text-white transition-all">
                      ✏️ Modifica
                    </Link>
-                   {/* Tasto Elimina */}
-                   <button onClick={(e) => handleDelete(e, ann.id)} className="w-full bg-stone-100 text-stone-600 text-[9px] font-black uppercase py-2 rounded-lg hover:bg-red-500 hover:text-white transition-colors">
+                   <button onClick={(e) => handleDelete(e, ann.id)} className="bg-stone-50 text-rose-500 text-[8px] font-black uppercase py-2 rounded-lg hover:bg-rose-500 hover:text-white transition-all">
                      🗑️ Elimina
                    </button>
                  </div>
                ) : (
-                 <Link href={`/announcement/${ann.id}`} className="mt-3 block text-center w-full bg-stone-50 text-stone-800 text-[9px] font-black uppercase py-2 rounded-lg hover:bg-stone-900 hover:text-white transition-colors">
+                 <Link href={`/announcement/${ann.id}`} className="mt-3 block text-center w-full bg-stone-50 text-stone-800 text-[9px] font-black uppercase py-2 rounded-lg hover:bg-stone-900 hover:text-white transition-all">
                    Vedi Dettagli
                  </Link>
                )}
@@ -193,170 +174,132 @@ export default function ProfilePage() {
     )
   }
 
+  if (loading) return <div className="min-h-screen flex items-center justify-center text-[10px] font-black uppercase tracking-widest text-stone-400">Caricamento...</div>
+
   return (
-    <div className="min-h-screen bg-stone-50 p-6 font-sans text-stone-900 pb-20">
+    <div className="min-h-screen bg-stone-50 p-4 md:p-10 font-sans text-stone-900 pb-20">
       <div className="max-w-2xl mx-auto space-y-6">
         
-        {/* INTESTAZIONE E DATI PERSONALI */}
-        <div className="bg-white rounded-3xl p-8 border border-stone-200 shadow-sm relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-2 h-full bg-stone-900"></div>
-          
-          <div className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-semibold text-stone-900">Il mio profilo</h1>
+        {/* DATI PERSONALI (CON TUA FUNZIONE EDITING) */}
+        <div className="bg-white rounded-[2.5rem] p-8 border border-stone-200 shadow-sm relative overflow-hidden">
+          <div className="flex justify-between items-center mb-8">
+            <h1 className="text-2xl font-black uppercase italic text-transparent bg-clip-text bg-gradient-to-r from-rose-500 to-orange-400">Il mio profilo</h1>
             {!isEditing ? (
-              <button 
-                onClick={() => setIsEditing(true)} 
-                className="text-sm font-medium text-stone-500 hover:text-stone-900 transition-colors"
-              >
-                Modifica
-              </button>
+              <button onClick={() => setIsEditing(true)} className="text-[10px] font-black uppercase tracking-widest text-stone-400 hover:text-rose-500 transition-colors">Modifica</button>
             ) : (
               <div className="flex gap-3">
-                <button 
-                  onClick={() => setIsEditing(false)} 
-                  className="text-sm font-medium text-stone-500 hover:text-stone-900 transition-colors"
-                >
-                  Annulla
-                </button>
-                <button 
-                  onClick={saveProfile} 
-                  disabled={saving}
-                  className="text-sm font-medium bg-stone-900 text-white px-4 py-1.5 rounded-lg hover:bg-stone-800 transition-colors"
-                >
-                  {saving ? 'Salvataggio...' : 'Salva'}
-                </button>
+                <button onClick={() => setIsEditing(false)} className="text-[10px] font-black uppercase text-stone-400">Annulla</button>
+                <button onClick={saveProfile} disabled={saving} className="text-[10px] font-black uppercase bg-stone-900 text-white px-4 py-2 rounded-xl hover:bg-rose-500 transition-all">{saving ? '...' : 'Salva'}</button>
               </div>
             )}
           </div>
           
-          <div className="space-y-5">
+          <div className="space-y-6">
             {isEditing ? (
-              /* MODALITÀ MODIFICA */
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-xs font-medium text-stone-500 mb-1">Nome *</p>
-                    <input 
-                      type="text" 
-                      value={editForm.first_name} 
-                      onChange={(e) => setEditForm({...editForm, first_name: e.target.value})}
-                      className="w-full p-2 border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-stone-900"
-                    />
+                  <div className="space-y-1">
+                    <p className="text-[8px] font-black uppercase text-stone-400 ml-1">Nome</p>
+                    <input type="text" value={editForm.first_name} onChange={(e) => setEditForm({...editForm, first_name: e.target.value})} className="w-full p-3 bg-stone-50 border border-stone-100 rounded-xl text-xs font-bold outline-none focus:border-rose-400" />
                   </div>
-                  <div>
-                    <p className="text-xs font-medium text-stone-500 mb-1">Cognome *</p>
-                    <input 
-                      type="text" 
-                      value={editForm.last_name} 
-                      onChange={(e) => setEditForm({...editForm, last_name: e.target.value})}
-                      className="w-full p-2 border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-stone-900"
-                    />
+                  <div className="space-y-1">
+                    <p className="text-[8px] font-black uppercase text-stone-400 ml-1">Cognome</p>
+                    <input type="text" value={editForm.last_name} onChange={(e) => setEditForm({...editForm, last_name: e.target.value})} className="w-full p-3 bg-stone-50 border border-stone-100 rounded-xl text-xs font-bold outline-none focus:border-rose-400" />
                   </div>
                 </div>
-                <div>
-                  <p className="text-xs font-medium text-stone-500 mb-1">Email (Non modificabile)</p>
-                  <input 
-                    type="text" 
-                    value={user?.email || ''} 
-                    disabled 
-                    className="w-full p-2 border border-stone-100 bg-stone-50 rounded-xl text-sm text-stone-400"
-                  />
+                <div className="space-y-1">
+                  <p className="text-[8px] font-black uppercase text-stone-400 ml-1">Città</p>
+                  <input type="text" value={editForm.city} onChange={(e) => setEditForm({...editForm, city: e.target.value})} className="w-full p-3 bg-stone-50 border border-stone-100 rounded-xl text-xs font-bold outline-none focus:border-rose-400" />
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-xs font-medium text-stone-500 mb-1">Città *</p>
-                    <input 
-                      type="text" 
-                      value={editForm.city} 
-                      onChange={(e) => setEditForm({...editForm, city: e.target.value})}
-                      className="w-full p-2 border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-stone-900"
-                    />
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-stone-500 mb-1">Indirizzo completo *</p>
-                    <input 
-                      type="text" 
-                      placeholder="Via, Civico, CAP"
-                      value={editForm.full_address} 
-                      onChange={(e) => setEditForm({...editForm, full_address: e.target.value})}
-                      className="w-full p-2 border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-stone-900"
-                    />
-                  </div>
+                <div className="space-y-1">
+                  <p className="text-[8px] font-black uppercase text-stone-400 ml-1">Indirizzo completo</p>
+                  <input type="text" value={editForm.full_address} onChange={(e) => setEditForm({...editForm, full_address: e.target.value})} className="w-full p-3 bg-stone-50 border border-stone-100 rounded-xl text-xs font-bold outline-none focus:border-rose-400" />
                 </div>
               </div>
             ) : (
-              /* MODALITÀ VISUALIZZAZIONE */
-              <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <p className="text-xs font-medium text-stone-500">Nome e Cognome</p>
-                  <p className="text-base">{profile?.first_name} {profile?.last_name}</p>
+                  <p className="text-[9px] font-black uppercase text-stone-400 tracking-widest mb-1">Nome e Cognome</p>
+                  <p className="text-sm font-bold uppercase italic">{profile?.first_name} {profile?.last_name}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-stone-500">Email di contatto</p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <p className="text-base">{user?.email}</p>
-                    <span className="flex items-center gap-1 bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-100">
-                      ✓ Verificata
-                    </span>
+                  <p className="text-[9px] font-black uppercase text-stone-400 tracking-widest mb-1">Email</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-bold text-stone-800 lowercase">{user?.email}</p>
+                    <span className="bg-emerald-50 text-emerald-600 text-[8px] font-black px-1.5 py-0.5 rounded uppercase border border-emerald-100">✓ Verificata</span>
                   </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-xs font-medium text-stone-500">Città</p>
-                    <p className="text-base capitalize">{profile?.city || 'Non specificata'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-stone-500">Indirizzo completo</p>
-                    <p className="text-base capitalize">{profile?.full_address || 'Non specificato'}</p>
-                  </div>
+                <div>
+                  <p className="text-[9px] font-black uppercase text-stone-400 tracking-widest mb-1">Città</p>
+                  <p className="text-sm font-bold uppercase italic">{profile?.city || 'Non specificata'}</p>
                 </div>
-              </>
+                <div>
+                  <p className="text-[9px] font-black uppercase text-stone-400 tracking-widest mb-1">Indirizzo</p>
+                  <p className="text-sm font-bold uppercase italic truncate">{profile?.full_address || 'Non specificato'}</p>
+                </div>
+              </div>
             )}
           </div>
         </div>
 
-        {/* RICEZIONE PAGAMENTI STRIPE */}
-        <div className="bg-white rounded-3xl p-8 border border-stone-200 shadow-sm">
-          <h2 className="text-xl font-semibold text-stone-900 mb-2">Ricezione pagamenti</h2>
-          <p className="text-sm text-stone-500 mb-6">Per vendere oggetti e ricevere i soldi sul tuo conto, devi configurare il tuo portafoglio Stripe.</p>
-          <button 
-            onClick={handleStripeOnboarding} 
-            disabled={stripeLoading}
-            className="w-full bg-[#008953] text-white font-bold py-3 rounded-xl hover:bg-[#007044] transition-colors disabled:opacity-50"
-          >
-            {stripeLoading ? 'Connessione in corso...' : 'Attiva ricezione pagamenti'}
-          </button>
+        {/* STRIPE SECTION */}
+        <div className="bg-white rounded-[2.5rem] p-8 border border-stone-200 shadow-sm">
+          <h2 className="text-lg font-black uppercase italic text-stone-900 mb-2">Ricezione pagamenti</h2>
+          {(isOnboardingSuccess || profile?.stripe_account_id) ? (
+            <div className="bg-emerald-50 border border-emerald-100 p-6 rounded-[2rem] flex items-center gap-4 mt-2">
+              <span className="text-xl">✅</span>
+              <div>
+                <p className="text-[10px] font-black uppercase text-emerald-700 tracking-widest">Portafoglio Collegato</p>
+                <p className="text-[11px] text-emerald-600 font-bold italic">Sei pronto a ricevere pagamenti reali.</p>
+              </div>
+            </div>
+          ) : (
+            <>
+              <p className="text-xs font-medium text-stone-500 mb-6 italic">Configura Stripe per incassare i soldi delle tue vendite.</p>
+              <button onClick={handleStripeOnboarding} disabled={stripeLoading} className="w-full bg-gradient-to-r from-rose-500 to-orange-400 text-white font-black uppercase text-[10px] tracking-[0.2em] py-4 rounded-2xl hover:scale-[1.02] transition-all shadow-md">
+                {stripeLoading ? 'Connessione in corso...' : 'Attiva ricezione pagamenti'}
+              </button>
+            </>
+          )}
         </div>
 
         {/* PULSANTI RAPIDI */}
         <div className="grid grid-cols-2 gap-4">
-          <div className="bg-white rounded-2xl p-6 border border-stone-200 shadow-sm text-center flex flex-col items-center justify-center">
-            <span className="text-2xl block mb-2">📦</span>
-            <p className="text-xs font-bold text-stone-700">I miei acquisti</p>
+          <div className="bg-white rounded-[2rem] p-6 border border-stone-100 shadow-sm text-center flex flex-col items-center justify-center group cursor-pointer hover:border-rose-300 transition-all">
+            <span className="text-2xl mb-2 group-hover:scale-110 transition-transform">📦</span>
+            <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest">I miei acquisti</p>
           </div>
-          <div className="bg-white rounded-2xl p-6 border border-stone-200 shadow-sm text-center flex flex-col items-center justify-center">
-            <span className="text-2xl block mb-2">❤️</span>
-            <p className="text-xs font-bold text-stone-700">I miei preferiti</p>
+          <div className="bg-white rounded-[2rem] p-6 border border-stone-100 shadow-sm text-center flex flex-col items-center justify-center group cursor-pointer hover:border-rose-300 transition-all">
+            <span className="text-2xl mb-2 group-hover:scale-110 transition-transform">❤️</span>
+            <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest">I miei preferiti</p>
           </div>
         </div>
 
-        {/* IN VENDITA */}
-        <div className="bg-white rounded-3xl p-8 border border-stone-200 shadow-sm">
-          <h2 className="text-[11px] font-bold uppercase tracking-widest text-stone-400 mb-4 flex items-center gap-2">
-            <span>💸</span> IN VENDITA
+        {/* VETRINA ANNUNCI IN VENDITA */}
+        <div className="bg-white rounded-[2.5rem] p-8 border border-stone-200 shadow-sm">
+          <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 mb-6 flex items-center gap-2">
+            <span className="w-2 h-2 bg-rose-500 rounded-full"></span> IN VENDITA
           </h2>
           {renderGrid(myAds, "Non hai ancora inserito nessun annuncio.", true)}
         </div>
 
-        {/* OGGETTI ACQUISTATI */}
-        <div className="bg-white rounded-3xl p-8 border border-stone-200 shadow-sm">
-          <h2 className="text-[11px] font-bold uppercase tracking-widest text-stone-400 mb-4 flex items-center gap-2">
-            <span>🛍️</span> OGGETTI ACQUISTATI
+        {/* VETRINA OGGETTI ACQUISTATI */}
+        <div className="bg-white rounded-[2.5rem] p-8 border border-stone-200 shadow-sm">
+          <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 mb-6 flex items-center gap-2">
+            <span className="w-2 h-2 bg-orange-400 rounded-full"></span> OGGETTI ACQUISTATI
           </h2>
-          {renderGrid(boughtAds, "Non hai ancora effettuato nessun acquisto.", false)}
+          {renderGrid(boughtAds, "Non hai ancora effettuato acquisti.", false)}
         </div>
 
       </div>
     </div>
+  )
+}
+
+export default function ProfilePage() {
+  return (
+    <Suspense fallback={<div className="p-10 text-center font-black uppercase text-stone-400 text-xs tracking-widest animate-pulse">Re-love sta arrivando...</div>}>
+      <ProfileContent />
+    </Suspense>
   )
 }
