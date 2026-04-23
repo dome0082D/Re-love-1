@@ -93,8 +93,11 @@ function HomePageContent() {
   return (
     <div className="min-h-screen bg-stone-50 font-sans text-stone-900 pb-20">
       
+      {/* MODIFICA APPLICATA QUI: Trasformato button in Link per abilitare la navigazione */}
       {IS_STAFF && (
-        <button onClick={() => setIsStaffOpen(true)} className="fixed bottom-8 right-8 z-[99] bg-stone-900 text-rose-400 w-16 h-16 rounded-full shadow-lg font-bold flex items-center justify-center border-2 border-rose-400 hover:scale-105 active:scale-95 transition-all text-2xl">👑</button>
+        <Link href="/staff" className="fixed bottom-8 right-8 z-[99] bg-stone-900 text-rose-400 w-16 h-16 rounded-full shadow-lg font-bold flex items-center justify-center border-2 border-rose-400 hover:scale-105 active:scale-95 transition-all text-2xl">
+          👑
+        </Link>
       )}
 
       {/* HERO SECTION MODIFICATA CON RE-LOVE */}

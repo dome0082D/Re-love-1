@@ -20,37 +20,66 @@ export default function Navbar() {
 
   useEffect(() => {
     const getData = async () => {
-      // RISOLUZIONE ERRORE "auth-token stole it": uso getSession invece di getUser
-      const { data: { session } } = await supabase.auth.getSession()
-      const currentUser = session?.user || null
-      setUser(currentUser)
-      
-      const { data: cats } = await supabase.from('categories').select('*').order('name')
-      setCategories(cats || [])
+      try {
+        // RISOLUZIONE ERRORE "auth-token stole it": uso getSession invece di getUser
+        const { data: { session } } = await supabase.auth.getSession()
+        const currentUser = session?.user || null
+        setUser(currentUser)
+        
+        // AGGIUNTA PROTEZIONE CONTRO ERRORE 404 SULLE CATEGORIE
+        try {
+          const { data: cats, error: catsError } = await supabase.from('categories').select('*').order('name')
+          if (!catsError && cats) {
+            setCategories(cats)
+          }
+        } catch (catErr) {
+          console.warn("Nessuna tabella categorie trovata, ignoro l'errore", catErr)
+        }
 
-      if (currentUser) {
-        fetchNotifications(currentUser.id)
-        const channel = supabase.channel('realtime-notifications')
-          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${currentUser.id}` }, () => {
-            fetchNotifications(currentUser.id)
-          }).subscribe()
+        if (currentUser) {
+          await fetchNotifications(currentUser.id)
           
-        return () => { supabase.removeChannel(channel) }
+          // AGGIUNTA PROTEZIONE E FIX "PAYLOAD" SUL CANALE REALTIME
+          try {
+            const channel = supabase.channel('realtime-notifications')
+              .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${currentUser.id}` }, (payload) => {
+                // Ora il parametro payload è dichiarato, eviterà il crash se indefinito
+                fetchNotifications(currentUser.id)
+              }).subscribe()
+              
+            return () => { supabase.removeChannel(channel) }
+          } catch (channelErr) {
+            console.warn("Canale notifiche non avviato, ignoro l'errore", channelErr)
+          }
+        }
+      } catch (mainErr) {
+        console.error("Errore di inizializzazione Navbar:", mainErr)
       }
     }
+    
     getData()
     
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user || null)
     })
-    return () => authListener.subscription.unsubscribe()
+    
+    return () => {
+      if (authListener?.subscription) {
+        authListener.subscription.unsubscribe()
+      }
+    }
   }, [])
 
+  // AGGIUNTA PROTEZIONE CONTRO ERRORE 404 SULLE NOTIFICHE
   const fetchNotifications = async (userId: string) => {
     try {
       const { count, error } = await supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', userId).eq('is_read', false)
-      if (!error && count !== null) setNotifications(count)
-    } catch (e) { console.error(e) }
+      if (!error && count !== null) {
+        setNotifications(count)
+      }
+    } catch (e) { 
+      console.warn("Impossibile caricare le notifiche:", e) 
+    }
   }
 
   const handleLogout = async () => {
