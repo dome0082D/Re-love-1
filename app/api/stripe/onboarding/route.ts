@@ -1,31 +1,47 @@
+export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { supabase } from '@/lib/supabase'; // Assicurati di avere un client Supabase admin se RLS blocca
+import { supabase } from '@/lib/supabase';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, { apiVersion: '2023-10-16' as any });
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
+  apiVersion: "2024-04-10" as any,
+});
 
 export async function POST(req: Request) {
   try {
-    const { userId, email } = await req.json();
+    const { userId } = await req.json();
+    if (!userId) return NextResponse.json({ error: "User ID mancante" }, { status: 400 });
 
-    // 1. Crea account Stripe Express per il venditore
-    const account = await stripe.accounts.create({
+    // 1. Crea account Express
+    const account = await stripe.accounts.create({ 
       type: 'express',
-      country: 'IT',
-      email: email,
-      capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
+      capabilities: {
+        card_payments: { requested: true },
+        transfers: { requested: true },
+      },
     });
 
-    // 2. Genera link di Onboarding
+    // 2. Salva l'ID su Supabase
+    const { error: dbError } = await supabase
+      .from('profiles')
+      .update({ stripe_account_id: account.id })
+      .eq('id', userId);
+
+    if (dbError) throw new Error("Errore salvataggio database: " + dbError.message);
+
+    // 3. Genera link (SCRIVIAMO L'URL DIRETTO PER EVITARE ERRORI HTTPS)
+    const siteUrl = 'https://re-love-rouge.vercel.app';
+
     const accountLink = await stripe.accountLinks.create({
       account: account.id,
-      refresh_url: `${process.env.NEXT_PUBLIC_BASE_URL}/profile`,
-      return_url: `${process.env.NEXT_PUBLIC_BASE_URL}/profile?onboarding=success`,
+      refresh_url: `${siteUrl}/profile`,
+      return_url: `${siteUrl}/profile?onboarding=success`,
       type: 'account_onboarding',
     });
 
-    return NextResponse.json({ url: accountLink.url, accountId: account.id });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ url: accountLink.url });
+  } catch (err: any) {
+    console.error("ERRORE ONBOARDING:", err.message);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
