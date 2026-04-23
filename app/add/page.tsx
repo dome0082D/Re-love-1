@@ -11,12 +11,20 @@ function AddPageContent() {
   const router = useRouter()
   
   const [loading, setLoading] = useState(false)
-  const [categories, setCategories] = useState<any[]>([])
   const [files, setFiles] = useState<File[]>([]) 
 
-  useEffect(() => {
-    supabase.from('categories').select('*').then(({ data }) => setCategories(data || []))
-  }, [])
+  // LE CATEGORIE ORA SONO FISSE NEL CODICE (Anti-Crash e Anti-Vuoto)
+  const categorieFisse = [
+    { id: '1', name: '👕 Abbigliamento e Accessori' },
+    { id: '2', name: '💻 Elettronica e Informatica' },
+    { id: '3', name: '🛋️ Casa, Arredo, Giardino' },
+    { id: '4', name: '🍎 Alimentari e Bevande' },
+    { id: '5', name: '📚 Libri, Film e Musica' },
+    { id: '6', name: '💄 Salute e Bellezza' },
+    { id: '7', name: '⚽ Sport e Tempo Libero' },
+    { id: '8', name: '🚗 Motori e Veicoli' },
+    { id: '9', name: '📦 Altro / Varie' }
+  ]
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -31,6 +39,9 @@ function AddPageContent() {
     const condition = mode === 'new' ? 'Nuovo' : mode === 'used' ? 'Usato' : 'Regalo'
     const price = mode === 'gift' ? 0 : parseFloat(formData.get('price') as string)
     const quantity = parseInt(formData.get('quantity') as string) || 1
+    
+    // Recuperiamo l'ID della categoria dal form (come stringa)
+    const categoryId = formData.get('category_id') as string
 
     let uploadedUrls: string[] = []
 
@@ -55,7 +66,7 @@ function AddPageContent() {
       description: formData.get('description'),
       price: price,
       quantity: quantity,
-      category_id: parseInt(formData.get('category_id') as string),
+      category_id: categoryId, // Ora passiamo la stringa dell'ID categoria
       condition: condition,
       image_urls: uploadedUrls,
       image_url: uploadedUrls.length > 0 ? uploadedUrls[0] : '/usato.png'
@@ -119,7 +130,8 @@ function AddPageContent() {
             <div>
               <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400">Categoria</label>
               <select name="category_id" required className="w-full p-3 mt-1 bg-stone-50 rounded-xl border border-stone-100 outline-none focus:border-rose-400 text-sm font-medium text-stone-800">
-                {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
+                {/* ORA LA TENDINA PESCA DALL'ARRAY FISSO: */}
+                {categorieFisse.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
               </select>
             </div>
             <div>
