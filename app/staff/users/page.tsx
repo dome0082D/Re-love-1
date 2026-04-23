@@ -7,14 +7,30 @@ import Link from 'next/link'
 export default function StaffUsersList() {
   const [users, setUsers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   useEffect(() => {
-    // Recupera tutti i profili dal database
-    supabase.from('profiles').select('*').order('created_at', { ascending: false })
-      .then(({ data }) => {
-        setUsers(data || [])
+    async function fetchProfiles() {
+      try {
+        setLoading(true)
+        
+        const { data, error } = await supabase.from('profiles').select('*').order('created_at', { ascending: false })
+        
+        if (error) {
+          console.warn("Errore Supabase profili:", error)
+          setErrorMsg(error.message)
+        } else {
+          setUsers(data || [])
+        }
+      } catch (err: any) {
+        console.error("Crash recupero profili:", err)
+        setErrorMsg(err.message || "Si è verificato un errore imprevisto.")
+      } finally {
         setLoading(false)
-      })
+      }
+    }
+
+    fetchProfiles()
   }, [])
 
   return (
@@ -27,6 +43,20 @@ export default function StaffUsersList() {
 
         {loading ? (
           <p className="animate-pulse font-bold text-stone-400 uppercase text-xs">Caricamento database...</p>
+        ) : errorMsg ? (
+          /* NUOVO: MESSAGGIO DI ERRORE SE IL DATABASE RIFIUTA LA CONNESSIONE */
+          <div className="bg-red-50 p-6 rounded-2xl border border-red-200 shadow-sm">
+            <p className="text-red-600 font-bold uppercase text-[11px] tracking-widest mb-2">⚠️ Impossibile caricare gli utenti</p>
+            <p className="text-red-500 font-medium text-xs mb-4">{errorMsg}</p>
+            <p className="text-stone-500 text-[10px] uppercase font-bold tracking-wider">
+              Controllo: Assicurati di aver creato la tabella "profiles" su Supabase.
+            </p>
+          </div>
+        ) : users.length === 0 ? (
+          /* NUOVO: MESSAGGIO VISIVO SE LA LISTA E' VUOTA */
+          <div className="bg-white p-12 rounded-3xl border border-stone-200 text-center shadow-sm">
+            <p className="text-stone-400 font-bold uppercase tracking-widest text-xs">Nessun utente trovato nella tabella profili</p>
+          </div>
         ) : (
           <div className="grid gap-4">
             {users.map((u) => (
