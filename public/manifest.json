@@ -1,7 +1,7 @@
 {
-  "name": "Materiali Edili",
-  "short_name": "Materiali",
-  "description": "Recupera, regala, vendi materiali edili.",
+  "name": "Re-love - Materiali Edili",
+  "short_name": "Re-love",
+  "description": "Recupera, regala e vendi materiali edili. Il marketplace professionale per dare nuova vita ai materiali.",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",
