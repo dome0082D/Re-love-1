@@ -13,9 +13,17 @@ function AddPageContent() {
   const [loading, setLoading] = useState(false)
   const [files, setFiles] = useState<File[]>([]) 
   
+  // STATI PER SPEDIZIONE E INDIRIZZO DETTAGLIATO
   const [shippingCost, setShippingCost] = useState<string>('0')
   const [allowLocalPickup, setAllowLocalPickup] = useState<boolean>(false)
-  const [originAddress, setOriginAddress] = useState<string>('')
+  
+  // STATI PER I 6 CAMPI OBBLIGATORI
+  const [nation, setNation] = useState<string>('Italia')
+  const [region, setRegion] = useState<string>('')
+  const [city, setCity] = useState<string>('')
+  const [postcode, setPostcode] = useState<string>('')
+  const [street, setStreet] = useState<string>('')
+  const [houseNumber, setHouseNumber] = useState<string>('')
 
   const categorieFisse = [
     { id: '1', name: '👕 Abbigliamento e Accessori' },
@@ -32,14 +40,13 @@ function AddPageContent() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     
-    // FISSA: Catturiamo il form IMMEDIATAMENTE prima di qualsiasi await
+    // FISSA ERRORE: Catturiamo il form IMMEDIATAMENTE prima di qualsiasi await
     const formElement = e.currentTarget;
     const formData = new FormData(formElement);
     
     setLoading(true)
     
     try {
-      // 1. VERIFICA UTENTE
       const { data: { user }, error: authError } = await supabase.auth.getUser()
       if (authError || !user) { 
         alert('Errore di accesso: sessione scaduta. Per favore, esci e rientra nel profilo.')
@@ -47,7 +54,6 @@ function AddPageContent() {
         return 
       }
 
-      // 2. RECUPERO DATI (Già pronti in formData)
       const condition = mode === 'new' ? 'Nuovo' : mode === 'used' ? 'Usato' : mode === 'barter' ? 'Baratto' : 'Regalo'
       const priceString = formData.get('price')?.toString() || '0'
       const price = (mode === 'gift' || mode === 'barter') ? 0 : (parseFloat(priceString) || 0)
@@ -59,7 +65,7 @@ function AddPageContent() {
 
       let uploadedUrls: string[] = []
 
-      // 3. CARICAMENTO IMMAGINI
+      // CARICAMENTO IMMAGINI
       if (files.length > 0) {
         for (const file of files) {
           const fileExt = file.name.split('.').pop()
@@ -79,7 +85,7 @@ function AddPageContent() {
         }
       }
 
-      // 4. SALVATAGGIO NEL DATABASE
+      // SALVATAGGIO CON I 6 CAMPI INDIRIZZO
       const announcementData = {
         user_id: user.id,
         title: title,
@@ -92,7 +98,14 @@ function AddPageContent() {
         image_url: uploadedUrls.length > 0 ? uploadedUrls[0] : '/usato.png',
         shipping_cost: parseFloat(shippingCost) || 0,
         allow_local_pickup: allowLocalPickup,
-        origin_address: originAddress
+        // DATI INDIRIZZO
+        nation: nation,
+        region: region,
+        city: city,
+        postcode: postcode,
+        street: street,
+        house_number: houseNumber,
+        origin_address: `${street} ${houseNumber}, ${postcode} ${city} (${region}), ${nation}`
       };
 
       const { error } = await supabase.from('announcements').insert([announcementData as any]) 
@@ -105,13 +118,12 @@ function AddPageContent() {
       }
 
     } catch (err: any) {
-      alert("Si è verificato un errore critico: " + (err.message || "Riprova più tardi"))
+      alert("Si è verificato un errore imprevisto: " + (err.message || "Riprova più tardi"))
     } finally {
       setLoading(false)
     }
   }
 
-  // --- UI RIMANE INVARIATA ---
   if (!mode) {
     return (
       <div className="min-h-screen bg-stone-50 p-6 md:p-10 flex flex-col items-center pt-10">
@@ -189,19 +201,44 @@ function AddPageContent() {
             </div>
           </div>
 
-          <div className="p-4 bg-stone-50 rounded-xl border border-stone-100 space-y-4">
-            <div>
-              <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400">Indirizzo di Provenienza</label>
-              <input 
-                required 
-                type="text" 
-                value={originAddress} 
-                onChange={(e) => setOriginAddress(e.target.value)}
-                className="w-full p-3 mt-1 bg-white rounded-xl border border-stone-200 outline-none focus:border-rose-400 text-sm font-medium text-stone-800" 
-                placeholder="Città, Via, Civico" 
-              />
+          {/* NUOVA SEZIONE INDIRIZZO BLOCCATA E OBBLIGATORIA */}
+          <div className="p-5 bg-stone-50 rounded-[1.5rem] border-2 border-stone-200 space-y-4">
+            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-500 block mb-2 text-center">📍 Località dell'oggetto</label>
+            
+            <div className="grid grid-cols-2 gap-3">
+               <div>
+                 <label className="text-[9px] font-bold text-stone-400 uppercase tracking-widest">Nazione</label>
+                 <input required type="text" value={nation} onChange={(e) => setNation(e.target.value)} className="w-full p-3 mt-1 bg-white rounded-xl border border-stone-200 text-sm font-bold text-stone-800 outline-none focus:border-rose-400" />
+               </div>
+               <div>
+                 <label className="text-[9px] font-bold text-stone-400 uppercase tracking-widest">Regione</label>
+                 <input required type="text" placeholder="Es: Lombardia" value={region} onChange={(e) => setRegion(e.target.value)} className="w-full p-3 mt-1 bg-white rounded-xl border border-stone-200 text-sm font-bold text-stone-800 outline-none focus:border-rose-400" />
+               </div>
             </div>
-            <label className="flex items-center gap-3 cursor-pointer group">
+
+            <div className="grid grid-cols-2 gap-3">
+               <div>
+                 <label className="text-[9px] font-bold text-stone-400 uppercase tracking-widest">Città</label>
+                 <input required type="text" placeholder="Es: Milano" value={city} onChange={(e) => setCity(e.target.value)} className="w-full p-3 mt-1 bg-white rounded-xl border border-stone-200 text-sm font-bold text-stone-800 outline-none focus:border-rose-400" />
+               </div>
+               <div>
+                 <label className="text-[9px] font-bold text-stone-400 uppercase tracking-widest">CAP</label>
+                 <input required type="text" placeholder="Es: 20100" value={postcode} onChange={(e) => setPostcode(e.target.value)} className="w-full p-3 mt-1 bg-white rounded-xl border border-stone-200 text-sm font-bold text-stone-800 outline-none focus:border-rose-400" />
+               </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+               <div className="col-span-2">
+                 <label className="text-[9px] font-bold text-stone-400 uppercase tracking-widest">Via / Piazza</label>
+                 <input required type="text" placeholder="Es: Via Roma" value={street} onChange={(e) => setStreet(e.target.value)} className="w-full p-3 mt-1 bg-white rounded-xl border border-stone-200 text-sm font-bold text-stone-800 outline-none focus:border-rose-400" />
+               </div>
+               <div>
+                 <label className="text-[9px] font-bold text-stone-400 uppercase tracking-widest">Civico</label>
+                 <input required type="text" placeholder="Es: 12" value={houseNumber} onChange={(e) => setHouseNumber(e.target.value)} className="w-full p-3 mt-1 bg-white rounded-xl border border-stone-200 text-sm font-bold text-stone-800 outline-none focus:border-rose-400" />
+               </div>
+            </div>
+
+            <label className="flex items-center gap-3 cursor-pointer group pt-2 justify-center">
               <input 
                 type="checkbox" 
                 checked={allowLocalPickup} 
