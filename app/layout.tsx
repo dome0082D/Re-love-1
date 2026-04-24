@@ -1,14 +1,16 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import Navbar from '@/components/Navbar'
+import Script from 'next/script'
 
+// METADATI PER SEO E PWA
 export const metadata: Metadata = {
-  title: 'LIBERO SCAMBIO - Il tuo Marketplace professionale',
-  description: 'Il marketplace dedicato ai materiali. Trova il nuovo, l\'usato o oggetti in regalo vicino a te.',
-  manifest: '/manifest.json', // AGGIUNTO PER PWA E PLAY STORE
+  title: 'Re-love - LIBERO SCAMBIO',
+  description: 'Il marketplace professionale dedicato ai materiali edili. Trova il nuovo, l\'usato o oggetti in regalo vicino a te.',
+  manifest: '/manifest.json',
 }
 
-// AGGIUNTO PER IL COLORE DELLA BARRA DI STATO SU ANDROID
+// COLORE DELLA BARRA DI STATO SU ANDROID
 export const viewport: Viewport = {
   themeColor: '#059669',
 }
@@ -20,6 +22,22 @@ export default function RootLayout({
 }) {
   return (
     <html lang="it">
+      <head>
+        {/* Questo script registra il Service Worker per far funzionare l'app su Android */}
+        <Script id="register-sw" strategy="afterInteractive">
+          {`
+            if ('serviceWorker' in navigator) {
+              window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/sw.js').then(function(registration) {
+                  console.log('Service Worker registrato con successo');
+                }, function(err) {
+                  console.log('Registrazione Service Worker fallita: ', err);
+                });
+              });
+            }
+          `}
+        </Script>
+      </head>
       <body className="bg-stone-50 text-stone-900 font-sans antialiased min-h-screen flex flex-col">
         <Navbar />
         <main className="flex-grow">
