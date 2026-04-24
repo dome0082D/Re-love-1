@@ -13,7 +13,6 @@ function AddPageContent() {
   const [loading, setLoading] = useState(false)
   const [files, setFiles] = useState<File[]>([]) 
   
-  // STATI AGGIUNTI PER SPEDIZIONE E MAPPA
   const [shippingCost, setShippingCost] = useState<string>('0')
   const [allowLocalPickup, setAllowLocalPickup] = useState<boolean>(false)
   const [originAddress, setOriginAddress] = useState<string>('')
@@ -35,10 +34,10 @@ function AddPageContent() {
     setLoading(true)
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { 
-        alert('Devi accedere per pubblicare!')
-        setLoading(false)
+      // 1. VERIFICA UTENTE
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError || !user) { 
+        alert('Errore di accesso: sessione scaduta. Per favore, esci e rientra nel profilo.')
         return 
       }
 
@@ -46,19 +45,17 @@ function AddPageContent() {
       const formData = new FormData(form)
       
       const condition = mode === 'new' ? 'Nuovo' : mode === 'used' ? 'Usato' : mode === 'barter' ? 'Baratto' : 'Regalo'
-      
       const priceString = formData.get('price')?.toString() || '0'
       const price = (mode === 'gift' || mode === 'barter') ? 0 : (parseFloat(priceString) || 0)
-      
       const quantityString = formData.get('quantity')?.toString() || '1'
       const quantity = parseInt(quantityString, 10) || 1
-      
       const categoryId = formData.get('category_id')?.toString() || ''
       const title = formData.get('title')?.toString() || ''
       const description = formData.get('description')?.toString() || ''
 
       let uploadedUrls: string[] = []
 
+      // 2. CARICAMENTO IMMAGINI CON CONTROLLO ERRORE
       if (files.length > 0) {
         for (const file of files) {
           const fileExt = file.name.split('.').pop()
@@ -67,18 +64,18 @@ function AddPageContent() {
           
           const { error: uploadError } = await supabase.storage.from('images').upload(filePath, file)
           
-          if (!uploadError) {
-            const { data } = supabase.storage.from('images').getPublicUrl(filePath)
-            uploadedUrls.push(data.publicUrl)
-          } else {
-            console.error("Errore upload immagine:", uploadError.message)
-            alert("Errore durante il caricamento dell'immagine: " + uploadError.message)
-            setLoading(false)
-            return
+          if (uploadError) {
+            // Se la foto fallisce, fermiamo tutto e avvisiamo l'utente
+            alert("Errore durante il caricamento della foto: " + uploadError.message)
+            return 
           }
+
+          const { data } = supabase.storage.from('images').getPublicUrl(filePath)
+          uploadedUrls.push(data.publicUrl)
         }
       }
 
+      // 3. SALVATAGGIO NEL DATABASE
       const announcementData = {
         user_id: user.id,
         title: title,
@@ -100,11 +97,14 @@ function AddPageContent() {
         alert("Annuncio pubblicato con successo!")
         router.push('/')
       } else {
-        alert("Errore durante la pubblicazione: " + error.message)
+        alert("Errore del database: " + error.message)
       }
+
     } catch (err: any) {
-      alert("Si è verificato un errore imprevisto: " + err.message)
+      // Questo cattura errori imprevisti (es. crash del codice o internet assente)
+      alert("Si è verificato un errore critico: " + (err.message || "Riprova più tardi"))
     } finally {
+      // QUESTA È LA VALVOLA: il caricamento si spegne SEMPRE, qualunque sia l'esito
       setLoading(false)
     }
   }
