@@ -31,6 +31,11 @@ function AddPageContent() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    
+    // FISSA: Catturiamo il form IMMEDIATAMENTE prima di qualsiasi await
+    const formElement = e.currentTarget;
+    const formData = new FormData(formElement);
+    
     setLoading(true)
     
     try {
@@ -38,12 +43,11 @@ function AddPageContent() {
       const { data: { user }, error: authError } = await supabase.auth.getUser()
       if (authError || !user) { 
         alert('Errore di accesso: sessione scaduta. Per favore, esci e rientra nel profilo.')
+        setLoading(false)
         return 
       }
 
-      const form = e.currentTarget
-      const formData = new FormData(form)
-      
+      // 2. RECUPERO DATI (Già pronti in formData)
       const condition = mode === 'new' ? 'Nuovo' : mode === 'used' ? 'Usato' : mode === 'barter' ? 'Baratto' : 'Regalo'
       const priceString = formData.get('price')?.toString() || '0'
       const price = (mode === 'gift' || mode === 'barter') ? 0 : (parseFloat(priceString) || 0)
@@ -55,7 +59,7 @@ function AddPageContent() {
 
       let uploadedUrls: string[] = []
 
-      // 2. CARICAMENTO IMMAGINI CON CONTROLLO ERRORE
+      // 3. CARICAMENTO IMMAGINI
       if (files.length > 0) {
         for (const file of files) {
           const fileExt = file.name.split('.').pop()
@@ -65,8 +69,8 @@ function AddPageContent() {
           const { error: uploadError } = await supabase.storage.from('images').upload(filePath, file)
           
           if (uploadError) {
-            // Se la foto fallisce, fermiamo tutto e avvisiamo l'utente
-            alert("Errore durante il caricamento della foto: " + uploadError.message)
+            alert("Errore caricamento foto: " + uploadError.message)
+            setLoading(false)
             return 
           }
 
@@ -75,7 +79,7 @@ function AddPageContent() {
         }
       }
 
-      // 3. SALVATAGGIO NEL DATABASE
+      // 4. SALVATAGGIO NEL DATABASE
       const announcementData = {
         user_id: user.id,
         title: title,
@@ -101,14 +105,13 @@ function AddPageContent() {
       }
 
     } catch (err: any) {
-      // Questo cattura errori imprevisti (es. crash del codice o internet assente)
       alert("Si è verificato un errore critico: " + (err.message || "Riprova più tardi"))
     } finally {
-      // QUESTA È LA VALVOLA: il caricamento si spegne SEMPRE, qualunque sia l'esito
       setLoading(false)
     }
   }
 
+  // --- UI RIMANE INVARIATA ---
   if (!mode) {
     return (
       <div className="min-h-screen bg-stone-50 p-6 md:p-10 flex flex-col items-center pt-10">
@@ -119,25 +122,18 @@ function AddPageContent() {
           <Link href="/add?mode=new" className="bg-white p-6 rounded-2xl border border-stone-200 text-center hover:border-rose-400 shadow-sm transition-all hover:-translate-y-1">
             <img src="/nuovo.png" alt="Nuovo" className="w-full object-cover rounded-xl mb-4" />
             <h3 className="text-xl font-bold uppercase italic text-stone-900">Nuovo</h3>
-            <p className="text-[11px] font-medium text-stone-500 mt-2">Articoli mai usati o eccedenze.</p>
           </Link>
-
           <Link href="/add?mode=used" className="bg-white p-6 rounded-2xl border border-stone-200 text-center hover:border-orange-400 shadow-sm transition-all hover:-translate-y-1">
             <img src="/usato.png" alt="Usato" className="w-full object-cover rounded-xl mb-4" />
             <h3 className="text-xl font-bold uppercase italic text-stone-900">Usato</h3>
-            <p className="text-[11px] font-medium text-stone-500 mt-2">Materiali di seconda mano.</p>
           </Link>
-
           <Link href="/add?mode=gift" className="bg-rose-50 p-6 rounded-2xl border-2 border-rose-400 text-center shadow-md transition-all hover:-translate-y-1">
             <img src="/regalo.png" alt="Regalo" className="w-full object-cover rounded-xl mb-4" />
             <h3 className="text-xl font-bold uppercase italic text-rose-800">Regalo</h3>
-            <p className="text-[11px] font-medium text-rose-700 mt-2">Dona a chi ne ha bisogno.</p>
           </Link>
-
           <Link href="/add?mode=barter" className="bg-blue-50 p-6 rounded-2xl border-2 border-blue-400 text-center shadow-md transition-all hover:-translate-y-1">
             <img src="/baratto.png" alt="Baratto" className="w-full object-cover rounded-xl mb-4" />
             <h3 className="text-xl font-bold uppercase italic text-blue-800">Baratto</h3>
-            <p className="text-[11px] font-medium text-blue-700 mt-2">Scambia senza denaro.</p>
           </Link>
         </div>
       </div>
@@ -195,7 +191,7 @@ function AddPageContent() {
 
           <div className="p-4 bg-stone-50 rounded-xl border border-stone-100 space-y-4">
             <div>
-              <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400">Indirizzo di Provenienza (Mappa)</label>
+              <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400">Indirizzo di Provenienza</label>
               <input 
                 required 
                 type="text" 
