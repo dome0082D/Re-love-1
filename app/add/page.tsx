@@ -40,8 +40,8 @@ function AddPageContent() {
     const form = e.target as HTMLFormElement
     const formData = new FormData(form)
     
-    const condition = mode === 'new' ? 'Nuovo' : mode === 'used' ? 'Usato' : 'Regalo'
-    const price = mode === 'gift' ? 0 : parseFloat(formData.get('price') as string)
+    const condition = mode === 'new' ? 'Nuovo' : mode === 'used' ? 'Usato' : mode === 'barter' ? 'Baratto' : 'Regalo'
+    const price = (mode === 'gift' || mode === 'barter') ? 0 : parseFloat(formData.get('price') as string)
     const quantity = parseInt(formData.get('quantity') as string) || 1
     const categoryId = formData.get('category_id') as string
 
@@ -94,7 +94,7 @@ function AddPageContent() {
         <h1 className="text-3xl md:text-5xl font-medium uppercase italic mb-2 tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-rose-500 to-orange-400 text-center">Cosa pubblichi?</h1>
         <p className="text-stone-400 font-bold uppercase text-[11px] tracking-widest mb-10 text-center">Seleziona la modalità</p>
         
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full max-w-4xl">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 w-full max-w-5xl">
           <Link href="/add?mode=new" className="bg-white p-6 rounded-2xl border border-stone-200 text-center hover:border-rose-400 shadow-sm transition-all hover:-translate-y-1">
             <img src="/nuovo.png" alt="Nuovo" className="w-full object-cover rounded-xl mb-4" />
             <h3 className="text-xl font-bold uppercase italic text-stone-900">Nuovo</h3>
@@ -112,6 +112,12 @@ function AddPageContent() {
             <h3 className="text-xl font-bold uppercase italic text-rose-800">Regalo</h3>
             <p className="text-[11px] font-medium text-rose-700 mt-2">Dona a chi ne ha bisogno.</p>
           </Link>
+
+          <Link href="/add?mode=barter" className="bg-blue-50 p-6 rounded-2xl border-2 border-blue-400 text-center shadow-md transition-all hover:-translate-y-1">
+            <img src="/baratto.png" alt="Baratto" className="w-full object-cover rounded-xl mb-4" />
+            <h3 className="text-xl font-bold uppercase italic text-blue-800">Baratto</h3>
+            <p className="text-[11px] font-medium text-blue-700 mt-2">Scambia senza denaro.</p>
+          </Link>
         </div>
       </div>
     )
@@ -122,7 +128,7 @@ function AddPageContent() {
       <div className="w-full max-w-2xl bg-white p-6 md:p-8 rounded-[2rem] shadow-md border border-stone-200">
         <div className="mb-6 border-b border-stone-100 pb-4">
           <span className="bg-stone-100 text-stone-700 px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-widest mb-2 inline-block">
-            Modalità: {mode === 'new' ? 'Nuovo' : mode === 'used' ? 'Usato' : 'Regalo'}
+            Modalità: {mode === 'new' ? 'Nuovo' : mode === 'used' ? 'Usato' : mode === 'barter' ? 'Baratto' : 'Regalo'}
           </span>
           <h2 className="text-2xl font-bold uppercase italic text-stone-900">Compila l'Annuncio</h2>
         </div>
@@ -147,13 +153,12 @@ function AddPageContent() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {mode !== 'gift' && (
+            {mode !== 'gift' && mode !== 'barter' && (
               <div>
                 <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400">Prezzo (€)</label>
                 <input name="price" required type="number" step="0.01" className="w-full p-3 mt-1 bg-stone-50 rounded-xl border border-stone-100 outline-none focus:border-rose-400 text-sm font-medium text-stone-800" placeholder="0.00" />
               </div>
             )}
-            {/* SPESE DI SPEDIZIONE PER TUTTI I MODI */}
             <div>
               <label className="text-[10px] font-bold uppercase tracking-widest text-rose-500">Spese Spedizione (€)</label>
               <input 
