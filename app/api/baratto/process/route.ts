@@ -2,16 +2,21 @@ import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { 
-  apiVersion: '2025-03-25.dahlia' 
-});
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!, 
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+// Questa riga dice a Vercel di non processare questa pagina durante il caricamento
+export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
   try {
+    // Abbiamo spostato l'avvio QUI DENTRO!
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { 
+      apiVersion: '2025-03-25.dahlia' 
+    });
+    
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!, 
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
     // action può essere 'accept' o 'reject'
     const { baratto_id, action } = await req.json(); 
 
@@ -27,8 +32,6 @@ export async function POST(req: Request) {
     const paymentIntentIdA = baratto.stripe_pi_user_a;
 
     if (action === 'accept') {
-      // L'Utente B HA ACCETTATO (e diamo per scontato che abbia appena completato il suo pagamento)
-      
       // PUNTO 4: Catturiamo (Capture) definitivamente i 2.50€ congelati dell'Utente A
       await stripe.paymentIntents.capture(paymentIntentIdA);
 
@@ -43,8 +46,6 @@ export async function POST(req: Request) {
       });
 
     } else if (action === 'reject') {
-      // L'Utente B HA RIFIUTATO
-      
       // CANCELLIAMO la pre-autorizzazione dell'Utente A. I soldi si sbloccano subito.
       await stripe.paymentIntents.cancel(paymentIntentIdA);
 
