@@ -23,15 +23,15 @@ export default function RootLayout({
   return (
     <html lang="it">
       <head>
-        {/* Questo script registra il Service Worker per far funzionare l'app su Android */}
+        {/* Script per registrare il Service Worker e attivare la PWA */}
         <Script id="register-sw" strategy="afterInteractive">
           {`
             if ('serviceWorker' in navigator) {
               window.addEventListener('load', function() {
                 navigator.serviceWorker.register('/sw.js').then(function(registration) {
-                  console.log('Service Worker registrato con successo');
+                  console.log('Re-love: Service Worker registrato con successo');
                 }, function(err) {
-                  console.log('Registrazione Service Worker fallita: ', err);
+                  console.log('Re-love: Registrazione Service Worker fallita: ', err);
                 });
               });
             }
