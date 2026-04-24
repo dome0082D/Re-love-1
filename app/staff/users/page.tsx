@@ -1,89 +1,78 @@
 'use client'
-
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
-// 1. Definisco i tipi per rimuovere l'errore TypeScript "any"
+// Aggiungiamo l'interfaccia per eliminare gli errori "any" di TypeScript
 interface Profile {
   id: string;
   first_name: string | null;
   last_name: string | null;
+  user_serial_id?: string | null;
   city: string | null;
+  nation?: string | null;
 }
 
-export default function StaffUsersList() {
-  const [users, setUsers] = useState<Profile[]>([])
+export default function StaffUsersPage() {
+  const [profiles, setProfiles] = useState<Profile[]>([])
   const [loading, setLoading] = useState(true)
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const router = useRouter()
 
-  useEffect(() => {
-    async function fetchProfiles() {
-      try {
-        setLoading(true)
-        
-        // 2. Ordinato per 'id' invece di 'created_at' per evitare crash con Supabase
-        const { data, error } = await supabase.from('profiles').select('*').order('id', { ascending: false })
-        
-        if (error) {
-          console.warn("Errore Supabase profili:", error)
-          setErrorMsg(error.message)
-        } else {
-          setUsers(data as Profile[] || [])
-        }
-      } catch (err: unknown) {
-        console.error("Crash recupero profili:", err)
-        const e = err as Error;
-        setErrorMsg(e.message || "Si è verificato un errore imprevisto.")
-      } finally {
-        setLoading(false)
-      }
+  useEffect(() => { loadProfiles() }, [])
+
+  async function loadProfiles() {
+    const { data: { user } } = await supabase.auth.getUser()
+    // Controllo sicurezza Staff
+    if (user?.email !== 'dome0082@gmail.com') { router.push('/'); return; }
+    
+    // Modificato da created_at a id per evitare il crash del database
+    const { data } = await supabase.from('profiles').select('*').order('id', { ascending: false })
+    if (data) setProfiles(data as Profile[])
+    setLoading(false)
+  }
+
+  async function deleteProfile(id: string) {
+    if(confirm("ATTENZIONE: Eliminare definitivamente questo utente e tutti i suoi dati associati?")) {
+       await supabase.from('profiles').delete().eq('id', id);
+       loadProfiles();
     }
+  }
 
-    fetchProfiles()
-  }, [])
+  async function editProfile(p: Profile) {
+    const newName = prompt(`Modifica il nome per ${p.first_name || 'Utente'}:`, p.first_name || '');
+    if (newName !== null) {
+        await supabase.from('profiles').update({ first_name: newName }).eq('id', p.id);
+        loadProfiles();
+    }
+  }
+
+  if (loading) return <div className="p-10 text-center font-black uppercase text-xs">Caricamento Profili...</div>
 
   return (
-    <div className="min-h-screen bg-stone-50 p-4 md:p-10">
-      <div className="max-w-5xl mx-auto">
-        <div className="flex justify-between items-center mb-10">
-          <h1 className="text-3xl font-black uppercase italic text-stone-900">Gestione Utenti</h1>
-          <Link href="/" className="text-xs font-bold uppercase bg-stone-200 px-4 py-2 rounded-xl hover:bg-stone-300 transition-colors">Torna alla Home</Link>
+    <div className="min-h-screen bg-stone-50 p-6 font-sans">
+      <div className="max-w-4xl mx-auto">
+        <div className="bg-white rounded-3xl p-8 border border-stone-200 shadow-sm flex justify-between items-center mb-8">
+          <h1 className="text-2xl font-black uppercase italic text-stone-900">Gestione Profili</h1>
+          <Link href="/" className="text-[10px] font-black uppercase bg-stone-100 px-4 py-2 rounded-xl hover:bg-stone-200">Torna alla Home</Link>
         </div>
 
-        {loading ? (
-          <p className="animate-pulse font-bold text-stone-400 uppercase text-xs">Caricamento database...</p>
-        ) : errorMsg ? (
-          <div className="bg-red-50 p-6 rounded-2xl border border-red-200 shadow-sm">
-            <p className="text-red-600 font-bold uppercase text-[11px] tracking-widest mb-2">⚠️ Impossibile caricare gli utenti</p>
-            <p className="text-red-500 font-medium text-xs mb-4">{errorMsg}</p>
-            <p className="text-stone-500 text-[10px] uppercase font-bold tracking-wider">
-              Controllo: Assicurati di aver creato la tabella "profiles" su Supabase.
-            </p>
-          </div>
-        ) : users.length === 0 ? (
-          <div className="bg-white p-12 rounded-3xl border border-stone-200 text-center shadow-sm">
-            <p className="text-stone-400 font-bold uppercase tracking-widest text-xs">Nessun utente trovato nella tabella profili</p>
-          </div>
-        ) : (
-          <div className="grid gap-4">
-            {users.map((u) => (
-              <div key={u.id} className="bg-white p-6 rounded-3xl border border-stone-200 flex justify-between items-center shadow-sm hover:border-rose-300 transition-all">
-                <div>
-                  <p className="text-xs font-black uppercase text-stone-400 tracking-widest">Utente</p>
-                  {/* 3. Mostriamo Nome e Cognome, perché la Mail non è nella tabella profiles! */}
-                  <p className="font-bold text-stone-900">
-                    {(u.first_name || u.last_name) ? `${u.first_name || ''} ${u.last_name || ''}` : 'Profilo Incompleto'}
-                  </p>
-                  <p className="text-[10px] text-stone-400 font-mono mt-1">ID: {u.id.substring(0, 8)}...</p>
-                </div>
-                <Link href={`/staff/users/${u.id}`} className="bg-stone-900 text-white px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-rose-500 transition-all shadow-md hover:-translate-y-1">
-                  Gestisci
-                </Link>
+        <div className="space-y-3">
+          {profiles.map(p => (
+            <div key={p.id} className="bg-white p-4 rounded-2xl border border-stone-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div>
+                <h3 className="text-sm font-bold text-stone-800 uppercase">{p.first_name || 'Senza Nome'} {p.last_name || ''}</h3>
+                <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mt-1">ID Seriale: {p.user_serial_id || 'N/A'}</p>
+                <p className="text-xs text-stone-500 mt-1">Città: {p.city || 'N/A'} | Nazione: {p.nation || 'N/A'}</p>
               </div>
-            ))}
-          </div>
-        )}
+              <div className="flex gap-2 w-full md:w-auto">
+                <button onClick={() => editProfile(p)} className="flex-1 md:flex-none text-[9px] font-black uppercase bg-stone-100 text-stone-800 px-4 py-2 rounded-xl hover:bg-stone-200">Modifica Nome</button>
+                <button onClick={() => deleteProfile(p.id)} className="flex-1 md:flex-none text-[9px] font-black uppercase bg-red-50 text-red-500 px-4 py-2 rounded-xl border border-red-100 hover:bg-red-500 hover:text-white">Elimina</button>
+              </div>
+            </div>
+          ))}
+          {profiles.length === 0 && <p className="text-xs text-stone-400 font-bold uppercase">Nessun profilo trovato.</p>}
+        </div>
       </div>
     </div>
   )
