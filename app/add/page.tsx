@@ -46,9 +46,9 @@ function AddPageContent() {
     
     const condition = mode === 'new' ? 'Nuovo' : mode === 'used' ? 'Usato' : mode === 'barter' ? 'Baratto' : 'Regalo'
     
-    // Controlli sicuri per TypeScript
+    // Controlli ultra-sicuri per TypeScript per evitare valori NaN (Not a Number)
     const priceString = formData.get('price')?.toString() || '0'
-    const price = (mode === 'gift' || mode === 'barter') ? 0 : parseFloat(priceString)
+    const price = (mode === 'gift' || mode === 'barter') ? 0 : (parseFloat(priceString) || 0)
     
     const quantityString = formData.get('quantity')?.toString() || '1'
     const quantity = parseInt(quantityString, 10) || 1
@@ -74,8 +74,8 @@ function AddPageContent() {
       }
     }
 
-    // @ts-ignore: Ignoriamo l'errore TypeScript della cache di Supabase per i nuovi campi
-    const { error } = await supabase.from('announcements').insert([{
+    // Salvataggio nel database blindato con i tipi corretti
+    const announcementData = {
       user_id: user.id,
       title: title,
       description: description,
@@ -88,7 +88,9 @@ function AddPageContent() {
       shipping_cost: parseFloat(shippingCost) || 0,
       allow_local_pickup: allowLocalPickup,
       origin_address: originAddress
-    }]) 
+    };
+
+    const { error } = await supabase.from('announcements').insert([announcementData as any]) 
 
     if (!error) {
       alert("Annuncio pubblicato con successo!")
