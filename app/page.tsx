@@ -99,13 +99,14 @@ function HomePageContent() {
         </Link>
       )}
 
-      {/* HERO SECTION - RIMOSSO IL TESTO HTML E L'OVERLAY OPACIZZANTE */}
+      {/* HERO SECTION - IMMAGINE INTERA NON TAGLIATA */}
       <div 
-        className="relative h-[400px] flex flex-col items-center overflow-hidden border-b border-rose-100 bg-stone-100"
+        className="relative w-full h-[400px] md:h-[650px] flex flex-col items-center overflow-hidden border-b border-rose-100 bg-[#f6f5f2]"
         style={{
           backgroundImage: "url('/hero-bg.jpg')",
-          backgroundSize: 'cover',
+          backgroundSize: 'contain', /* Questo fa in modo che l'immagine non venga tagliata */
           backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat', /* Impedisce all'immagine di sdoppiarsi */
         }}
       >
           {/* Contenitore interno che spinge la barra di ricerca verso il basso per non coprire l'immagine */}
