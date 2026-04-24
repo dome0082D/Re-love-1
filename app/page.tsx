@@ -93,47 +93,33 @@ function HomePageContent() {
   return (
     <div className="min-h-screen bg-stone-50 font-sans text-stone-900 pb-20">
       
-      {/* MODIFICA APPLICATA QUI: Trasformato button in Link per abilitare la navigazione */}
       {IS_STAFF && (
         <Link href="/staff" className="fixed bottom-8 right-8 z-[99] bg-stone-900 text-rose-400 w-16 h-16 rounded-full shadow-lg font-bold flex items-center justify-center border-2 border-rose-400 hover:scale-105 active:scale-95 transition-all text-2xl">
           👑
         </Link>
       )}
 
-      {/* HERO SECTION MODIFICATA CON RE-LOVE E IMMAGINE DI SFONDO */}
+      {/* HERO SECTION - RIMOSSO IL TESTO HTML E L'OVERLAY OPACIZZANTE */}
       <div 
-        className="relative h-[400px] flex flex-col items-center justify-center p-6 text-center overflow-hidden border-b border-rose-100 bg-stone-100"
+        className="relative h-[400px] flex flex-col items-center overflow-hidden border-b border-rose-100 bg-stone-100"
         style={{
           backgroundImage: "url('/hero-bg.jpg')",
           backgroundSize: 'cover',
           backgroundPosition: 'center',
         }}
       >
-          {/* Overlay semitrasparente e sfocato per far leggere bene le scritte */}
-          <div className="absolute inset-0 w-full h-full bg-white/40 backdrop-blur-[2px] pointer-events-none"></div>
-          
-          <div className="relative z-10 w-full max-w-4xl px-4 flex flex-col items-center">
+          {/* Contenitore interno che spinge la barra di ricerca verso il basso per non coprire l'immagine */}
+          <div className="relative z-10 w-full h-full max-w-4xl px-4 flex flex-col justify-end pb-10 items-center">
             
-            <h1 
-              className="text-6xl md:text-[110px] text-transparent bg-clip-text bg-gradient-to-r from-rose-500 to-orange-400 leading-none mb-3 drop-shadow-sm pb-4"
-              style={{ fontFamily: "'Brush Script MT', 'Lucida Handwriting', cursive", fontWeight: 700 }}
-            >
-              Re-love
-            </h1>
-            <p className="text-[10px] md:text-[12px] font-bold uppercase tracking-[0.6em] text-stone-600 mb-10 ml-2">
-              Vendi • Compra • Regala
-            </p>
-            
-            <div className="relative group w-full max-w-2xl">
-              <input type="text" placeholder="Cerca vestiti, elettronica, arredamento..." className="w-full p-5 pl-14 rounded-3xl bg-white/90 backdrop-blur-sm border border-stone-200 outline-none text-sm font-medium focus:border-rose-400 focus:bg-white focus:shadow-lg focus:shadow-rose-100 transition-all" onChange={(e) => setMainSearch(e.target.value)} />
+            <div className="relative group w-full max-w-2xl shadow-xl rounded-3xl">
+              <input type="text" placeholder="Cerca vestiti, elettronica, arredamento..." className="w-full p-5 pl-14 rounded-3xl bg-white/95 backdrop-blur-sm border border-stone-200 outline-none text-sm font-medium focus:border-rose-400 focus:bg-white focus:shadow-lg focus:shadow-rose-100 transition-all" onChange={(e) => setMainSearch(e.target.value)} />
               <span className="absolute left-5 top-5 opacity-40 text-xl">🔍</span>
             </div>
           </div>
       </div>
 
-      <main className="max-w-7xl mx-auto px-4 md:px-8 -mt-12 relative z-20">
+      <main className="max-w-7xl mx-auto px-4 md:px-8 -mt-6 relative z-20">
         
-        {/* SEZIONE FILTRI AGGIORNATA CON NUOVE CATEGORIE */}
         <section className="mb-12 grid grid-cols-1 md:grid-cols-3 gap-6 bg-white p-6 rounded-3xl shadow-md border border-stone-100 items-center">
           <div className="flex flex-col gap-2">
             <label className="text-[9px] font-bold uppercase text-stone-400 ml-2 tracking-widest">Categoria</label>
@@ -166,7 +152,6 @@ function HomePageContent() {
           </div>
         </section>
 
-        {/* I 3 RIQUADRI MACRO-AZIONI AGGIORNATI COME RICHIESTO */}
         {!catFilter && !typeFilter && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
             <Link href="/add?mode=new" className="group flex flex-col rounded-3xl border border-stone-200 overflow-hidden bg-white hover:border-rose-400 transition-all shadow-sm text-center hover:-translate-y-1">
@@ -201,7 +186,6 @@ function HomePageContent() {
           </div>
         )}
 
-        {/* BANNER PUBBLICITARIO RE-LOVE */}
         <div className="bg-gradient-to-r from-stone-900 to-stone-800 rounded-3xl p-6 mb-16 flex flex-col md:flex-row items-center justify-between shadow-xl border border-stone-800">
           <div className="flex items-center gap-6 mb-4 md:mb-0">
             <span className="text-5xl drop-shadow-md">🚀</span>
