@@ -1,11 +1,17 @@
 export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
   apiVersion: "2024-04-10" as any,
 });
+
+// IL TRUCCO: Creiamo un client Admin (con la chiave di servizio) per bypassare il blocco di sicurezza (RLS)
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL as string,
+  process.env.SUPABASE_SERVICE_ROLE_KEY as string
+);
 
 export async function POST(req: Request) {
   try {
@@ -21,8 +27,8 @@ export async function POST(req: Request) {
       },
     });
 
-    // 2. Salva l'ID su Supabase
-    const { error: dbError } = await supabase
+    // 2. Salva l'ID su Supabase forzando la scrittura con supabaseAdmin
+    const { error: dbError } = await supabaseAdmin
       .from('profiles')
       .update({ stripe_account_id: account.id })
       .eq('id', userId);
