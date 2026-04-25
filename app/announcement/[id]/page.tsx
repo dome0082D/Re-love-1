@@ -2,12 +2,13 @@ import { supabase } from '@/lib/supabase'
 import { Metadata, ResolvingMetadata } from 'next'
 import AnnouncementClientWrapper from './AnnouncementClient'
 
-// IL PEZZO MANCANTE: LA SEO CHE FUNZIONA SU VERCEL
+// FIX NEXT.JS 15: params ora è una Promise e va "aspettata" (await)
 export async function generateMetadata(
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
   parent: ResolvingMetadata
 ): Promise<Metadata> {
-  const id = params.id
+  const { id } = await params // Recuperiamo l'ID correttamente
+  
   const { data } = await supabase.from('announcements').select('*').eq('id', id).single()
 
   if (!data) return { title: 'Annuncio non trovato - Re-love' }
@@ -23,6 +24,8 @@ export async function generateMetadata(
   }
 }
 
-export default function Page() {
-  return <AnnouncementClientWrapper />
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params // Recuperiamo l'ID anche qui per passarlo al Client
+  
+  return <AnnouncementClientWrapper announcementId={id} />
 }
