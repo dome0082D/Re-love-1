@@ -110,8 +110,8 @@ function AddPageContent() {
         condition: condition,
         image_urls: uploadedUrls,
         image_url: uploadedUrls.length > 0 ? uploadedUrls[0] : '/usato.png',
-        shipping_cost: parseFloat(shippingCost) || 0,
-        allow_local_pickup: allowLocalPickup,
+        shipping_cost: mode === 'barter' ? 0 : (parseFloat(shippingCost) || 0),
+        allow_local_pickup: mode === 'barter' ? true : allowLocalPickup,
         nation,
         region,
         city,
@@ -135,36 +135,36 @@ function AddPageContent() {
       console.error(err)
       alert("Si è verificato un errore imprevisto durante la pubblicazione.")
     } finally {
-      setLoading(false) // Sblocca sempre il tasto alla fine
+      setLoading(false) 
     }
   }
 
-  // --- COMPONENTE GUIDA DINAMICA ---
+  // --- COMPONENTE GUIDA DINAMICA AGGIORNATA ---
   const renderGuideBox = () => {
     const guides = {
       new: {
         title: "Vendi il Nuovo",
         color: "border-rose-400",
-        steps: "Inserisci il prezzo reale e la quantità disponibile. Ricorda di specificare bene se offri la consegna a mano.",
-        logic: "💰 Il compratore paga il prezzo pieno. La chat si sblocca solo dopo il pagamento avvenuto su Stripe."
+        steps: "Inserisci prezzo e spedizione. Re-love trattiene una commissione del 10% sul totale.",
+        logic: "🔒 FONDI CONGELATI: I soldi rimangono su Stripe finché il compratore non conferma 'Pacco ricevuto integro'. In caso di mancato arrivo, il cliente riceverà il rimborso."
       },
       used: {
         title: "Vendi l'Usato",
         color: "border-orange-400",
-        steps: "Descrivi con onestà lo stato d'usura. Carica foto dettagliate dei particolari o di eventuali difetti.",
-        logic: "💰 Come per il nuovo, la chat è protetta: si sblocca solo quando il compratore paga l'oggetto."
+        steps: "Descrivi onestamente lo stato. Commissione del 10% sul totale a favore del sito.",
+        logic: "🔒 SICUREZZA: I soldi vengono accreditati al venditore solo dopo la convalida del compratore o tramite procedura di rimborso se il pacco non arriva."
       },
       gift: {
         title: "Regala un Oggetto",
         color: "border-rose-500",
-        steps: "Stai donando questo oggetto. Il prezzo è impostato a €0. L'utente paga solo l'eventuale spedizione.",
-        logic: "🔒 Per evitare perditempo, chi richiede il regalo deve pagare €2.50 di commissione al sito per sbloccare la chat."
+        steps: "Il prezzo è €0. Chi riceve paga solo €2.50 di commissione fissa al sito.",
+        logic: "☕ SBLOCCO CHAT: La conversazione si attiva solo dopo che chi riceve ha pagato il caffè simbolico al sito."
       },
       barter: {
         title: "Gestisci il Baratto",
         color: "border-blue-400",
-        steps: "Specifica chiaramente cosa desideri ricevere in cambio. Sii preciso per attirare lo scambio giusto.",
-        logic: "🔒 Sicurezza Baratto: la chat si sblocca SOLO dopo che ENTRAMBI gli utenti hanno pagato €2.50 di commissione."
+        steps: "⚠️ SOLO CONSEGNA A MANO. Specifica cosa cerchi. Entrambi pagate €2.50 per sbloccare la chat.",
+        logic: "🔄 DOPPIA CONFERMA: I €2.50 a testa rimangono congelati. Il sito incassa solo se entrambi cliccate 'Conferma Scambio' dopo l'incontro. Altrimenti, i soldi vengono restituiti."
       }
     }
 
@@ -184,7 +184,11 @@ function AddPageContent() {
             <p className="text-[10px] font-black uppercase text-rose-400 tracking-widest mb-1">Logica Pagamento e Chat</p>
             <p className="text-xs font-black italic text-white leading-relaxed">{g.logic}</p>
           </div>
-          <p className="text-[9px] font-bold text-stone-500 uppercase tracking-tighter text-center">Re-love protegge i tuoi scambi. La chat sicura garantisce transazioni verificate.</p>
+          <div className="pt-4 border-t border-stone-800">
+             <p className="text-[9px] font-bold text-stone-500 uppercase tracking-tight text-center leading-tight">
+               Re-love mette solo in contatto gli utenti e non ha responsabilità sullo scambio o sull&apos;integrità degli oggetti.
+             </p>
+          </div>
         </div>
       </div>
     )
@@ -253,7 +257,6 @@ function AddPageContent() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* LOGICA BARATTO VS PREZZO */}
               {mode === 'barter' ? (
                 <div className="col-span-1 md:col-span-2">
                   <label htmlFor="exchange_item" className="text-[10px] font-black uppercase tracking-widest text-blue-500 ml-1">Cosa cerchi in cambio?</label>
@@ -266,6 +269,7 @@ function AddPageContent() {
                 </div>
               )}
               
+              {/* SPEDIZIONE DISABILITATA PER IL BARATTO */}
               {mode !== 'barter' && mode !== 'gift' && (
                 <div>
                   <label htmlFor="shipping" className="text-[10px] font-black uppercase tracking-widest text-rose-500 ml-1">Spese Spedizione (€)</label>
@@ -274,7 +278,6 @@ function AddPageContent() {
               )}
             </div>
 
-            {/* SEZIONE INDIRIZZO DETTAGLIATA */}
             <div className="p-6 bg-stone-50 rounded-[2rem] border-2 border-stone-100 space-y-4">
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-500 text-center mb-4">📍 Località dell&apos;oggetto</p>
               
@@ -311,9 +314,18 @@ function AddPageContent() {
                  </div>
               </div>
 
+              {/* CONSEGNA A MANO AUTOMATICA PER BARATTO */}
               <label className="flex items-center gap-3 cursor-pointer group pt-2 justify-center">
-                <input type="checkbox" checked={allowLocalPickup} onChange={(e) => setAllowLocalPickup(e.target.checked)} className="w-6 h-6 rounded-lg accent-rose-500 border-stone-200" />
-                <span className="text-[10px] font-black uppercase text-stone-600 group-hover:text-rose-500 transition-colors">Permetti Consegna a Mano</span>
+                <input 
+                  type="checkbox" 
+                  disabled={mode === 'barter'}
+                  checked={mode === 'barter' ? true : allowLocalPickup} 
+                  onChange={(e) => setAllowLocalPickup(e.target.checked)} 
+                  className="w-6 h-6 rounded-lg accent-rose-500 border-stone-200" 
+                />
+                <span className="text-[10px] font-black uppercase text-stone-600 group-hover:text-rose-500 transition-colors">
+                  {mode === 'barter' ? 'Consegna a mano Obbligatoria' : 'Permetti Consegna a Mano'}
+                </span>
               </label>
             </div>
 

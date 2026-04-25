@@ -8,12 +8,13 @@ export default function ChatDetailPage() {
   const { id: receiver_id } = useParams()
   const searchParams = useSearchParams()
   const ann_id = searchParams.get('ann')
-  const router = useRouter() // AGGIUNTO PER RIMBALZARE I FURBETTI
+  const router = useRouter()
   
   const [messages, setMessages] = useState<any[]>([])
   const [newMsg, setNewMsg] = useState('')
   const [myId, setMyId] = useState('')
   const [loading, setLoading] = useState(true)
+  const [isConfirmed, setIsConfirmed] = useState(false) // Stato per sbloccare i contatti
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => { 
@@ -31,45 +32,46 @@ export default function ChatDetailPage() {
       if (!user) return
       setMyId(user.id)
 
-      // ==========================================
-      // 🔒 INIZIO LUCCHETTO DI SICUREZZA
-      // ==========================================
       if (ann_id) {
-        // 1. Capiamo di che annuncio stiamo parlando
         const { data: ann } = await supabase.from('announcements').select('condition, user_id').eq('id', ann_id).single();
         
         if (ann) {
           const sellerId = ann.user_id;
-          // Se io sono il venditore, il compratore è l'altro. Altrimenti, il compratore sono io.
           const buyerId = user.id === sellerId ? receiver_id : user.id;
 
+          // 1. CONTROLLO PAGAMENTO (LUCCHETTO CHAT)
           if (ann.condition === 'Baratto') {
-            // CONTROLLO BARATTO: Entrambi devono aver pagato 2.50€
-            const { data: txs } = await supabase.from('transactions').select('buyer_id').eq('announcement_id', ann_id).eq('status', 'Pagato');
+            const { data: txs } = await supabase.from('transactions').select('buyer_id, status').eq('announcement_id', ann_id).eq('status', 'Pagato');
             const paidUsers = txs?.map(t => t.buyer_id) || [];
             
             if (!paidUsers.includes(user.id) || !paidUsers.includes(receiver_id as string)) {
-              alert("🔒 Chat bloccata: Il baratto si sblocca solo quando ENTRAMBI gli utenti pagano la commissione di €2.50.");
+              alert("🔒 Chat bloccata: Entrambi dovete pagare la commissione di €2.50.");
               router.push(`/announcement/${ann_id}`);
-              return; // Blocca tutto
+              return;
             }
           } else {
-            // CONTROLLO NUOVO, USATO, REGALO: Il compratore deve aver pagato
-            const { data: tx } = await supabase.from('transactions').select('id').eq('announcement_id', ann_id).eq('buyer_id', buyerId).eq('status', 'Pagato').limit(1);
-            
+            const { data: tx } = await supabase.from('transactions').select('id, status').eq('announcement_id', ann_id).eq('buyer_id', buyerId).eq('status', 'Pagato').limit(1);
             if (!tx || tx.length === 0) {
-              alert("🔒 Chat bloccata: Il pagamento deve essere completato per poter messaggiare.");
+              alert("🔒 Chat bloccata: Completa il pagamento per messaggiare.");
               router.push(`/announcement/${ann_id}`);
-              return; // Blocca tutto
+              return;
             }
+          }
+
+          // 2. CONTROLLO CONFERMA (PER SBLOCCO NUMERI/LINK)
+          // Controlliamo se esiste una transazione 'Conclusa' o 'Ricevuta'
+          const { data: checkConf } = await supabase.from('transactions')
+            .select('status')
+            .eq('announcement_id', ann_id)
+            .in('status', ['Concluso', 'Ricevuto']) 
+            .limit(1);
+          
+          if (checkConf && checkConf.length > 0) {
+            setIsConfirmed(true);
           }
         }
       }
-      // ==========================================
-      // 🔓 FINE LUCCHETTO DI SICUREZZA
-      // ==========================================
 
-      // SE ARRIVA QUI, IL PAGAMENTO È CONFERMATO -> CARICA I MESSAGGI
       const { data, error } = await supabase.from('messages')
         .select('*')
         .or(`and(sender_id.eq.${user.id},receiver_id.eq.${receiver_id}),and(sender_id.eq.${receiver_id},receiver_id.eq.${user.id})`)
@@ -87,12 +89,28 @@ export default function ChatDetailPage() {
 
   async function sendMessage() {
     if (!newMsg.trim()) return
+
+    // 🛡️ FILTRO SICUREZZA: BLOCCA NUMERI E LINK
+    let contentToSend = newMsg;
+    
+    if (!isConfirmed) {
+      const phoneRegex = /(\+39|0039)?\s?\d{3}[\s\-\.]?\d{3}[\s\-\.]?\d{4}/g;
+      const linkRegex = /(https?:\/\/[^\s]+)|(www\.[^\s]+)|(\w+\.(com|it|net|org|me|link))/gi;
+
+      if (phoneRegex.test(newMsg) || linkRegex.test(newMsg)) {
+        alert("⚠️ Per la tua sicurezza, non puoi scambiare numeri o link prima della conferma ufficiale dello scambio o dell'arrivo del pacco.");
+        contentToSend = newMsg
+          .replace(phoneRegex, "[CONTATTO BLOCCATO]")
+          .replace(linkRegex, "[LINK BLOCCATO]");
+      }
+    }
+
     try {
       const { data, error } = await supabase.from('messages').insert([{
         sender_id: myId, 
         receiver_id: receiver_id,
         announcement_id: ann_id, 
-        content: newMsg
+        content: contentToSend
       }]).select()
 
       if (!error && data) {
@@ -156,6 +174,11 @@ export default function ChatDetailPage() {
           <button onClick={sendMessage} className="bg-stone-900 text-white px-6 md:px-8 rounded-xl font-black uppercase text-[10px] tracking-widest hover:scale-105 transition-transform shadow-md">Invia</button>
         </div>
       </div>
+      
+      {/* NOTA LEGALE RESPONSABILITÀ */}
+      <p className="mt-4 text-[9px] font-bold text-stone-400 uppercase tracking-tight text-center max-w-2xl px-4">
+        Re-love mette solo in contatto gli utenti. Il sito non ha responsabilità sulla qualità degli oggetti o sull&apos;esito dello scambio.
+      </p>
     </div>
   )
 }
