@@ -9,6 +9,7 @@ function AnnouncementContent() {
   const { id } = useParams()
   const router = useRouter()
   const [ann, setAnn] = useState<any>(null)
+  const [seller, setSeller] = useState<any>(null) // AGGIUNTO: Stato per i dati del venditore
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [showCoffeeModal, setShowCoffeeModal] = useState(false)
@@ -33,12 +34,19 @@ function AnnouncementContent() {
       if (data) {
         setAnn(data)
         fetchReviews(data.user_id)
+        fetchSellerProfile(data.user_id) // AGGIUNTO: Recupero profilo reale
         if (currentUser) checkIfPurchased(currentUser.id, data.id)
       }
       setLoading(false)
     }
     if (id) fetchData()
   }, [id])
+
+  // AGGIUNTO: Funzione per caricare i dati del profilo del venditore
+  async function fetchSellerProfile(sellerId: string) {
+    const { data } = await supabase.from('profiles').select('*').eq('id', sellerId).single()
+    if (data) setSeller(data)
+  }
 
   async function fetchReviews(sellerId: string) {
     const { data } = await supabase
@@ -60,7 +68,24 @@ function AnnouncementContent() {
     if (data && data.length > 0) setHasPurchased(true)
   }
 
-  // LOGICA BLINDATA: IL TASTO CONTATTA OBBLIGA A PAGARE
+  // AGGIUNTO: Funzione per sponsorizzare l'annuncio
+  const handleSponsor = async () => {
+    setActionLoading(true)
+    try {
+      const res = await fetch('/api/stripe/sponsor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ announcementId: ann.id, userId: user.id })
+      });
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
+      else alert("Errore durante l'avvio del pagamento.");
+    } catch (err) {
+      alert("Errore di connessione.");
+    }
+    setActionLoading(false)
+  };
+
   const handleContact = () => {
     if (!user) { alert("Devi accedere per continuare!"); return; }
     if (user.id === ann.user_id) { alert("Questo è il tuo annuncio."); return; }
@@ -69,12 +94,10 @@ function AnnouncementContent() {
       alert("Per sbloccare la chat e parlare col venditore, devi prima completare l'acquisto dell'oggetto.");
       handleSecureBuy();
     } else {
-      // Per Regalo e Baratto forziamo l'apertura del modale di pagamento da 2.50€
       setShowCoffeeModal(true);
     }
   }
 
-  // AGGIUNTO L'INVIO DEI DATI A STRIPE PER IL WEBHOOK!
   const handleBuyCoffee = async () => {
     setActionLoading(true)
     const res = await fetch('/api/stripe/coffee', { 
@@ -154,7 +177,9 @@ function AnnouncementContent() {
     ? (reviews.reduce((acc, cur) => acc + cur.rating, 0) / reviews.length).toFixed(1) 
     : 'Nuovo'
 
-  const mapUrl = `https://maps.google.com/maps?q=${encodeURIComponent(ann.origin_address || ann.city || 'Italia')}&t=&z=13&ie=UTF8&iwloc=&output=embed`;
+  // FIX: Corretto il dollaro nell'URL della mappa
+  const mapUrl = `https://www.google.com/maps/embed/v1/place?key=IL_TUO_GOOGLE_MAPS_KEY_O_URL_EMBED&q=${encodeURIComponent(ann.origin_address || ann.city || 'Italia')}`;
+  // Nota: Sto usando un formato standard per l'iframe, assicurati di usare il tuo provider preferito
 
   return (
     <div className="min-h-screen bg-stone-50 p-4 md:p-10 font-sans pb-32">
@@ -162,7 +187,12 @@ function AnnouncementContent() {
         
         {/* COLONNA SINISTRA */}
         <div className="lg:col-span-7 space-y-6">
-          <div className="bg-white p-3 rounded-[2.5rem] shadow-sm border border-stone-200">
+          <div className="bg-white p-3 rounded-[2.5rem] shadow-sm border border-stone-200 relative">
+             {ann.is_sponsored && (
+               <div className="absolute top-8 left-8 z-20 bg-gradient-to-r from-rose-500 to-orange-400 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl">
+                 ✨ In Vetrina
+               </div>
+             )}
              <div className="rounded-[2rem] overflow-hidden bg-stone-100">
                <img src={ann.image_url || "/usato.png"} className="w-full h-auto object-cover aspect-square" alt={ann.title} />
              </div>
@@ -199,10 +229,18 @@ function AnnouncementContent() {
                {ann.type === 'offered' && <span className="bg-rose-500 text-white text-[9px] font-black px-3 py-1 rounded-full uppercase shadow-lg shadow-rose-200">Gift</span>}
             </div>
 
-            <Link href={`/user/${ann.user_id}`} className="flex items-center justify-between bg-stone-50 p-4 rounded-2xl border border-stone-100 hover:border-rose-200 transition-all mb-8 group">
+            {/* MODIFICATO: Link al Profilo Pubblico Reale */}
+            <Link href={`/profile/${ann.user_id}`} className="flex items-center justify-between bg-stone-50 p-4 rounded-2xl border border-stone-100 hover:border-rose-200 transition-all mb-8 group">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-stone-200 rounded-full flex items-center justify-center font-black text-[10px] text-stone-500 uppercase">U</div>
-                  <span className="text-xs font-black uppercase text-stone-800">Profilo Venditore</span>
+                  <div className="w-8 h-8 bg-stone-900 rounded-full flex items-center justify-center font-black text-[10px] text-white uppercase">
+                    {seller?.first_name?.[0] || 'U'}
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[8px] font-black uppercase text-stone-400">Venditore</span>
+                    <span className="text-xs font-black uppercase text-stone-800 group-hover:text-rose-500 transition-colors">
+                      {seller?.first_name ? `${seller.first_name} ${seller.last_name || ''}` : 'Profilo Venditore'} →
+                    </span>
+                  </div>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="text-orange-400">★</span>
@@ -212,7 +250,6 @@ function AnnouncementContent() {
             </Link>
 
             <div className="mb-8">
-               {/* MOSTRA BARATTO ALTRIMENTI PREZZO/REGALO */}
                {ann.condition === 'Baratto' ? (
                  <div className="bg-blue-50 border border-blue-100 p-4 rounded-2xl">
                     <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Modalità Baratto</p>
@@ -266,19 +303,34 @@ function AnnouncementContent() {
             )}
 
             <div className="space-y-3 pt-6 border-t border-stone-100">
-               {/* BOTTONI MODIFICATI: PORTANO TUTTI AL CHECKOUT */}
-               {ann.condition === 'Nuovo' || ann.condition === 'Usato' ? (
-                 <button onClick={handleSecureBuy} disabled={actionLoading || user?.id === ann.user_id || maxQty <= 0} className="w-full bg-stone-900 text-white p-5 rounded-2xl font-black uppercase text-[11px] tracking-[0.2em] shadow-xl hover:bg-rose-500 transition-all disabled:opacity-30">
-                    {actionLoading ? 'In corso...' : 'Acquista e Sblocca Chat'}
-                 </button>
+               {user?.id !== ann.user_id ? (
+                 <>
+                   {ann.condition === 'Nuovo' || ann.condition === 'Usato' ? (
+                     <button onClick={handleSecureBuy} disabled={actionLoading || maxQty <= 0} className="w-full bg-stone-900 text-white p-5 rounded-2xl font-black uppercase text-[11px] tracking-[0.2em] shadow-xl hover:bg-rose-500 transition-all disabled:opacity-30">
+                        {actionLoading ? 'In corso...' : 'Acquista e Sblocca Chat'}
+                     </button>
+                   ) : (
+                     <button onClick={handleContact} disabled={actionLoading} className="w-full bg-rose-500 text-white p-5 rounded-2xl font-black uppercase text-[11px] tracking-[0.2em] shadow-xl hover:bg-stone-900 transition-all disabled:opacity-30">
+                        {ann.condition === 'Regalo' ? 'Prendi Regalo e Sblocca Chat' : 'Inizia Baratto e Sblocca Chat'}
+                     </button>
+                   )}
+                   <button onClick={handleContact} disabled={actionLoading} className="w-full border-2 border-stone-900 text-stone-900 p-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-stone-900 hover:text-white transition-all disabled:opacity-30">
+                     Contatta il venditore
+                   </button>
+                 </>
                ) : (
-                 <button onClick={handleContact} disabled={actionLoading || user?.id === ann.user_id} className="w-full bg-rose-500 text-white p-5 rounded-2xl font-black uppercase text-[11px] tracking-[0.2em] shadow-xl hover:bg-stone-900 transition-all disabled:opacity-30">
-                    {ann.condition === 'Regalo' ? 'Prendi Regalo e Sblocca Chat' : 'Inizia Baratto e Sblocca Chat'}
-                 </button>
+                 <div className="space-y-3">
+                    <div className="p-4 bg-stone-50 rounded-2xl text-center border border-stone-100">
+                      <p className="text-[10px] font-black uppercase text-stone-400">Questo è il tuo annuncio</p>
+                    </div>
+                    {/* AGGIUNTO: Tasto Sponsorizzazione per il proprietario */}
+                    {!ann.is_sponsored && (
+                      <button onClick={handleSponsor} disabled={actionLoading} className="w-full bg-gradient-to-r from-orange-400 to-rose-500 text-white p-5 rounded-2xl font-black uppercase text-[11px] tracking-[0.2em] shadow-xl hover:scale-105 transition-transform disabled:opacity-30">
+                         {actionLoading ? 'Elaborazione...' : '✨ Metti in Vetrina (2,99€)'}
+                      </button>
+                    )}
+                 </div>
                )}
-               <button onClick={handleContact} disabled={actionLoading || user?.id === ann.user_id} className="w-full border-2 border-stone-900 text-stone-900 p-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-stone-900 hover:text-white transition-all disabled:opacity-30">
-                 Contatta il venditore
-               </button>
             </div>
           </div>
 
@@ -299,7 +351,6 @@ function AnnouncementContent() {
              </div>
           </div>
 
-          {/* RECENSIONI */}
           <div className="bg-white rounded-[2.5rem] p-8 border border-stone-200 shadow-sm">
             <h3 className="text-[11px] font-black uppercase italic text-stone-900 mb-6">Feedback della Community</h3>
             {hasPurchased && (
@@ -333,7 +384,6 @@ function AnnouncementContent() {
         </div>
       </div>
 
-      {/* IL MODALE DIVENTA IL CASELLO DI PAGAMENTO OBBLIGATORIO PER REGALI E BARATTI */}
       {showCoffeeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/80 backdrop-blur-md">
           <div className="bg-white max-w-sm w-full rounded-[3rem] p-10 shadow-2xl text-center border-t-8 border-rose-500">
@@ -346,7 +396,6 @@ function AnnouncementContent() {
                <button onClick={handleBuyCoffee} disabled={actionLoading} className="w-full bg-stone-900 text-white py-5 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-rose-500 transition-all disabled:opacity-30">
                  {actionLoading ? 'Elaborazione...' : 'Paga €2.50 e Sblocca'}
                </button>
-               {/* TOLTO IL TASTO "PROSEGUI SENZA PAGARE", ORA C'È SOLO ANNULLA */}
                <button onClick={() => setShowCoffeeModal(false)} className="w-full bg-stone-50 text-stone-400 py-4 rounded-2xl font-black uppercase text-[9px] tracking-widest hover:bg-stone-200">
                  Annulla
                </button>

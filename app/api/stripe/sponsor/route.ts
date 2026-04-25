@@ -4,7 +4,7 @@ import Stripe from 'stripe';
 
 // Inizializza Stripe con la tua chiave segreta
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2026-03-25'as any ,
+  apiVersion: '2026-03-25' as any,
 });
 
 export async function POST(req: Request) {
@@ -25,15 +25,20 @@ export async function POST(req: Request) {
             currency: 'eur',
             product_data: {
               name: 'Sponsorizzazione Vetrina Top ✨',
-              description: 'Il tuo annuncio sarà messo in prima fila.',
+              description: 'Il tuo annuncio sarà messo in prima fila per 7 giorni.',
             },
-            unit_amount: 200, // 200 centesimi = 2.00 €
+            unit_amount: 200, // 2.00 €
           },
           quantity: 1,
         },
       ],
       mode: 'payment',
-      // Se il pagamento va a buon fine, torna alla bacheca dicendo "success=true" e l'ID dell'annuncio
+      // AGGIUNTA FONDAMENTALE: Diciamo a Stripe chi sta pagando e per cosa
+      metadata: {
+        type: 'sponsorship',
+        announcementId: announcementId,
+        userId: userId,
+      },
       success_url: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/dashboard/annunci?success=true&ad_id=${announcementId}`,
       cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/dashboard/annunci?canceled=true`,
     });
