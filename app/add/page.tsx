@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 
-// Definizione interfaccia per sicurezza TypeScript (toglie i "Unexpected any")
+// Interfaccia completa per evitare errori TypeScript e "any"
 interface AnnouncementData {
   user_id: string;
   title: string;
@@ -25,6 +25,7 @@ interface AnnouncementData {
   street: string;
   house_number: string;
   origin_address: string;
+  exchange_item: string | null; // Campo specifico per il Baratto
 }
 
 function AddPageContent() {
@@ -63,7 +64,7 @@ function AddPageContent() {
     e.preventDefault()
     if (loading) return
     
-    // TRUCCO DEFINITIVO: Prendiamo i dati SUBITO, prima degli await
+    // Cattura istantanea dei dati del form
     const formData = new FormData(e.currentTarget)
     setLoading(true)
     
@@ -78,6 +79,7 @@ function AddPageContent() {
       const condition = mode === 'new' ? 'Nuovo' : mode === 'used' ? 'Usato' : mode === 'barter' ? 'Baratto' : 'Regalo'
       const priceVal = (mode === 'gift' || mode === 'barter') ? 0 : (parseFloat(formData.get('price') as string) || 0)
       const quantityVal = parseInt(formData.get('quantity') as string, 10) || 1
+      const exchangeVal = mode === 'barter' ? (formData.get('exchange_item') as string) : null
 
       const uploadedUrls: string[] = []
 
@@ -97,7 +99,7 @@ function AddPageContent() {
         }
       }
 
-      // PREPARAZIONE DATI
+      // PREPARAZIONE OGGETTO DATABASE
       const announcementData: AnnouncementData = {
         user_id: user.id,
         title: formData.get('title') as string,
@@ -116,7 +118,8 @@ function AddPageContent() {
         postcode,
         street,
         house_number: houseNumber,
-        origin_address: `${street} ${houseNumber}, ${postcode} ${city} (${region}), ${nation}`
+        origin_address: `${street} ${houseNumber}, ${postcode} ${city} (${region}), ${nation}`,
+        exchange_item: exchangeVal
       }
 
       const { error: insertError } = await supabase.from('announcements').insert([announcementData]) 
@@ -130,13 +133,12 @@ function AddPageContent() {
 
     } catch (err) {
       console.error(err)
-      alert("Si è verificato un errore imprevisto.")
+      alert("Si è verificato un errore imprevisto durante la pubblicazione.")
     } finally {
-      setLoading(false)
+      setLoading(false) // Sblocca sempre il tasto alla fine
     }
   }
 
-  // SCHERMATA DI SELEZIONE MODALITÀ (TUTTO RIPRISTINATO)
   if (!mode) {
     return (
       <div className="min-h-screen bg-stone-50 p-6 md:p-10 flex flex-col items-center pt-10">
@@ -199,19 +201,28 @@ function AddPageContent() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {mode !== 'gift' && mode !== 'barter' && (
+            {/* LOGICA BARATTO VS PREZZO */}
+            {mode === 'barter' ? (
+              <div className="col-span-1 md:col-span-2">
+                <label htmlFor="exchange_item" className="text-[10px] font-black uppercase tracking-widest text-blue-500 ml-1">Cosa cerchi in cambio?</label>
+                <input id="exchange_item" name="exchange_item" required type="text" className="w-full p-4 mt-1 bg-blue-50/30 rounded-2xl border border-blue-100 outline-none focus:border-blue-400 text-sm font-bold text-stone-800" placeholder="Es: Scambio con cellulare o tablet" />
+              </div>
+            ) : mode !== 'gift' && (
               <div>
                 <label htmlFor="price" className="text-[10px] font-black uppercase tracking-widest text-stone-400 ml-1">Prezzo (€)</label>
                 <input id="price" name="price" required type="number" step="0.01" className="w-full p-4 mt-1 bg-stone-50 rounded-2xl border border-stone-100 outline-none focus:border-rose-400 text-sm font-bold text-stone-800" placeholder="0.00" />
               </div>
             )}
-            <div>
-              <label htmlFor="shipping" className="text-[10px] font-black uppercase tracking-widest text-rose-500 ml-1">Spese Spedizione (€)</label>
-              <input id="shipping" type="number" step="0.01" value={shippingCost} onChange={(e) => setShippingCost(e.target.value)} className="w-full p-4 mt-1 bg-rose-50/30 rounded-2xl border border-rose-100 outline-none focus:border-rose-400 text-sm font-black text-stone-800" />
-            </div>
+            
+            {mode !== 'barter' && mode !== 'gift' && (
+              <div>
+                <label htmlFor="shipping" className="text-[10px] font-black uppercase tracking-widest text-rose-500 ml-1">Spese Spedizione (€)</label>
+                <input id="shipping" type="number" step="0.01" value={shippingCost} onChange={(e) => setShippingCost(e.target.value)} className="w-full p-4 mt-1 bg-rose-50/30 rounded-2xl border border-rose-100 outline-none focus:border-rose-400 text-sm font-black text-stone-800" />
+              </div>
+            )}
           </div>
 
-          {/* SEZIONE INDIRIZZO - I 6 CAMPI OBBLIGATORI */}
+          {/* SEZIONE INDIRIZZO DETTAGLIATA */}
           <div className="p-6 bg-stone-50 rounded-[2rem] border-2 border-stone-100 space-y-4">
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-500 text-center mb-4">📍 Località dell&apos;oggetto</p>
             
@@ -222,25 +233,25 @@ function AddPageContent() {
                </div>
                <div>
                  <label htmlFor="region" className="text-[9px] font-bold text-stone-400 uppercase ml-1">Regione</label>
-                 <input id="region" required type="text" placeholder="Es: Lazio" value={region} onChange={(e) => setRegion(e.target.value)} className="w-full p-3 mt-1 bg-white rounded-xl border border-stone-200 text-sm font-bold text-stone-800" />
+                 <input id="region" required type="text" placeholder="Es: Sicilia" value={region} onChange={(e) => setRegion(e.target.value)} className="w-full p-3 mt-1 bg-white rounded-xl border border-stone-200 text-sm font-bold text-stone-800" />
                </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
                <div>
                  <label htmlFor="city" className="text-[9px] font-bold text-stone-400 uppercase ml-1">Città</label>
-                 <input id="city" required type="text" placeholder="Es: Roma" value={city} onChange={(e) => setCity(e.target.value)} className="w-full p-3 mt-1 bg-white rounded-xl border border-stone-200 text-sm font-bold text-stone-800" />
+                 <input id="city" required type="text" placeholder="Es: Palermo" value={city} onChange={(e) => setCity(e.target.value)} className="w-full p-3 mt-1 bg-white rounded-xl border border-stone-200 text-sm font-bold text-stone-800" />
                </div>
                <div>
                  <label htmlFor="postcode" className="text-[9px] font-bold text-stone-400 uppercase ml-1">CAP</label>
-                 <input id="postcode" required type="text" placeholder="00100" value={postcode} onChange={(e) => setPostcode(e.target.value)} className="w-full p-3 mt-1 bg-white rounded-xl border border-stone-200 text-sm font-bold text-stone-800" />
+                 <input id="postcode" required type="text" placeholder="90100" value={postcode} onChange={(e) => setPostcode(e.target.value)} className="w-full p-3 mt-1 bg-white rounded-xl border border-stone-200 text-sm font-bold text-stone-800" />
                </div>
             </div>
 
             <div className="grid grid-cols-3 gap-3">
                <div className="col-span-2">
                  <label htmlFor="street" className="text-[9px] font-bold text-stone-400 uppercase ml-1">Via / Piazza</label>
-                 <input id="street" required type="text" placeholder="Es: Via del Corso" value={street} onChange={(e) => setStreet(e.target.value)} className="w-full p-3 mt-1 bg-white rounded-xl border border-stone-200 text-sm font-bold text-stone-800" />
+                 <input id="street" required type="text" placeholder="Es: Via Libertà" value={street} onChange={(e) => setStreet(e.target.value)} className="w-full p-3 mt-1 bg-white rounded-xl border border-stone-200 text-sm font-bold text-stone-800" />
                </div>
                <div>
                  <label htmlFor="houseNumber" className="text-[9px] font-bold text-stone-400 uppercase ml-1">Civico</label>
