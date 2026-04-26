@@ -25,9 +25,9 @@ export async function POST(req: Request) {
             currency: 'eur',
             product_data: {
               name: 'Sponsorizzazione Vetrina Top ✨',
-              description: 'Il tuo annuncio sarà messo in prima fila per 7 giorni.',
+              description: 'Il tuo annuncio sarà messo in prima fila.',
             },
-            unit_amount: 200, // 2.00 €
+            unit_amount: 200, // 200 centesimi = 2.00 €
           },
           quantity: 1,
         },
@@ -39,6 +39,7 @@ export async function POST(req: Request) {
         announcementId: announcementId,
         userId: userId,
       },
+      // Se il pagamento va a buon fine, torna alla bacheca dicendo "success=true" e l'ID dell'annuncio
       success_url: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/dashboard/annunci?success=true&ad_id=${announcementId}`,
       cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/dashboard/annunci?canceled=true`,
     });
