@@ -42,7 +42,7 @@ function AnnouncementContent() {
         fetchSellerProfile(data.user_id) 
         if (currentUser) {
           checkIfPurchased(currentUser.id, data.id)
-          checkExistingOffer(currentUser.id, data.id) // Controlla le proposte attive
+          checkExistingOffer(currentUser.id, data.id) 
         }
       }
       setLoading(false)
@@ -75,7 +75,6 @@ function AnnouncementContent() {
     if (data && data.length > 0) setHasPurchased(true)
   }
 
-  // AGGIUNTO: Funzione per controllare offerte esistenti
   async function checkExistingOffer(buyerId: string, annId: string) {
     const { data } = await supabase
       .from('offers')
@@ -146,7 +145,6 @@ function AnnouncementContent() {
       return;
     }
 
-    // AGGIUNTA FONDAMENTALE: Se c'è un'offerta accettata, usiamo quel prezzo, altrimenti il prezzo normale!
     const finalPrice = (existingOffer && existingOffer.status === 'Accettata') 
       ? existingOffer.offer_price 
       : ann.price;
@@ -158,7 +156,7 @@ function AnnouncementContent() {
         items: [{
             id: ann.id,
             title: ann.title,
-            price: finalPrice, // QUI USIAMO IL PREZZO CORRETTO
+            price: finalPrice, 
             quantity: selectedQuantity,
             image_url: ann.image_url
         }],
@@ -171,7 +169,6 @@ function AnnouncementContent() {
     if (data.url) window.location.href = data.url
   }
 
-  // AGGIUNTO: Invio della proposta al database
   const submitOffer = async () => {
     if (!offerPrice || isNaN(Number(offerPrice)) || Number(offerPrice) <= 0) {
       alert("Inserisci una cifra valida."); return;
@@ -227,8 +224,8 @@ function AnnouncementContent() {
   const maxQty = ann.quantity !== undefined ? ann.quantity : 1;
   const avgRating = reviews.length > 0 ? (reviews.reduce((acc, cur) => acc + cur.rating, 0) / reviews.length).toFixed(1) : 'Nuovo'
   
-  // FIX CRITICO: Url corretto e funzionante per la mappa di Google
-  const mapUrl = `https://maps.google.com/maps?q=${encodeURIComponent(ann.origin_address || ann.city || 'Italia')}&t=&z=13&ie=UTF8&iwloc=&output=embed`;
+  // MODIFICATO: Mappa basata solo sulla CITTÀ
+  const mapUrl = `https://maps.google.com/maps?q=${encodeURIComponent(ann.city || 'Italia')}&t=&z=13&ie=UTF8&iwloc=&output=embed`;
 
   return (
     <div className="min-h-screen bg-stone-50 p-4 md:p-10 font-sans pb-32">
@@ -254,14 +251,15 @@ function AnnouncementContent() {
              )}
           </div>
 
+          {/* POSIZIONE AGGIORNATA (SOLO CITTÀ) */}
           <div className="bg-white p-8 rounded-[2.5rem] border border-stone-200 shadow-sm overflow-hidden">
             <h3 className="text-xs font-black uppercase text-stone-400 tracking-widest mb-4 flex items-center gap-2">
-              <span className="w-2 h-2 bg-rose-500 rounded-full animate-pulse"></span> Luogo di partenza
+              <span className="w-2 h-2 bg-rose-500 rounded-full animate-pulse"></span> Posizione
             </h3>
             <div className="w-full h-64 rounded-3xl overflow-hidden border border-stone-100">
               <iframe width="100%" height="100%" frameBorder="0" scrolling="no" src={mapUrl}></iframe>
             </div>
-            <p className="mt-3 text-xs font-bold text-stone-500 uppercase italic">Provenienza: {ann.origin_address || 'Non specificata'}</p>
+            <p className="mt-3 text-xs font-bold text-stone-500 uppercase italic">Località: {ann.city || 'Non specificata'}</p>
           </div>
         </div>
 
@@ -278,15 +276,16 @@ function AnnouncementContent() {
                {ann.type === 'offered' && <span className="bg-rose-500 text-white text-[10px] font-black px-3 py-1 rounded-full uppercase shadow-lg shadow-rose-200">Gift</span>}
             </div>
 
+            {/* MODIFICATO: MOSTRA SOLO IL NICKNAME */}
             <Link href={`/profile/${ann.user_id}`} className="flex items-center justify-between bg-stone-50 p-4 rounded-2xl border border-stone-100 hover:border-rose-200 transition-all mb-8 group">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-stone-900 rounded-full flex items-center justify-center font-black text-sm text-white uppercase">
-                    {seller?.first_name?.[0] || 'U'}
+                    {seller?.nickname?.[0] || seller?.first_name?.[0] || 'U'}
                   </div>
                   <div className="flex flex-col">
                     <span className="text-[10px] font-black uppercase text-stone-400">Venditore</span>
                     <span className="text-sm font-black uppercase text-stone-800 group-hover:text-rose-500 transition-colors">
-                      {seller?.first_name ? `${seller.first_name} ${seller.last_name || ''}` : 'Profilo Venditore'} →
+                      {seller?.nickname || 'Utente Re-love'} →
                     </span>
                   </div>
                 </div>
@@ -355,12 +354,10 @@ function AnnouncementContent() {
                  <>
                    {ann.condition === 'Nuovo' || ann.condition === 'Usato' ? (
                      <div className="space-y-3 flex flex-col items-center">
-                       {/* BOTTONE PRIMARIO - PIU' GRANDE */}
                        <button onClick={handleSecureBuy} disabled={actionLoading || maxQty <= 0} className="w-full bg-stone-900 text-white p-5 rounded-2xl font-black uppercase text-sm tracking-[0.1em] shadow-xl hover:bg-rose-500 transition-all disabled:opacity-30">
                           {actionLoading ? 'In corso...' : 'Acquista Ora'}
                        </button>
 
-                       {/* BOTTONE SECONDARIO - PIU' LEGGERO */}
                        {existingOffer ? (
                          <div className={`w-full p-4 rounded-2xl text-center border ${existingOffer.status === 'In attesa' ? 'bg-orange-50 border-orange-200' : existingOffer.status === 'Rifiutata' ? 'bg-rose-50 border-rose-200' : 'bg-emerald-50 border-emerald-200'}`}>
                            <p className="text-xs font-black uppercase text-stone-600 tracking-widest">
@@ -379,7 +376,6 @@ function AnnouncementContent() {
                      </button>
                    )}
                    
-                   {/* BOTTONE TERZIARIO - SOLO TESTO */}
                    <button onClick={handleContact} disabled={actionLoading} className="text-stone-400 font-bold text-xs underline hover:text-stone-900 transition-all mt-4 w-full text-center disabled:opacity-30">
                      Hai dubbi? Contatta il venditore in chat
                    </button>
@@ -493,7 +489,7 @@ function AnnouncementContent() {
                <button onClick={handleBuyCoffee} disabled={actionLoading} className="w-full bg-stone-900 text-white py-5 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl hover:bg-rose-500 transition-all disabled:opacity-30">
                  {actionLoading ? 'Elaborazione...' : 'Paga €2.50 e Sblocca'}
                </button>
-               <button onClick={() => setShowCoffeeModal(false)} className="w-full bg-stone-50 text-stone-500 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-stone-200">
+               <button onClick={() => setShowCoffeeModal(false)} className="w-full bg-stone-50 text-stone-400 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-stone-200">
                  Annulla
                </button>
             </div>
