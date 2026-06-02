@@ -190,17 +190,17 @@ function HomePageContent() {
         </Link>
       )}
 
-      {/* --- HERO SECTION MODERNA --- */}
-      <div className="relative w-full h-[300px] md:h-[480px] flex flex-col items-center overflow-hidden bg-transparent">
-          <div className="absolute inset-0 z-0">
+      {/* --- HERO SECTION CORRETTA IN 16/9 COMPLETO AD ALTEZZA ADATTIVA --- */}
+      <div className="relative w-full aspect-[16/9] max-h-[580px] flex flex-col items-center justify-center overflow-hidden bg-transparent">
+          <div className="absolute inset-0 z-0 w-full h-full">
             <img 
               src="/teatro.jpeg" 
               alt="Re-love Hero"
-              className="w-full h-full object-contain"
+              className="w-full h-full object-cover"
             />
           </div>
 
-          <div className="relative z-10 w-full h-full max-w-4xl px-4 flex flex-col justify-center pb-16 items-center">
+          <div className="relative z-10 w-full max-w-4xl px-4 flex flex-col justify-center items-center">
             
             {/* BARRA DI RICERCA VOCALE / TESTUALE */}
             <div className="relative group w-full max-w-2xl shadow-2xl rounded-[2rem]">
@@ -225,19 +225,19 @@ function HomePageContent() {
           </div>
       </div>
 
-      {/* --- CONFIGURAZIONE GRIGLIA 16/9 CON STRUTTURA A 3 COLONNE (BANNER LATERALI) --- */}
-      <div className="w-full px-4 md:px-6 -mt-16 relative z-20 flex flex-col lg:flex-row gap-6">
+      {/* --- CONFIGURAZIONE GRIGLIA CON BANNER LATERALI ADATTIVI (CORRETTI SENZA VUOTI) --- */}
+      <div className="w-full px-4 md:px-6 mt-6 lg:-mt-12 relative z-20 flex flex-col lg:flex-row gap-6">
         
         {/* SIDEBAR BANNER SINISTRA (Desktop Only) */}
         <aside className="hidden lg:flex flex-col gap-6 w-64 shrink-0 self-start sticky top-6">
-          <div className="bg-white/80 backdrop-blur-md border border-stone-200 rounded-[2rem] p-5 shadow-lg flex flex-col items-center text-center justify-between min-h-[400px]">
+          <div className="bg-white/80 backdrop-blur-md border border-stone-200 rounded-[2rem] p-5 shadow-lg flex flex-col items-center text-center justify-between min-h-[420px]">
             <div className="w-full">
               <span className="bg-stone-100 text-stone-500 text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full mb-4 inline-block">Sponsor</span>
-              <div className="w-full h-32 bg-stone-50 rounded-2xl border border-stone-200 flex items-center justify-center mb-4 overflow-hidden relative">
+              <div className="w-full h-32 bg-stone-100 rounded-2xl border border-stone-200 flex items-center justify-center mb-4 overflow-hidden relative shadow-inner">
                 <img 
                   src="/nuovo.png" 
                   alt="Re-love Sponsor Left" 
-                  className="w-full h-full object-cover p-2"
+                  className="w-full h-full object-cover"
                 />
               </div>
               <h3 className="text-sm font-black uppercase text-stone-900 tracking-tight leading-tight">Spazio Disponibile</h3>
@@ -262,7 +262,7 @@ function HomePageContent() {
           </div>
         </aside>
 
-        {/* CONTENUTO CENTRALE (Allargato in 16/9 e Full-Width) */}
+        {/* CONTENUTO CENTRALE (Allargato e proporzionato) */}
         <main className="flex-1 w-full">
           
           {/* FILTRI GRANULARI */}
@@ -466,14 +466,14 @@ function HomePageContent() {
 
         {/* SIDEBAR BANNER DESTRA (Desktop Only) */}
         <aside className="hidden lg:flex flex-col gap-6 w-64 shrink-0 self-start sticky top-6">
-          <div className="bg-white/80 backdrop-blur-md border border-stone-200 rounded-[2rem] p-5 shadow-lg flex flex-col items-center text-center justify-between min-h-[400px]">
+          <div className="bg-white/80 backdrop-blur-md border border-stone-200 rounded-[2rem] p-5 shadow-lg flex flex-col items-center text-center justify-between min-h-[420px]">
             <div className="w-full">
               <span className="bg-stone-100 text-stone-500 text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full mb-4 inline-block">Partner</span>
-              <div className="w-full h-32 bg-stone-50 rounded-2xl border border-stone-200 flex items-center justify-center mb-4 overflow-hidden relative">
+              <div className="w-full h-32 bg-stone-100 rounded-2xl border border-stone-200 flex items-center justify-center mb-4 overflow-hidden relative shadow-inner">
                 <img 
                   src="/usato.png" 
                   alt="Re-love Sponsor Right" 
-                  className="w-full h-full object-cover p-2"
+                  className="w-full h-full object-cover"
                 />
               </div>
               <h3 className="text-sm font-black uppercase text-stone-900 tracking-tight leading-tight">Annuncio Pubblicitario</h3>
