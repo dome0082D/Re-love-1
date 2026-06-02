@@ -195,7 +195,7 @@ function HomePageContent() {
           <div className="absolute inset-0 z-0 w-full h-full">
             <img 
               src="/teatro.jpeg" 
-              alt="Re-love Hero Completa"
+              alt="Re-love hero 2 Completa"
               className="w-full h-full object-cover object-center scale-100"
             />
           </div>
