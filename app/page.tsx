@@ -194,9 +194,9 @@ function HomePageContent() {
       <div className="relative w-full aspect-[16/9] max-h-[580px] flex flex-col items-center justify-center overflow-hidden bg-transparent">
           <div className="absolute inset-0 z-0 w-full h-full">
             <img 
-              src="/hero-widescreen-disegno.png" 
+              src="/teatro.jpeg" 
               alt="Re-love Hero Completa"
-              className="w-full h-full object-contain object-center scale-100"
+              className="w-full h-full object-cover object-center scale-100"
             />
           </div>
 
@@ -236,7 +236,7 @@ function HomePageContent() {
               <div className="w-full h-32 bg-stone-100 rounded-2xl border border-stone-200 flex items-center justify-center mb-4 overflow-hidden relative shadow-inner p-2">
                 {/* Immagine pubblicità inventata inerente al Riuso e Riparazione */}
                 <img 
-                  src="/adv-riuso-sostenibile.png" 
+                  src="/nuovo.png" 
                   alt="Servizi di Riuso e Riparazione Re-love" 
                   className="w-full h-full object-contain"
                 />
@@ -472,7 +472,7 @@ function HomePageContent() {
               <div className="w-full h-32 bg-stone-100 rounded-2xl border border-stone-200 flex items-center justify-center mb-4 overflow-hidden relative shadow-inner p-2">
                 {/* Immagine pubblicità inventata inerente alla Rete Partner Sostenibili */}
                 <img 
-                  src="/adv-rete-partner.png" 
+                  src="/usato.png" 
                   alt="Rete di Partner Sostenibili Re-love" 
                   className="w-full h-full object-contain"
                 />
