@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { User } from '@supabase/supabase-js'
-import { Mic, MicOff, Search, MapPin, Heart, Crown, Mail, Megaphone } from 'lucide-react'
+import { Mic, MicOff, Search, MapPin, Heart, Crown, Mail } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface Announcement {
@@ -190,17 +190,17 @@ function HomePageContent() {
         </Link>
       )}
 
-      {/* --- HERO SECTION CORRETTA IN 16/9 COMPLETO AD ALTEZZA ADATTIVA --- */}
+      {/* --- HERO SECTION 16/9 CON INQUADRATURA COMPLETA SENZA TAGLI --- */}
       <div className="relative w-full aspect-[16/9] max-h-[580px] flex flex-col items-center justify-center overflow-hidden bg-transparent">
           <div className="absolute inset-0 z-0 w-full h-full">
             <img 
-              src="/teatro.jpeg" 
-              alt="Re-love Hero"
-              className="w-full h-full object-cover"
+              src="/hero-widescreen-disegno.png" 
+              alt="Re-love Hero Completa"
+              className="w-full h-full object-contain object-center scale-100"
             />
           </div>
 
-          <div className="relative z-10 w-full max-w-4xl px-4 flex flex-col justify-center items-center">
+          <div className="relative z-10 w-full max-w-4xl px-4 flex flex-col justify-center items-center mt-auto pb-12">
             
             {/* BARRA DI RICERCA VOCALE / TESTUALE */}
             <div className="relative group w-full max-w-2xl shadow-2xl rounded-[2rem]">
@@ -225,28 +225,28 @@ function HomePageContent() {
           </div>
       </div>
 
-      {/* --- CONFIGURAZIONE GRIGLIA CON BANNER LATERALI ADATTIVI (CORRETTI SENZA VUOTI) --- */}
+      {/* --- CONFIGURAZIONE GRIGLIA CON BANNER LATERALI ADATTIVI --- */}
       <div className="w-full px-4 md:px-6 mt-6 lg:-mt-12 relative z-20 flex flex-col lg:flex-row gap-6">
         
-        {/* SIDEBAR BANNER SINISTRA (Desktop Only) */}
+        {/* SIDEBAR BANNER SINISTRA (SPONSOR - SERVIZI DI RIUSO) */}
         <aside className="hidden lg:flex flex-col gap-6 w-64 shrink-0 self-start sticky top-6">
           <div className="bg-white/80 backdrop-blur-md border border-stone-200 rounded-[2rem] p-5 shadow-lg flex flex-col items-center text-center justify-between min-h-[420px]">
             <div className="w-full">
               <span className="bg-stone-100 text-stone-500 text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full mb-4 inline-block">Sponsor</span>
-              <div className="w-full h-32 bg-stone-100 rounded-2xl border border-stone-200 flex items-center justify-center mb-4 overflow-hidden relative shadow-inner">
+              <div className="w-full h-32 bg-stone-100 rounded-2xl border border-stone-200 flex items-center justify-center mb-4 overflow-hidden relative shadow-inner p-2">
+                {/* Immagine pubblicità inventata inerente al Riuso e Riparazione */}
                 <img 
-                  src="/nuovo.png" 
-                  alt="Re-love Sponsor Left" 
-                  className="w-full h-full object-cover"
+                  src="/adv-riuso-sostenibile.png" 
+                  alt="Servizi di Riuso e Riparazione Re-love" 
+                  className="w-full h-full object-contain"
                 />
               </div>
-              <h3 className="text-sm font-black uppercase text-stone-900 tracking-tight leading-tight">Spazio Disponibile</h3>
-              <p className="text-[11px] text-stone-500 mt-2 font-medium">Promuovi la tua attività o i tuoi prodotti qui sulla nostra Home Page.</p>
+              <h3 className="text-sm font-black uppercase text-stone-900 tracking-tight leading-tight">Servizi di Riuso e Riparazione</h3>
+              <p className="text-[11px] text-stone-500 mt-2 font-medium">dome0082@gmail.com</p>
             </div>
             
-            {/* TASTO ATTIVATO REALE CON MAILTO */}
             <a 
-              href="mailto:dome0082@gmail.com?subject=Richiesta%20Spazio%20Pubblicitario%20Re-love&body=Ciao%20Team%20Re-love%2C%20vorrei%20ricevere%20maggiori%20informazioni%20sui%20costi%20e%20sulle%20modalit%C3%A0%20di%20inserimento%20dei%20banner%20pubblicitari%20nello%20Spazio%20Sponsor%20Sinistro.%20Grazie!" 
+              href="mailto:dome0082@gmail.com?subject=Richiesta%20Spazio%20Pubblicitario%20Re-love" 
               className="block w-full mt-4 bg-stone-950 text-white py-3 rounded-xl text-[10px] font-black uppercase tracking-wider hover:bg-rose-500 transition-colors text-center shadow-sm cursor-pointer"
             >
               <span className="flex items-center justify-center gap-2">
@@ -262,7 +262,7 @@ function HomePageContent() {
           </div>
         </aside>
 
-        {/* CONTENUTO CENTRALE (Allargato e proporzionato) */}
+        {/* CONTENUTO CENTRALE */}
         <main className="flex-1 w-full">
           
           {/* FILTRI GRANULARI */}
@@ -329,36 +329,36 @@ function HomePageContent() {
 
           {!catFilter && !typeFilter && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-16">
-              <Link href="/add?mode=new" className="group flex flex-col rounded-[2.5rem] border border-white/40 overflow-hidden bg-white/30 backdrop-blur-md hover:bg-white/60 transition-all shadow-lg text-center">
-                 <div className="relative h-40 w-full overflow-hidden">
-                   <img src="/nuovo.png" className="w-full h-full object-contain p-4 group-hover:scale-110 transition-all duration-[0.5s]" alt="Nuovo" />
+              <Link href="/add?mode=new" className="group flex flex-col rounded-[2.5rem] border border-white/40 overflow-hidden bg-white/30 backdrop-blur-md hover:bg-white/60 transition-all shadow-lg text-center p-2">
+                 <div className="relative h-44 w-full overflow-hidden">
+                   <img src="/nuovo.png" className="w-full h-full object-contain p-2 group-hover:scale-110 transition-all duration-[0.5s]" alt="Nuovo" />
                  </div>
                  <div className="p-4 flex-1 flex flex-col justify-center">
                    <h3 className="text-xl font-black uppercase italic text-stone-900 leading-tight">Vendi Nuovo</h3>
                  </div>
               </Link>
               
-              <Link href="/add?mode=used" className="group flex flex-col rounded-[2.5rem] border border-white/40 overflow-hidden bg-white/30 backdrop-blur-md hover:bg-white/60 transition-all shadow-lg text-center">
-                 <div className="relative h-40 w-full overflow-hidden">
-                   <img src="/usato.png" className="w-full h-full object-contain p-4 group-hover:scale-110 transition-all duration-[0.5s]" alt="Usato" />
+              <Link href="/add?mode=used" className="group flex flex-col rounded-[2.5rem] border border-white/40 overflow-hidden bg-white/30 backdrop-blur-md hover:bg-white/60 transition-all shadow-lg text-center p-2">
+                 <div className="relative h-44 w-full overflow-hidden">
+                   <img src="/usato.png" className="w-full h-full object-contain p-2 group-hover:scale-110 transition-all duration-[0.5s]" alt="Usato" />
                  </div>
                  <div className="p-4 flex-1 flex flex-col justify-center">
                    <h3 className="text-xl font-black uppercase italic text-stone-900 leading-tight">Vendi Usato</h3>
                  </div>
               </Link>
               
-              <Link href="/add?mode=gift" className="group flex flex-col rounded-[2.5rem] border border-white/40 overflow-hidden bg-white/30 backdrop-blur-md hover:bg-white/60 transition-all shadow-lg text-center">
-                 <div className="relative h-40 w-full overflow-hidden">
-                   <img src="/regalo.png" className="w-full h-full object-contain p-4 group-hover:scale-110 transition-all duration-[0.5s]" alt="Regalo" />
+              <Link href="/add?mode=gift" className="group flex flex-col rounded-[2.5rem] border border-white/40 overflow-hidden bg-white/30 backdrop-blur-md hover:bg-white/60 transition-all shadow-lg text-center p-2">
+                 <div className="relative h-44 w-full overflow-hidden">
+                   <img src="/regalo.png" className="w-full h-full object-contain p-2 group-hover:scale-110 transition-all duration-[0.5s]" alt="Regalo" />
                  </div>
                  <div className="p-4 flex-1 flex flex-col justify-center">
                    <h3 className="text-xl font-black uppercase italic text-stone-900 leading-tight">Regalo</h3>
                  </div>
               </Link>
 
-              <Link href="/add?mode=barter" className="group flex flex-col rounded-[2.5rem] border border-white/40 overflow-hidden bg-white/30 backdrop-blur-md hover:bg-white/60 transition-all shadow-lg text-center">
-                 <div className="relative h-40 w-full overflow-hidden">
-                   <img src="/baratto.png" className="w-full h-full object-contain p-4 group-hover:scale-110 transition-all duration-[0.5s]" alt="Baratto" />
+              <Link href="/add?mode=barter" className="group flex flex-col rounded-[2.5rem] border border-white/40 overflow-hidden bg-white/30 backdrop-blur-md hover:bg-white/60 transition-all shadow-lg text-center p-2">
+                 <div className="relative h-44 w-full overflow-hidden">
+                   <img src="/baratto.png" className="w-full h-full object-contain p-2 group-hover:scale-110 transition-all duration-[0.5s]" alt="Baratto" />
                  </div>
                  <div className="p-4 flex-1 flex flex-col justify-center">
                    <h3 className="text-xl font-black uppercase italic text-stone-900 leading-tight">Baratto</h3>
@@ -464,25 +464,25 @@ function HomePageContent() {
 
         </main>
 
-        {/* SIDEBAR BANNER DESTRA (Desktop Only) */}
+        {/* SIDEBAR BANNER DESTRA (PARTNER - RETE SOSTENIBILE) */}
         <aside className="hidden lg:flex flex-col gap-6 w-64 shrink-0 self-start sticky top-6">
           <div className="bg-white/80 backdrop-blur-md border border-stone-200 rounded-[2rem] p-5 shadow-lg flex flex-col items-center text-center justify-between min-h-[420px]">
             <div className="w-full">
               <span className="bg-stone-100 text-stone-500 text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full mb-4 inline-block">Partner</span>
-              <div className="w-full h-32 bg-stone-100 rounded-2xl border border-stone-200 flex items-center justify-center mb-4 overflow-hidden relative shadow-inner">
+              <div className="w-full h-32 bg-stone-100 rounded-2xl border border-stone-200 flex items-center justify-center mb-4 overflow-hidden relative shadow-inner p-2">
+                {/* Immagine pubblicità inventata inerente alla Rete Partner Sostenibili */}
                 <img 
-                  src="/usato.png" 
-                  alt="Re-love Sponsor Right" 
-                  className="w-full h-full object-cover"
+                  src="/adv-rete-partner.png" 
+                  alt="Rete di Partner Sostenibili Re-love" 
+                  className="w-full h-full object-contain"
                 />
               </div>
-              <h3 className="text-sm font-black uppercase text-stone-900 tracking-tight leading-tight">Annuncio Pubblicitario</h3>
-              <p className="text-[11px] text-stone-500 mt-2 font-medium">Vuoi inserire un banner tracciato e monetizzare sulle visualizzazioni?</p>
+              <h3 className="text-sm font-black uppercase text-stone-900 tracking-tight leading-tight">Rete di Partner Sostenibili</h3>
+              <p className="text-[11px] text-stone-500 mt-2 font-medium">dome0082@gmail.com</p>
             </div>
             
-            {/* TASTO ATTIVATO REALE CON MAILTO */}
             <a 
-              href="mailto:dome0082@gmail.com?subject=Richiesta%20Banner%20Re-love&body=Ciao%20Team%20Re-love%2C%20siamo%20interessati%20a%20comprare%20lo%20spazio%20pubblicitario%20destro%20per%20promuovere%20la%20nostra%20campagna%20marketing.%20Inviateci%20il%20vostro%20listino%20prezzi.%20Cordiali%20saluti." 
+              href="mailto:dome0082@gmail.com?subject=Richiesta%20Banner%20Re-love" 
               className="block w-full mt-4 bg-stone-950 text-white py-3 rounded-xl text-[10px] font-black uppercase tracking-wider hover:bg-rose-500 transition-colors text-center shadow-sm cursor-pointer"
             >
               <span className="flex items-center justify-center gap-2">
