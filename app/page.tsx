@@ -239,7 +239,12 @@ function HomePageContent() {
               <h3 className="text-sm font-black uppercase text-stone-900 tracking-tight leading-tight">Spazio Disponibile</h3>
               <p className="text-[11px] text-stone-500 mt-2 font-medium">Promuovi la tua attività o i tuoi prodotti qui sulla nostra Home Page.</p>
             </div>
-            <a href="mailto:dome0082@gmail.com?subject=Richiesta Spazio Pubblicitario Re-love" className="w-full mt-4 bg-stone-950 text-white py-3 rounded-xl text-[10px] font-black uppercase tracking-wider hover:bg-rose-500 transition-colors flex items-center justify-center gap-2 shadow-sm">
+            
+            {/* TASTO ATTIVATO REALE CON MAILTO */}
+            <a 
+              href="mailto:dome0082@gmail.com?subject=Richiesta%20Spazio%20Pubblicitario%20Re-love&body=Ciao%20Team%20Re-love%2C%20vorrei%20ricevere%20maggiori%20informazioni%20sui%20costi%20e%20sulle%20modalit%C3%A0%20di%20inserimento%20dei%20banner%20pubblicitari%20nello%20Spazio%20Sponsor%20Sinistro.%20Grazie!" 
+              className="w-full mt-4 bg-stone-950 text-white py-3 rounded-xl text-[10px] font-black uppercase tracking-wider hover:bg-rose-500 transition-colors flex items-center justify-center gap-2 shadow-sm"
+            >
               <Mail size={12} />
               Contattaci
             </a>
@@ -464,7 +469,12 @@ function HomePageContent() {
               <h3 className="text-sm font-black uppercase text-stone-900 tracking-tight leading-tight">Annuncio Pubblicitario</h3>
               <p className="text-[11px] text-stone-500 mt-2 font-medium">Vuoi inserire un banner tracciato e monetizzare sulle visualizzazioni?</p>
             </div>
-            <a href="mailto:dome0082@gmail.com?subject=Richiesta Banner Re-love" className="w-full mt-4 bg-stone-950 text-white py-3 rounded-xl text-[10px] font-black uppercase tracking-wider hover:bg-rose-500 transition-colors flex items-center justify-center gap-2 shadow-sm">
+            
+            {/* TASTO ATTIVATO REALE CON MAILTO */}
+            <a 
+              href="mailto:dome0082@gmail.com?subject=Richiesta%20Banner%20Re-love&body=Ciao%20Team%20Re-love%2C%20siamo%20interessati%20a%20comprare%20lo%20spazio%20pubblicitario%20destro%20per%20promuovere%20la%20nostra%20campagna%20marketing.%20Inviateci%20il%20vostro%20listino%20prezzi.%20Cordiali%20saluti." 
+              className="w-full mt-4 bg-stone-950 text-white py-3 rounded-xl text-[10px] font-black uppercase tracking-wider hover:bg-rose-500 transition-colors flex items-center justify-center gap-2 shadow-sm"
+            >
               <Mail size={12} />
               Invia Email
             </a>
