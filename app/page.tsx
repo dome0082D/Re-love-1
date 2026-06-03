@@ -190,8 +190,30 @@ function HomePageContent() {
         </Link>
       )}
 
+      {/* BARRA DI RICERCA NELLA BARRA DELLE IMPOSTAZIONI IN ALTO AL CENTRO */}
+      <div className="w-full max-w-7xl mx-auto px-4 pt-4 flex justify-center sticky top-0 z-[100] bg-transparent">
+        <div className="relative group w-full max-w-2xl shadow-xl rounded-[2rem]">
+          <div className="absolute inset-y-0 left-6 flex items-center pointer-events-none">
+            <Search className="text-stone-400" size={24} strokeWidth={2.5} />
+          </div>
+          <input 
+            type="text" 
+            value={mainSearch}
+            placeholder="Cerca vestiti, elettronica, arredamento..." 
+            className="w-full py-4 pl-16 pr-20 rounded-[2rem] bg-white/95 backdrop-blur-sm border border-stone-200 outline-none text-base md:text-lg font-black text-stone-900 focus:border-rose-400 focus:ring-4 focus:ring-rose-50 transition-all shadow-inner placeholder:text-stone-400" 
+            onChange={(e) => setMainSearch(e.target.value)} 
+          />
+          <button 
+           onClick={handleVoiceSearch}
+           className={`absolute inset-y-2 right-2 w-11 h-11 md:w-12 md:h-12 rounded-[1.5rem] flex items-center justify-center transition-all ${isListening ? 'bg-rose-500 text-white shadow-[0_0_20px_rgba(244,63,94,0.6)] animate-pulse' : 'bg-stone-100 text-rose-500 hover:bg-stone-200 shadow-sm'}`}
+          >
+           {isListening ? <Mic size={22} /> : <MicOff size={22} />}
+          </button>
+        </div>
+      </div>
+
       {/* --- HERO SECTION 16/9 CON INQUADRATURA COMPLETA SENZA TAGLI --- */}
-      <div className="relative w-full aspect-[16/9] max-h-[580px] flex flex-col items-center justify-center overflow-hidden bg-transparent">
+      <div className="relative w-full aspect-[16/9] max-h-[580px] flex flex-col items-center justify-center overflow-hidden bg-transparent mt-2">
           <div className="absolute inset-0 z-0 w-full h-full">
             <img 
               src="/hero-2.png" 
@@ -199,47 +221,25 @@ function HomePageContent() {
               className="w-full h-full object-contain object-center scale-100"
             />
           </div>
-          
-          {/* BARRA DI RICERCA POSIZIONATA IN ALTO AL CENTRO SULLA HERO */}
-          <div className="absolute top-[8%] md:top-[12%] left-1/2 transform -translate-x-1/2 z-[60] w-full max-w-2xl px-4 flex justify-center">
-            <div className="relative group w-full shadow-xl rounded-[2rem]">
-              <div className="absolute inset-y-0 left-6 flex items-center pointer-events-none">
-                <Search className="text-stone-400" size={24} strokeWidth={2.5} />
-              </div>
-              <input 
-                type="text" 
-                value={mainSearch}
-                placeholder="Cerca vestiti, elettronica, arredamento..." 
-                className="w-full py-4 pl-16 pr-20 rounded-[2rem] bg-white/95 backdrop-blur-sm border border-stone-200 outline-none text-base md:text-lg font-black text-stone-900 focus:border-rose-400 focus:ring-4 focus:ring-rose-50 transition-all shadow-inner placeholder:text-stone-400" 
-                onChange={(e) => setMainSearch(e.target.value)} 
-              />
-              <button 
-               onClick={handleVoiceSearch}
-               className={`absolute inset-y-2 right-2 w-11 h-11 md:w-12 md:h-12 rounded-[1.5rem] flex items-center justify-center transition-all ${isListening ? 'bg-rose-500 text-white shadow-[0_0_20px_rgba(244,63,94,0.6)] animate-pulse' : 'bg-stone-100 text-rose-500 hover:bg-stone-200 shadow-sm'}`}
-              >
-               {isListening ? <Mic size={22} /> : <MicOff size={22} />}
-              </button>
-            </div>
-          </div>
       </div>
 
-      {/* --- CONFIGURAZIONE GRIGLIA CON BANNER LATERALI ADATTIVI --- */}
+      {/* --- CONFIGURAZIONE GRIGLIA CON BANNER LATERALI ADATTIVI ALLARGATI --- */}
       <div className="w-full px-4 md:px-6 mt-6 lg:-mt-12 relative z-20 flex flex-col lg:flex-row gap-6">
         
-        {/* SIDEBAR BANNER SINISTRA (SPONSOR - SERVIZI DI RIUSO) - ALLARGATA a w-80 */}
-        <aside className="hidden lg:flex flex-col gap-6 w-80 shrink-0 self-start sticky top-6">
-          <div className="bg-white/80 backdrop-blur-md border border-stone-200 rounded-[2rem] p-5 shadow-lg flex flex-col items-center text-center justify-between min-h-[460px]">
-            <div className="w-full">
-              <span className="bg-stone-100 text-stone-500 text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full mb-4 inline-block">Sponsor</span>
-              <div className="w-full h-48 bg-stone-100 rounded-2xl border border-stone-200 flex items-center justify-center mb-4 overflow-hidden relative shadow-inner">
+        {/* SIDEBAR BANNER SINISTRA (SPONSOR) - MOLTO PIÙ GRANDE (w-96) */}
+        <aside className="hidden lg:flex flex-col gap-6 w-96 shrink-0 self-start sticky top-24">
+          <div className="bg-white/80 backdrop-blur-md border border-stone-200 rounded-[2rem] p-5 shadow-lg flex flex-col items-center text-center justify-between min-h-[520px] w-full">
+            <div className="w-full h-full flex flex-col">
+              <span className="bg-stone-100 text-stone-500 text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full mb-4 inline-block self-center">Sponsor</span>
+              <div className="w-full flex-1 bg-stone-100 rounded-2xl border border-stone-200 flex items-center justify-center mb-4 overflow-hidden relative shadow-inner min-h-[320px]">
                 <img 
                   src="/adv-riuso-sostenibile.png" 
                   alt="Servizi di Riuso e Riparazione Re-love" 
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover absolute inset-0"
                 />
               </div>
-              <h3 className="text-sm font-black uppercase text-stone-900 tracking-tight leading-tight">Servizi di Riuso e Riparazione</h3>
-              <p className="text-[11px] text-stone-500 mt-2 font-medium">dome0082@gmail.com</p>
+              <h3 className="text-base font-black uppercase text-stone-900 tracking-tight leading-tight mt-2">Servizi di Riuso e Riparazione</h3>
+              <p className="text-xs text-stone-500 mt-1 font-medium">dome0082@gmail.com</p>
             </div>
             
             <a 
@@ -325,42 +325,46 @@ function HomePageContent() {
             </div>
           </section>
 
-          {/* QUATTRO RIQUADRI CENTRALI - COLORE AVORIO, IMMAGINI INGRANDITE */}
+          {/* QUATTRO RIQUADRI CENTRALI - RIMPICCIOLITI, IMMAGINI RIEMPIONO TUTTO IL RIQUADRO */}
           {!catFilter && !typeFilter && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-16">
-              <Link href="/add?mode=new" className="group flex flex-col items-center justify-center rounded-[2rem] border border-stone-200/40 overflow-hidden bg-[#f4f0ea]/90 hover:bg-[#eae4da] transition-all shadow-lg text-center p-4 aspect-square">
-                 <div className="relative w-full h-5/6 flex items-center justify-center overflow-hidden">
-                   <img src="/nuovo.png" className="w-full h-full object-contain scale-[1.15] group-hover:scale-[1.25] transition-all duration-[0.5s]" alt="Nuovo" />
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-4 mb-16 max-w-3xl mx-auto">
+              <Link href="/add?mode=new" className="group flex flex-col items-center justify-center rounded-[1.8rem] border border-stone-200/40 overflow-hidden bg-[#f4f0ea]/90 hover:bg-[#eae4da] transition-all shadow-lg text-center aspect-square relative max-w-[160px] mx-auto w-full">
+                 <div className="absolute inset-0 w-full h-full overflow-hidden">
+                   <img src="/nuovo.png" className="w-full h-full object-cover group-hover:scale-110 transition-all duration-[0.5s]" alt="Nuovo" />
+                   <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors" />
                  </div>
-                 <div className="mt-1 flex-1 flex flex-col justify-end w-full">
-                   <h3 className="text-sm md:text-base font-black uppercase italic text-stone-900 leading-tight">Vendi Nuovo</h3>
-                 </div>
-              </Link>
-              
-              <Link href="/add?mode=used" className="group flex flex-col items-center justify-center rounded-[2rem] border border-stone-200/40 overflow-hidden bg-[#f4f0ea]/90 hover:bg-[#eae4da] transition-all shadow-lg text-center p-4 aspect-square">
-                 <div className="relative w-full h-5/6 flex items-center justify-center overflow-hidden">
-                   <img src="/usato.png" className="w-full h-full object-contain scale-[1.15] group-hover:scale-[1.25] transition-all duration-[0.5s]" alt="Usato" />
-                 </div>
-                 <div className="mt-1 flex-1 flex flex-col justify-end w-full">
-                   <h3 className="text-sm md:text-base font-black uppercase italic text-stone-900 leading-tight">Vendi Usato</h3>
+                 <div className="absolute bottom-3 z-10 w-full px-2">
+                   <h3 className="text-xs md:text-sm font-black uppercase italic text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] leading-tight">Vendi Nuovo</h3>
                  </div>
               </Link>
               
-              <Link href="/add?mode=gift" className="group flex flex-col items-center justify-center rounded-[2rem] border border-stone-200/40 overflow-hidden bg-[#f4f0ea]/90 hover:bg-[#eae4da] transition-all shadow-lg text-center p-4 aspect-square">
-                 <div className="relative w-full h-5/6 flex items-center justify-center overflow-hidden">
-                   <img src="/regalo.png" className="w-full h-full object-contain scale-[1.15] group-hover:scale-[1.25] transition-all duration-[0.5s]" alt="Regalo" />
+              <Link href="/add?mode=used" className="group flex flex-col items-center justify-center rounded-[1.8rem] border border-stone-200/40 overflow-hidden bg-[#f4f0ea]/90 hover:bg-[#eae4da] transition-all shadow-lg text-center aspect-square relative max-w-[160px] mx-auto w-full">
+                 <div className="absolute inset-0 w-full h-full overflow-hidden">
+                   <img src="/usato.png" className="w-full h-full object-cover group-hover:scale-110 transition-all duration-[0.5s]" alt="Usato" />
+                   <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors" />
                  </div>
-                 <div className="mt-1 flex-1 flex flex-col justify-end w-full">
-                   <h3 className="text-sm md:text-base font-black uppercase italic text-stone-900 leading-tight">Regalo</h3>
+                 <div className="absolute bottom-3 z-10 w-full px-2">
+                   <h3 className="text-xs md:text-sm font-black uppercase italic text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] leading-tight">Vendi Usato</h3>
+                 </div>
+              </Link>
+              
+              <Link href="/add?mode=gift" className="group flex flex-col items-center justify-center rounded-[1.8rem] border border-stone-200/40 overflow-hidden bg-[#f4f0ea]/90 hover:bg-[#eae4da] transition-all shadow-lg text-center aspect-square relative max-w-[160px] mx-auto w-full">
+                 <div className="absolute inset-0 w-full h-full overflow-hidden">
+                   <img src="/regalo.png" className="w-full h-full object-cover group-hover:scale-110 transition-all duration-[0.5s]" alt="Regalo" />
+                   <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors" />
+                 </div>
+                 <div className="absolute bottom-3 z-10 w-full px-2">
+                   <h3 className="text-xs md:text-sm font-black uppercase italic text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] leading-tight">Regalo</h3>
                  </div>
               </Link>
 
-              <Link href="/add?mode=barter" className="group flex flex-col items-center justify-center rounded-[2rem] border border-stone-200/40 overflow-hidden bg-[#f4f0ea]/90 hover:bg-[#eae4da] transition-all shadow-lg text-center p-4 aspect-square">
-                 <div className="relative w-full h-5/6 flex items-center justify-center overflow-hidden">
-                   <img src="/baratto.png" className="w-full h-full object-contain scale-[1.15] group-hover:scale-[1.25] transition-all duration-[0.5s]" alt="Baratto" />
+              <Link href="/add?mode=barter" className="group flex flex-col items-center justify-center rounded-[1.8rem] border border-stone-200/40 overflow-hidden bg-[#f4f0ea]/90 hover:bg-[#eae4da] transition-all shadow-lg text-center aspect-square relative max-w-[160px] mx-auto w-full">
+                 <div className="absolute inset-0 w-full h-full overflow-hidden">
+                   <img src="/baratto.png" className="w-full h-full object-cover group-hover:scale-110 transition-all duration-[0.5s]" alt="Baratto" />
+                   <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors" />
                  </div>
-                 <div className="mt-1 flex-1 flex flex-col justify-end w-full">
-                   <h3 className="text-sm md:text-base font-black uppercase italic text-stone-900 leading-tight">Baratto</h3>
+                 <div className="absolute bottom-3 z-10 w-full px-2">
+                   <h3 className="text-xs md:text-sm font-black uppercase italic text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] leading-tight">Baratto</h3>
                  </div>
               </Link>
             </div>
@@ -463,20 +467,20 @@ function HomePageContent() {
 
         </main>
 
-        {/* SIDEBAR BANNER DESTRA (PARTNER - RETE SOSTENIBILE) - ALLARGATA a w-80 */}
-        <aside className="hidden lg:flex flex-col gap-6 w-80 shrink-0 self-start sticky top-6">
-          <div className="bg-white/80 backdrop-blur-md border border-stone-200 rounded-[2rem] p-5 shadow-lg flex flex-col items-center text-center justify-between min-h-[460px]">
-            <div className="w-full">
-              <span className="bg-stone-100 text-stone-500 text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full mb-4 inline-block">Partner</span>
-              <div className="w-full h-48 bg-stone-100 rounded-2xl border border-stone-200 flex items-center justify-center mb-4 overflow-hidden relative shadow-inner">
+        {/* SIDEBAR BANNER DESTRA (PARTNER) - MOLTO PIÙ GRANDE (w-96) */}
+        <aside className="hidden lg:flex flex-col gap-6 w-96 shrink-0 self-start sticky top-24">
+          <div className="bg-white/80 backdrop-blur-md border border-stone-200 rounded-[2rem] p-5 shadow-lg flex flex-col items-center text-center justify-between min-h-[520px] w-full">
+            <div className="w-full h-full flex flex-col">
+              <span className="bg-stone-100 text-stone-500 text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full mb-4 inline-block self-center">Partner</span>
+              <div className="w-full flex-1 bg-stone-100 rounded-2xl border border-stone-200 flex items-center justify-center mb-4 overflow-hidden relative shadow-inner min-h-[320px]">
                 <img 
                   src="/adv-rete-partner.png" 
                   alt="Rete di Partner Sostenibili Re-love" 
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover absolute inset-0"
                 />
               </div>
-              <h3 className="text-sm font-black uppercase text-stone-900 tracking-tight leading-tight">Rete di Partner Sostenibili</h3>
-              <p className="text-[11px] text-stone-500 mt-2 font-medium">dome0082@gmail.com</p>
+              <h3 className="text-base font-black uppercase text-stone-900 tracking-tight leading-tight mt-2">Rete di Partner Sostenibili</h3>
+              <p className="text-xs text-stone-500 mt-1 font-medium">dome0082@gmail.com</p>
             </div>
             
             <a 
