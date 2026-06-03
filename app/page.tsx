@@ -171,9 +171,9 @@ function HomePageContent() {
   const topItems = sortedData.filter(i => i.condition === 'Nuovo').slice(0, 5)
   const regularItems = sortedData.filter(i => !topItems.find(t => t.id === i.id))
 
-  // SKELETON LOADER COMPONENT (Sagome pulsanti) 🦴
+  // SKELETON LOADER COMPONENT (Sagome pulsanti senza sfumature/blur) 🦴
   const SkeletonCard = ({ isTop = false }) => (
-    <div className={`bg-white/80 backdrop-blur-sm rounded-[2rem] p-4 shadow-sm border border-stone-100 animate-pulse flex flex-col relative overflow-hidden ${isTop ? 'h-64' : 'h-56'}`}>
+    <div className={`bg-white rounded-[2rem] p-4 shadow-sm border border-stone-200 animate-pulse flex flex-col relative overflow-hidden ${isTop ? 'h-64' : 'h-56'}`}>
        <div className={`w-full bg-stone-200 rounded-2xl mb-4 ${isTop ? 'h-32' : 'h-28'}`}></div>
        <div className="w-3/4 h-4 bg-stone-200 rounded mb-2"></div>
        <div className="w-1/2 h-6 bg-stone-200 rounded mt-auto"></div>
@@ -182,7 +182,7 @@ function HomePageContent() {
   )
 
   return (
-    <div className="min-h-screen bg-transparent font-sans text-stone-900 pb-20 relative">
+    <div className="min-h-screen bg-stone-50 font-sans text-stone-900 pb-20 relative">
       
       {IS_STAFF && (
         <Link href="/staff" className="fixed bottom-8 right-8 z-[99] bg-stone-900 text-rose-400 w-16 h-16 rounded-full shadow-lg font-bold flex items-center justify-center border-2 border-rose-400 hover:scale-105 active:scale-95 transition-all text-2xl">
@@ -190,9 +190,9 @@ function HomePageContent() {
         </Link>
       )}
 
-      {/* BARRA DI RICERCA NELLA BARRA DELLE IMPOSTAZIONI IN ALTO AL CENTRO */}
-      <div className="w-full max-w-7xl mx-auto px-4 pt-4 flex justify-center sticky top-0 z-[100] bg-transparent">
-        <div className="relative group w-full max-w-2xl shadow-xl rounded-[2rem]">
+      {/* BARRA DI RICERCA NELLA BARRA DELLE IMPOSTAZIONI IN ALTO AL CENTRO - Solida, senza trasparenze */}
+      <div className="w-full max-w-7xl mx-auto px-4 pt-4 flex justify-center sticky top-0 z-[100] bg-stone-50">
+        <div className="relative group w-full max-w-2xl shadow-md rounded-[2rem]">
           <div className="absolute inset-y-0 left-6 flex items-center pointer-events-none">
             <Search className="text-stone-400" size={24} strokeWidth={2.5} />
           </div>
@@ -200,12 +200,12 @@ function HomePageContent() {
             type="text" 
             value={mainSearch}
             placeholder="Cerca vestiti, elettronica, arredamento..." 
-            className="w-full py-4 pl-16 pr-20 rounded-[2rem] bg-white/95 backdrop-blur-sm border border-stone-200 outline-none text-base md:text-lg font-black text-stone-900 focus:border-rose-400 focus:ring-4 focus:ring-rose-50 transition-all shadow-inner placeholder:text-stone-400" 
+            className="w-full py-4 pl-16 pr-20 rounded-[2rem] bg-white border border-stone-200 outline-none text-base md:text-lg font-black text-stone-900 focus:border-rose-400 focus:ring-4 focus:ring-rose-50 transition-all placeholder:text-stone-400" 
             onChange={(e) => setMainSearch(e.target.value)} 
           />
           <button 
            onClick={handleVoiceSearch}
-           className={`absolute inset-y-2 right-2 w-11 h-11 md:w-12 md:h-12 rounded-[1.5rem] flex items-center justify-center transition-all ${isListening ? 'bg-rose-500 text-white shadow-[0_0_20px_rgba(244,63,94,0.6)] animate-pulse' : 'bg-stone-100 text-rose-500 hover:bg-stone-200 shadow-sm'}`}
+           className={`absolute inset-y-2 right-2 w-11 h-11 md:w-12 md:h-12 rounded-[1.5rem] flex items-center justify-center transition-all ${isListening ? 'bg-rose-500 text-white animate-pulse' : 'bg-stone-100 text-rose-500 hover:bg-stone-200 shadow-sm'}`}
           >
            {isListening ? <Mic size={22} /> : <MicOff size={22} />}
           </button>
@@ -213,7 +213,7 @@ function HomePageContent() {
       </div>
 
       {/* --- HERO SECTION 16/9 CON INQUADRATURA COMPLETA SENZA TAGLI --- */}
-      <div className="relative w-full aspect-[16/9] max-h-[580px] flex flex-col items-center justify-center overflow-hidden bg-transparent mt-2">
+      <div className="relative w-full aspect-[16/9] max-h-[580px] flex flex-col items-center justify-center overflow-hidden bg-stone-50 mt-2">
           <div className="absolute inset-0 z-0 w-full h-full">
             <img 
               src="/hero-2.png" 
@@ -223,15 +223,15 @@ function HomePageContent() {
           </div>
       </div>
 
-      {/* --- CONFIGURAZIONE GRIGLIA CON BANNER LATERALI ADATTIVI ALLARGATI --- */}
+      {/* --- CONFIGURAZIONE GRIGLIA CON BANNER LATERALI ADATTIVI ALLARGATI (420px) --- */}
       <div className="w-full px-4 md:px-6 mt-6 lg:-mt-12 relative z-20 flex flex-col lg:flex-row gap-6">
         
-        {/* SIDEBAR BANNER SINISTRA (SPONSOR) - MOLTO PIÙ GRANDE (w-96) */}
-        <aside className="hidden lg:flex flex-col gap-6 w-96 shrink-0 self-start sticky top-24">
-          <div className="bg-white/80 backdrop-blur-md border border-stone-200 rounded-[2rem] p-5 shadow-lg flex flex-col items-center text-center justify-between min-h-[520px] w-full">
+        {/* SIDEBAR BANNER SINISTRA (SPONSOR) - ALLARGATA A 420px */}
+        <aside className="hidden lg:flex flex-col gap-6 w-[420px] shrink-0 self-start sticky top-24">
+          <div className="bg-white border border-stone-200 rounded-[2rem] p-5 shadow-md flex flex-col items-center text-center justify-between min-h-[520px] w-full">
             <div className="w-full h-full flex flex-col">
               <span className="bg-stone-100 text-stone-500 text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full mb-4 inline-block self-center">Sponsor</span>
-              <div className="w-full flex-1 bg-stone-100 rounded-2xl border border-stone-200 flex items-center justify-center mb-4 overflow-hidden relative shadow-inner min-h-[320px]">
+              <div className="w-full flex-1 bg-stone-100 rounded-2xl border border-stone-200 flex items-center justify-center mb-4 overflow-hidden relative min-h-[320px]">
                 <img 
                   src="/adv-riuso-sostenibile.png" 
                   alt="Servizi di Riuso e Riparazione Re-love" 
@@ -254,7 +254,7 @@ function HomePageContent() {
             </a>
           </div>
 
-          <div className="bg-gradient-to-br from-rose-50 to-orange-50 border border-rose-100 rounded-[2rem] p-5 shadow-md text-center">
+          <div className="bg-rose-50 border border-rose-100 rounded-[2rem] p-5 shadow-sm text-center">
             <h4 className="text-[10px] font-black uppercase tracking-widest text-rose-500 mb-1">Offerte Esclusive</h4>
             <p className="text-xs font-bold text-stone-800 leading-snug">Gli oggetti più rari scelti dalla community.</p>
           </div>
@@ -263,14 +263,14 @@ function HomePageContent() {
         {/* CONTENUTO CENTRALE */}
         <main className="flex-1 w-full">
           
-          {/* RETTANGOLO BIANCO: FILTRI GRANULARI */}
-          <section className="mb-12 bg-white/70 backdrop-blur-xl p-6 rounded-[2.5rem] shadow-xl border border-white/50 flex flex-col gap-8">
+          {/* RETTANGOLO BIANCO: FILTRI GRANULARI - Solido */}
+          <section className="mb-12 bg-white p-6 rounded-[2.5rem] shadow-md border border-stone-200 flex flex-col gap-8">
 
             {/* FILTRI */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
               <div className="flex flex-col gap-2">
                 <label className="text-[9px] font-black uppercase text-stone-900 ml-2 tracking-widest">Categoria</label>
-                <select onChange={(e) => setSearchCategory(e.target.value)} className="p-3 bg-white/80 rounded-xl text-[11px] font-black uppercase tracking-wide outline-none border border-stone-200 hover:bg-white transition-colors cursor-pointer text-stone-900">
+                <select onChange={(e) => setSearchCategory(e.target.value)} className="p-3 bg-white rounded-xl text-[11px] font-black uppercase tracking-wide outline-none border border-stone-200 hover:bg-stone-50 transition-colors cursor-pointer text-stone-900">
                   <option value="all">Tutte le Categorie</option>
                   <option value="Abbigliamento e Accessori">👕 Abbigliamento e Accessori</option>
                   <option value="Elettronica e Informatica">💻 Elettronica e Informatica</option>
@@ -286,7 +286,7 @@ function HomePageContent() {
 
               <div className="flex flex-col gap-2">
                 <label className="text-[9px] font-black uppercase text-stone-900 ml-2 tracking-widest">Condizione</label>
-                <select onChange={(e) => setSearchCondition(e.target.value)} className="p-3 bg-white/80 rounded-xl text-[11px] font-black uppercase tracking-wide outline-none border border-stone-200 hover:bg-white transition-colors cursor-pointer text-stone-900">
+                <select onChange={(e) => setSearchCondition(e.target.value)} className="p-3 bg-white rounded-xl text-[11px] font-black uppercase tracking-wide outline-none border border-stone-200 hover:bg-stone-50 transition-colors cursor-pointer text-stone-900">
                   <option value="all">Tutte</option>
                   <option value="Nuovo">✨ Nuovo</option>
                   <option value="Usato">♻️ Usato</option>
@@ -303,7 +303,7 @@ function HomePageContent() {
                     placeholder="Min" 
                     value={minPrice}
                     onChange={(e) => setMinPrice(e.target.value)}
-                    className="w-full p-3 bg-white/80 rounded-xl text-[11px] font-black outline-none border border-stone-200 hover:bg-white focus:bg-white focus:border-rose-400 transition-colors"
+                    className="w-full p-3 bg-white rounded-xl text-[11px] font-black outline-none border border-stone-200 focus:border-rose-400 transition-colors"
                   />
                   <span className="text-stone-400 font-black">-</span>
                   <input 
@@ -311,13 +311,13 @@ function HomePageContent() {
                     placeholder="Max" 
                     value={maxPrice}
                     onChange={(e) => setMaxPrice(e.target.value)}
-                    className="w-full p-3 bg-white/80 rounded-xl text-[11px] font-black outline-none border border-stone-200 hover:bg-white focus:bg-white focus:border-rose-400 transition-colors"
+                    className="w-full p-3 bg-white rounded-xl text-[11px] font-black outline-none border border-stone-200 focus:border-rose-400 transition-colors"
                   />
                 </div>
               </div>
 
               <div className="flex flex-col gap-2">
-                <button onClick={handleNearbySearch} className={`p-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all shadow-md flex items-center justify-center gap-2 ${distance > 0 ? 'bg-gradient-to-r from-rose-500 to-orange-400 text-white shadow-rose-200' : 'bg-stone-900 text-white hover:bg-rose-500'}`}>
+                <button onClick={handleNearbySearch} className={`p-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all shadow-md flex items-center justify-center gap-2 ${distance > 0 ? 'bg-rose-600 text-white shadow-sm' : 'bg-stone-900 text-white hover:bg-rose-500'}`}>
                   <MapPin size={16} />
                   {distance > 0 ? 'Filtro 20km Attivo' : 'Radar Zona'}
                 </button>
@@ -325,12 +325,12 @@ function HomePageContent() {
             </div>
           </section>
 
-          {/* QUATTRO RIQUADRI CENTRALI - RIMPICCIOLITI, IMMAGINI RIEMPIONO TUTTO IL RIQUADRO */}
+          {/* QUATTRO RIQUADRI CENTRALI - INGRANDITI, RIEMPIONO TUTTO IL RIQUADRO, OTTIMI PER ANDROID */}
           {!catFilter && !typeFilter && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-4 mb-16 max-w-3xl mx-auto">
-              <Link href="/add?mode=new" className="group flex flex-col items-center justify-center rounded-[1.8rem] border border-stone-200/40 overflow-hidden bg-[#f4f0ea]/90 hover:bg-[#eae4da] transition-all shadow-lg text-center aspect-square relative max-w-[160px] mx-auto w-full">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-16 max-w-5xl mx-auto w-full">
+              <Link href="/add?mode=new" className="group flex flex-col items-center justify-center rounded-[1.8rem] border border-stone-200 overflow-hidden bg-stone-100 hover:bg-stone-200 transition-all shadow-md text-center aspect-square relative w-full">
                  <div className="absolute inset-0 w-full h-full overflow-hidden">
-                   <img src="/nuovo.png" className="w-full h-full object-cover group-hover:scale-110 transition-all duration-[0.5s]" alt="Nuovo" />
+                   <img src="/nuovo.png" className="w-full h-full object-cover group-hover:scale-105 transition-all duration-[0.5s]" alt="Nuovo" />
                    <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors" />
                  </div>
                  <div className="absolute bottom-3 z-10 w-full px-2">
@@ -338,9 +338,9 @@ function HomePageContent() {
                  </div>
               </Link>
               
-              <Link href="/add?mode=used" className="group flex flex-col items-center justify-center rounded-[1.8rem] border border-stone-200/40 overflow-hidden bg-[#f4f0ea]/90 hover:bg-[#eae4da] transition-all shadow-lg text-center aspect-square relative max-w-[160px] mx-auto w-full">
+              <Link href="/add?mode=used" className="group flex flex-col items-center justify-center rounded-[1.8rem] border border-stone-200 overflow-hidden bg-stone-100 hover:bg-stone-200 transition-all shadow-md text-center aspect-square relative w-full">
                  <div className="absolute inset-0 w-full h-full overflow-hidden">
-                   <img src="/usato.png" className="w-full h-full object-cover group-hover:scale-110 transition-all duration-[0.5s]" alt="Usato" />
+                   <img src="/usato.png" className="w-full h-full object-cover group-hover:scale-105 transition-all duration-[0.5s]" alt="Usato" />
                    <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors" />
                  </div>
                  <div className="absolute bottom-3 z-10 w-full px-2">
@@ -348,9 +348,9 @@ function HomePageContent() {
                  </div>
               </Link>
               
-              <Link href="/add?mode=gift" className="group flex flex-col items-center justify-center rounded-[1.8rem] border border-stone-200/40 overflow-hidden bg-[#f4f0ea]/90 hover:bg-[#eae4da] transition-all shadow-lg text-center aspect-square relative max-w-[160px] mx-auto w-full">
+              <Link href="/add?mode=gift" className="group flex flex-col items-center justify-center rounded-[1.8rem] border border-stone-200 overflow-hidden bg-stone-100 hover:bg-stone-200 transition-all shadow-md text-center aspect-square relative w-full">
                  <div className="absolute inset-0 w-full h-full overflow-hidden">
-                   <img src="/regalo.png" className="w-full h-full object-cover group-hover:scale-110 transition-all duration-[0.5s]" alt="Regalo" />
+                   <img src="/regalo.png" className="w-full h-full object-cover group-hover:scale-105 transition-all duration-[0.5s]" alt="Regalo" />
                    <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors" />
                  </div>
                  <div className="absolute bottom-3 z-10 w-full px-2">
@@ -358,9 +358,9 @@ function HomePageContent() {
                  </div>
               </Link>
 
-              <Link href="/add?mode=barter" className="group flex flex-col items-center justify-center rounded-[1.8rem] border border-stone-200/40 overflow-hidden bg-[#f4f0ea]/90 hover:bg-[#eae4da] transition-all shadow-lg text-center aspect-square relative max-w-[160px] mx-auto w-full">
+              <Link href="/add?mode=barter" className="group flex flex-col items-center justify-center rounded-[1.8rem] border border-stone-200 overflow-hidden bg-stone-100 hover:bg-stone-200 transition-all shadow-md text-center aspect-square relative w-full">
                  <div className="absolute inset-0 w-full h-full overflow-hidden">
-                   <img src="/baratto.png" className="w-full h-full object-cover group-hover:scale-110 transition-all duration-[0.5s]" alt="Baratto" />
+                   <img src="/baratto.png" className="w-full h-full object-cover group-hover:scale-105 transition-all duration-[0.5s]" alt="Baratto" />
                    <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors" />
                  </div>
                  <div className="absolute bottom-3 z-10 w-full px-2">
@@ -385,18 +385,18 @@ function HomePageContent() {
             ) : (
               <div className="grid grid-cols-2 lg:grid-cols-5 gap-6">
                 {topItems.map(item => (
-                  <div key={item.id} className={`group bg-white/80 backdrop-blur-sm p-4 rounded-[2rem] shadow-lg border ${item.is_sponsored ? 'border-orange-400 ring-2 ring-orange-400/20' : 'border-white/50'} hover:bg-white transition-all relative overflow-hidden`}>
+                  <div key={item.id} className={`group bg-white p-4 rounded-[2rem] shadow-md border ${item.is_sponsored ? 'border-orange-400 ring-2 ring-orange-400/20' : 'border-stone-200'} hover:border-stone-300 transition-all relative overflow-hidden`}>
                     {item.is_sponsored && (
-                      <div className="absolute top-0 left-0 bg-gradient-to-r from-rose-500 to-orange-400 text-white text-[8px] font-black uppercase px-3 py-1.5 rounded-br-2xl z-40 tracking-widest shadow-md">
+                      <div className="absolute top-0 left-0 bg-orange-500 text-white text-[8px] font-black uppercase px-3 py-1.5 rounded-br-2xl z-40 tracking-widest shadow-sm">
                         TOP ✨
                       </div>
                     )}
-                    <button onClick={(e) => handleToggleFavorite(e, item.id)} className="absolute top-6 right-6 z-30 bg-white/90 w-8 h-8 flex items-center justify-center rounded-full shadow-md hover:scale-110 transition-all">
+                    <button onClick={(e) => handleToggleFavorite(e, item.id)} className="absolute top-6 right-6 z-30 bg-white w-8 h-8 flex items-center justify-center rounded-full shadow-sm hover:scale-110 transition-all border border-stone-200">
                       <Heart size={16} className={favorites.includes(item.id) ? "fill-rose-500 text-rose-500" : "text-stone-400"} />
                     </button>
                     <Link href={`/announcement/${item.id}`}>
                       <div className="aspect-square rounded-2xl overflow-hidden bg-stone-100 mb-4 relative border border-stone-200">
-                        <img src={item.image_url || "/nuovo.png"} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-[0.8s]" alt={item.title} />
+                        <img src={item.image_url || "/nuovo.png"} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-[0.8s]" alt={item.title} />
                       </div>
                       <h4 className="text-[12px] font-black uppercase truncate text-stone-900 mb-1">{item.title}</h4>
                       <p className="text-xl font-black text-rose-600 italic">€ {item.price}</p>
@@ -417,7 +417,7 @@ function HomePageContent() {
                  {Array.from({ length: 12 }).map((_, i) => <SkeletonCard key={`reg-skel-${i}`} isTop={false} />)}
                </div>
             ) : regularItems.length === 0 ? (
-              <div className="text-center py-20 bg-white/40 rounded-3xl border border-white/50">
+              <div className="text-center py-20 bg-white rounded-3xl border border-stone-200">
                  <Search size={64} className="text-stone-300 mx-auto mb-4" strokeWidth={1.5} />
                  <p className="text-sm font-black text-stone-900 uppercase tracking-widest">Nessun risultato</p>
                  <p className="text-[10px] font-bold text-stone-500 uppercase mt-2">Prova ad allargare i filtri di ricerca o la fascia di prezzo.</p>
@@ -425,17 +425,17 @@ function HomePageContent() {
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-5">
                 {regularItems.slice(0, visibleCount).map(item => (
-                  <div key={item.id} className={`group bg-white/70 backdrop-blur-sm rounded-3xl overflow-hidden shadow-md border ${item.is_sponsored ? 'border-orange-400' : 'border-white/40'} hover:bg-white transition-all flex flex-col relative`}>
+                  <div key={item.id} className={`group bg-white rounded-3xl overflow-hidden shadow-sm border ${item.is_sponsored ? 'border-orange-400' : 'border-stone-200'} hover:border-stone-300 transition-all flex flex-col relative`}>
                     {item.is_sponsored && (
-                      <div className="absolute top-0 left-0 bg-gradient-to-r from-rose-500 to-orange-400 text-white text-[7px] font-black uppercase px-2 py-1 rounded-br-xl z-40 tracking-widest shadow-sm">
+                      <div className="absolute top-0 left-0 bg-orange-500 text-white text-[7px] font-black uppercase px-2 py-1 rounded-br-xl z-40 tracking-widest shadow-sm">
                         TOP 🌟
                       </div>
                     )}
                     <Link href={`/announcement/${item.id}`} className="aspect-square bg-stone-100 relative block overflow-hidden">
-                      <button onClick={(e) => handleToggleFavorite(e, item.id)} className="absolute top-2 right-2 z-30 bg-white/90 w-8 h-8 flex items-center justify-center rounded-full shadow-sm hover:scale-110 transition-all">
+                      <button onClick={(e) => handleToggleFavorite(e, item.id)} className="absolute top-2 right-2 z-30 bg-white w-8 h-8 flex items-center justify-center rounded-full shadow-sm hover:scale-110 transition-all border border-stone-200">
                         <Heart size={16} className={favorites.includes(item.id) ? "fill-rose-500 text-rose-500" : "text-stone-400"} />
                       </button>
-                      <img src={item.image_url || "/usato.png"} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-[0.8s]" alt={item.title} />
+                      <img src={item.image_url || "/usato.png"} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-[0.8s]" alt={item.title} />
                     </Link>
                     <div className="p-3 flex flex-col justify-between flex-grow">
                       <div>
@@ -457,7 +457,7 @@ function HomePageContent() {
               <div className="mt-12 flex justify-center w-full">
                 <button 
                   onClick={() => setVisibleCount(prev => prev + 12)}
-                  className="bg-stone-900 text-white px-10 py-4 rounded-full text-[11px] font-black uppercase tracking-widest hover:bg-rose-500 transition-all shadow-xl"
+                  className="bg-stone-900 text-white px-10 py-4 rounded-full text-[11px] font-black uppercase tracking-widest hover:bg-rose-500 transition-all shadow-md"
                 >
                   ↓ Carica Altri ({regularItems.length - visibleCount})
                 </button>
@@ -467,9 +467,9 @@ function HomePageContent() {
 
         </main>
 
-        {/* SIDEBAR BANNER DESTRA (PARTNER) - MOLTO PIÙ GRANDE (w-96) */}
-        <aside className="hidden lg:flex flex-col gap-6 w-96 shrink-0 self-start sticky top-24">
-          <div className="bg-white/80 backdrop-blur-md border border-stone-200 rounded-[2rem] p-5 shadow-lg flex flex-col items-center text-center justify-between min-h-[520px] w-full">
+        {/* SIDEBAR BANNER DESTRA (PARTNER) - ALLARGATA A 420px */}
+        <aside className="hidden lg:flex flex-col gap-6 w-[420px] shrink-0 self-start sticky top-24">
+          <div className="bg-white border border-stone-200 rounded-[2rem] p-5 shadow-md flex flex-col items-center text-center justify-between min-h-[520px] w-full">
             <div className="w-full h-full flex flex-col">
               <span className="bg-stone-100 text-stone-500 text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full mb-4 inline-block self-center">Partner</span>
               <div className="w-full flex-1 bg-stone-100 rounded-2xl border border-stone-200 flex items-center justify-center mb-4 overflow-hidden relative shadow-inner min-h-[320px]">
@@ -495,7 +495,7 @@ function HomePageContent() {
             </a>
           </div>
 
-          <div className="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-100 rounded-[2rem] p-5 shadow-md text-center">
+          <div className="bg-emerald-50 border border-emerald-100 rounded-[2rem] p-5 shadow-sm text-center">
             <h4 className="text-[10px] font-black uppercase tracking-widest text-emerald-600 mb-1">Eco-Friendly</h4>
             <p className="text-xs font-bold text-stone-800 leading-snug">Ogni acquisto riduce le emissioni di CO₂.</p>
           </div>
@@ -508,7 +508,7 @@ function HomePageContent() {
 
 export default function HomePage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-transparent flex items-center justify-center font-bold uppercase tracking-widest text-stone-400 text-xs">Caricamento Vetrina...</div>}>
+    <Suspense fallback={<div className="min-h-screen bg-stone-50 flex items-center justify-center font-bold uppercase tracking-widest text-stone-400 text-xs">Caricamento Vetrina...</div>}>
       <HomePageContent />
     </Suspense>
   )
