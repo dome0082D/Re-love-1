@@ -171,9 +171,9 @@ function HomePageContent() {
   const topItems = sortedData.filter(i => i.condition === 'Nuovo').slice(0, 5)
   const regularItems = sortedData.filter(i => !topItems.find(t => t.id === i.id))
 
-  // SKELETON LOADER COMPONENT (Sagome pulsanti) 🦴
+  // SKELETON LOADER COMPONENT (Sagome pulsanti senza sfocature) 🦴
   const SkeletonCard = ({ isTop = false }) => (
-    <div className={`bg-white rounded-[2rem] p-4 shadow-sm border border-stone-100 animate-pulse flex flex-col relative overflow-hidden ${isTop ? 'h-64' : 'h-56'}`}>
+    <div className={`bg-white rounded-[2rem] p-4 shadow-sm border border-stone-200 animate-pulse flex flex-col relative overflow-hidden ${isTop ? 'h-64' : 'h-56'}`}>
        <div className={`w-full bg-stone-200 rounded-2xl mb-4 ${isTop ? 'h-32' : 'h-28'}`}></div>
        <div className="w-3/4 h-4 bg-stone-200 rounded mb-2"></div>
        <div className="w-1/2 h-6 bg-stone-200 rounded mt-auto"></div>
@@ -190,9 +190,9 @@ function HomePageContent() {
         </Link>
       )}
 
-      {/* BARRA DI RICERCA NELLA BARRA DELLE IMPOSTAZIONI IN ALTO AL CENTRO */}
-      <div className="w-full max-w-7xl mx-auto px-4 pt-4 flex justify-center sticky top-0 z-[100] bg-stone-50 pb-2">
-        <div className="relative group w-full max-w-2xl shadow-xl rounded-[2rem]">
+      {/* BARRA DI RICERCA SENZA SFUMATURE ED EFFETTI SFOCATI */}
+      <div className="w-full max-w-7xl mx-auto px-4 pt-4 flex justify-center sticky top-0 z-[100] bg-stone-50">
+        <div className="relative w-full max-w-2xl shadow-md rounded-[2rem] bg-white border border-stone-200">
           <div className="absolute inset-y-0 left-6 flex items-center pointer-events-none">
             <Search className="text-stone-400" size={24} strokeWidth={2.5} />
           </div>
@@ -200,20 +200,20 @@ function HomePageContent() {
             type="text" 
             value={mainSearch}
             placeholder="Cerca vestiti, elettronica, arredamento..." 
-            className="w-full py-4 pl-16 pr-20 rounded-[2rem] bg-white border border-stone-200 outline-none text-base md:text-lg font-black text-stone-900 focus:border-rose-400 focus:ring-4 focus:ring-rose-50 transition-all shadow-inner placeholder:text-stone-400" 
+            className="w-full py-4 pl-16 pr-20 rounded-[2rem] bg-white border-none outline-none text-base md:text-lg font-black text-stone-900 focus:ring-4 focus:ring-rose-100 transition-all placeholder:text-stone-400" 
             onChange={(e) => setMainSearch(e.target.value)} 
           />
           <button 
            onClick={handleVoiceSearch}
-           className={`absolute inset-y-2 right-2 w-11 h-11 md:w-12 md:h-12 rounded-[1.5rem] flex items-center justify-center transition-all ${isListening ? 'bg-rose-500 text-white' : 'bg-stone-100 text-rose-500 hover:bg-stone-200 shadow-sm'}`}
+           className={`absolute inset-y-2 right-2 w-11 h-11 md:w-12 md:h-12 rounded-[1.5rem] flex items-center justify-center transition-all ${isListening ? 'bg-rose-600 text-white' : 'bg-stone-100 text-rose-500 hover:bg-stone-200 shadow-sm'}`}
           >
            {isListening ? <Mic size={22} /> : <MicOff size={22} />}
           </button>
         </div>
       </div>
 
-      {/* --- HERO SECTION 16/9 CON INQUADRATURA COMPLETA SENZA TAGLI --- */}
-      <div className="relative w-full aspect-[16/9] max-h-[580px] flex flex-col items-center justify-center overflow-hidden bg-stone-50 mt-2">
+      {/* --- HERO SECTION 16/9 CON INQUADRATURA COMPLETA --- */}
+      <div className="relative w-full aspect-[16/9] max-h-[580px] flex flex-col items-center justify-center overflow-hidden bg-transparent mt-2">
           <div className="absolute inset-0 z-0 w-full h-full">
             <img 
               src="/hero-2.png" 
@@ -223,15 +223,15 @@ function HomePageContent() {
           </div>
       </div>
 
-      {/* --- CONFIGURAZIONE GRIGLIA CON BANNER LATERALI ADATTIVI ALLARGATI A 470PX --- */}
-      <div className="w-full px-4 md:px-6 mt-6 lg:-mt-12 relative z-20 flex flex-col lg:flex-row gap-6">
+      {/* --- CONFIGURAZIONE GRIGLIA CON BANNER LATERALI ADATTIVI PORTATI A 540PX --- */}
+      <div className="w-full max-w-[1750px] mx-auto px-4 md:px-6 mt-6 lg:-mt-12 relative z-20 flex flex-col lg:flex-row gap-6">
         
-        {/* SIDEBAR BANNER SINISTRA (SPONSOR) - ALLARGATA A 470px */}
-        <aside className="hidden lg:flex flex-col gap-6 w-[470px] shrink-0 self-start sticky top-24">
-          <div className="bg-white border border-stone-200 rounded-[2rem] p-5 shadow-lg flex flex-col items-center text-center justify-between min-h-[560px] w-full">
+        {/* SIDEBAR BANNER SINISTRA (SPONSOR) - MOLTO PIÙ GRANDE (w-[540px]) */}
+        <aside className="hidden lg:flex flex-col gap-6 w-[540px] shrink-0 self-start sticky top-24">
+          <div className="bg-white border border-stone-200 rounded-[2rem] p-5 shadow-md flex flex-col items-center text-center justify-between min-h-[560px] w-full">
             <div className="w-full h-full flex flex-col">
               <span className="bg-stone-100 text-stone-500 text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full mb-4 inline-block self-center">Sponsor</span>
-              <div className="w-full flex-1 bg-stone-100 rounded-2xl border border-stone-200 flex items-center justify-center mb-4 overflow-hidden relative shadow-inner min-h-[360px]">
+              <div className="w-full flex-1 bg-stone-100 rounded-2xl border border-stone-200 flex items-center justify-center mb-4 overflow-hidden relative min-h-[360px]">
                 <img 
                   src="/adv-riuso-sostenibile.png" 
                   alt="Servizi di Riuso e Riparazione Re-love" 
@@ -244,7 +244,7 @@ function HomePageContent() {
             
             <a 
               href="mailto:dome0082@gmail.com?subject=Richiesta%20Spazio%20Pubblicitario%20Re-love" 
-              className="relative z-[100] pointer-events-auto block w-full mt-4 bg-stone-950 text-white py-3 rounded-xl text-[10px] font-black uppercase tracking-wider hover:bg-rose-500 transition-colors text-center shadow-sm cursor-pointer"
+              className="relative z-[100] pointer-events-auto block w-full mt-4 bg-stone-950 text-white py-3 rounded-xl text-[10px] font-black uppercase tracking-wider hover:bg-rose-600 transition-colors text-center shadow-sm cursor-pointer"
               onClick={(e) => { e.stopPropagation(); }}
             >
               <span className="flex items-center justify-center gap-2">
@@ -254,23 +254,21 @@ function HomePageContent() {
             </a>
           </div>
 
-          <div className="bg-white border border-stone-200 rounded-[2rem] p-5 shadow-md text-center">
-            <h4 className="text-[10px] font-black uppercase tracking-widest text-rose-500 mb-1">Offerte Esclusive</h4>
+          <div className="bg-stone-100 border border-stone-200 rounded-[2rem] p-5 shadow-sm text-center">
+            <h4 className="text-[10px] font-black uppercase tracking-widest text-rose-600 mb-1">Offerte Esclusive</h4>
             <p className="text-xs font-bold text-stone-800 leading-snug">Gli oggetti più rari scelti dalla community.</p>
           </div>
         </aside>
 
         {/* CONTENUTO CENTRALE */}
-        <main className="flex-1 w-full">
+        <main className="flex-1 w-full overflow-hidden">
           
-          {/* RETTANGOLO BIANCO: FILTRI GRANULARI */}
-          <section className="mb-12 bg-white p-6 rounded-[2.5rem] shadow-xl border border-stone-200 flex flex-col gap-8">
-
-            {/* FILTRI */}
+          {/* FILTRI CON COLORI SOLIDI E PIATTI */}
+          <section className="mb-12 bg-white p-6 rounded-[2.5rem] shadow-md border border-stone-200 flex flex-col gap-8">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
               <div className="flex flex-col gap-2">
                 <label className="text-[9px] font-black uppercase text-stone-900 ml-2 tracking-widest">Categoria</label>
-                <select onChange={(e) => setSearchCategory(e.target.value)} className="p-3 bg-white rounded-xl text-[11px] font-black uppercase tracking-wide outline-none border border-stone-200 hover:bg-stone-50 transition-colors cursor-pointer text-stone-900">
+                <select onChange={(e) => setSearchCategory(e.target.value)} className="p-3 bg-stone-50 rounded-xl text-[11px] font-black uppercase tracking-wide outline-none border border-stone-200 hover:bg-white transition-colors cursor-pointer text-stone-900">
                   <option value="all">Tutte le Categorie</option>
                   <option value="Abbigliamento e Accessori">👕 Abbigliamento e Accessori</option>
                   <option value="Elettronica e Informatica">💻 Elettronica e Informatica</option>
@@ -286,7 +284,7 @@ function HomePageContent() {
 
               <div className="flex flex-col gap-2">
                 <label className="text-[9px] font-black uppercase text-stone-900 ml-2 tracking-widest">Condizione</label>
-                <select onChange={(e) => setSearchCondition(e.target.value)} className="p-3 bg-white rounded-xl text-[11px] font-black uppercase tracking-wide outline-none border border-stone-200 hover:bg-stone-50 transition-colors cursor-pointer text-stone-900">
+                <select onChange={(e) => setSearchCondition(e.target.value)} className="p-3 bg-stone-50 rounded-xl text-[11px] font-black uppercase tracking-wide outline-none border border-stone-200 hover:bg-white transition-colors cursor-pointer text-stone-900">
                   <option value="all">Tutte</option>
                   <option value="Nuovo">✨ Nuovo</option>
                   <option value="Usato">♻️ Usato</option>
@@ -303,7 +301,7 @@ function HomePageContent() {
                     placeholder="Min" 
                     value={minPrice}
                     onChange={(e) => setMinPrice(e.target.value)}
-                    className="w-full p-3 bg-white rounded-xl text-[11px] font-black outline-none border border-stone-200 hover:bg-stone-50 focus:bg-white focus:border-rose-400 transition-colors"
+                    className="w-full p-3 bg-stone-50 rounded-xl text-[11px] font-black outline-none border border-stone-200 hover:bg-white focus:bg-white focus:border-rose-500 transition-colors"
                   />
                   <span className="text-stone-400 font-black">-</span>
                   <input 
@@ -311,13 +309,13 @@ function HomePageContent() {
                     placeholder="Max" 
                     value={maxPrice}
                     onChange={(e) => setMaxPrice(e.target.value)}
-                    className="w-full p-3 bg-white rounded-xl text-[11px] font-black outline-none border border-stone-200 hover:bg-stone-50 focus:bg-white focus:border-rose-400 transition-colors"
+                    className="w-full p-3 bg-stone-50 rounded-xl text-[11px] font-black outline-none border border-stone-200 hover:bg-white focus:bg-white focus:border-rose-500 transition-colors"
                   />
                 </div>
               </div>
 
               <div className="flex flex-col gap-2">
-                <button onClick={handleNearbySearch} className={`p-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all shadow-md flex items-center justify-center gap-2 ${distance > 0 ? 'bg-stone-900 text-white shadow-rose-200' : 'bg-stone-900 text-white hover:bg-rose-500'}`}>
+                <button onClick={handleNearbySearch} className={`p-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all shadow-md flex items-center justify-center gap-2 ${distance > 0 ? 'bg-rose-600 text-white' : 'bg-stone-900 text-white hover:bg-rose-600'}`}>
                   <MapPin size={16} />
                   {distance > 0 ? 'Filtro 20km Attivo' : 'Radar Zona'}
                 </button>
@@ -325,53 +323,50 @@ function HomePageContent() {
             </div>
           </section>
 
-          {/* QUATTRO RIQUADRI CENTRALI - INCREMENTATI DEL 15% (max-w-[184px]), IMMAGINI COMPLETAMENTE INTEGRALI E RIEMPITIVE */}
+          {/* QUATTRO RIQUADRI CENTRALI - INGRANDITI A 220PX E CON IMMAGINI NITIDE, INTERE E SENZA FILTRI SCURI */}
           {!catFilter && !typeFilter && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-5 mb-16 max-w-4xl mx-auto justify-items-center">
-              <Link href="/add?mode=new" className="group flex flex-col items-center justify-center rounded-[1.8rem] border border-stone-200 overflow-hidden bg-white transition-all shadow-lg text-center aspect-square relative max-w-[184px] w-full">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-16 max-w-5xl mx-auto px-2">
+              <Link href="/add?mode=new" className="group flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-white hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative max-w-[220px] mx-auto w-full">
                  <div className="absolute inset-0 w-full h-full overflow-hidden">
-                   <img src="/nuovo.png" className="w-full h-full object-cover transition-all" alt="Nuovo" />
-                   <div className="absolute inset-0 bg-stone-950/20" />
+                   <img src="/nuovo.png" className="w-full h-full object-cover" alt="Nuovo" />
                  </div>
                  <div className="absolute bottom-3 z-10 w-full px-2">
-                   <h3 className="text-xs md:text-sm font-black uppercase italic text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] leading-tight">Vendi Nuovo</h3>
+                   <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Vendi Nuovo</span>
                  </div>
               </Link>
               
-              <Link href="/add?mode=used" className="group flex flex-col items-center justify-center rounded-[1.8rem] border border-stone-200 overflow-hidden bg-white transition-all shadow-lg text-center aspect-square relative max-w-[184px] w-full">
+              <Link href="/add?mode=used" className="group flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-white hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative max-w-[220px] mx-auto w-full">
                  <div className="absolute inset-0 w-full h-full overflow-hidden">
-                   <img src="/usato.png" className="w-full h-full object-cover transition-all" alt="Usato" />
-                   <div className="absolute inset-0 bg-stone-950/20" />
+                   <img src="/usato.png" className="w-full h-full object-cover" alt="Usato" />
                  </div>
                  <div className="absolute bottom-3 z-10 w-full px-2">
-                   <h3 className="text-xs md:text-sm font-black uppercase italic text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] leading-tight">Vendi Usato</h3>
+                   <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Vendi Usato</span>
                  </div>
               </Link>
               
-              <Link href="/add?mode=gift" className="group flex flex-col items-center justify-center rounded-[1.8rem] border border-stone-200 overflow-hidden bg-white transition-all shadow-lg text-center aspect-square relative max-w-[184px] w-full">
+              <Link href="/add?mode=gift" className="group flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-white hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative max-w-[220px] mx-auto w-full">
                  <div className="absolute inset-0 w-full h-full overflow-hidden">
-                   <img src="/regalo.png" className="w-full h-full object-cover transition-all" alt="Regalo" />
-                   <div className="absolute inset-0 bg-stone-950/20" />
+                   <img src="/regalo.png" className="w-full h-full object-cover" alt="Regalo" />
                  </div>
                  <div className="absolute bottom-3 z-10 w-full px-2">
-                   <h3 className="text-xs md:text-sm font-black uppercase italic text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] leading-tight">Regalo</h3>
+                   <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Regalo</span>
                  </div>
               </Link>
 
-              <Link href="/add?mode=barter" className="group flex flex-col items-center justify-center rounded-[1.8rem] border border-stone-200 overflow-hidden bg-white transition-all shadow-lg text-center aspect-square relative max-w-[184px] w-full">
+              <Link href="/add?mode=barter" className="group flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-white hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative max-w-[220px] mx-auto w-full">
                  <div className="absolute inset-0 w-full h-full overflow-hidden">
-                   <img src="/baratto.png" className="w-full h-full object-cover transition-all" alt="Baratto" />
-                   <div className="absolute inset-0 bg-stone-950/20" />
+                   <img src="/baratto.png" className="w-full h-full object-cover" alt="Baratto" />
                  </div>
                  <div className="absolute bottom-3 z-10 w-full px-2">
-                   <h3 className="text-xs md:text-sm font-black uppercase italic text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] leading-tight">Baratto</h3>
+                   <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Baratto</span>
                  </div>
               </Link>
             </div>
           )}
 
+          {/* SEZIONE VETRINA TOP */}
           <section className="mb-20">
-            <div className="flex justify-between items-end mb-8 border-b border-stone-900/10 pb-4">
+            <div className="flex justify-between items-end mb-8 border-b border-stone-300 pb-4">
               <h2 className="text-[14px] font-black uppercase tracking-[0.4em] text-stone-900">Vetrina Top Nuovo</h2>
               <Link href="/?condition=Nuovo" className="text-[10px] font-black uppercase text-rose-600 hover:text-stone-900 transition-colors">Vedi tutti →</Link>
             </div>
@@ -385,9 +380,9 @@ function HomePageContent() {
             ) : (
               <div className="grid grid-cols-2 lg:grid-cols-5 gap-6">
                 {topItems.map(item => (
-                  <div key={item.id} className={`group bg-white p-4 rounded-[2rem] shadow-lg border ${item.is_sponsored ? 'border-orange-400 ring-2 ring-orange-400/20' : 'border-stone-200'} hover:bg-white transition-all relative overflow-hidden`}>
+                  <div key={item.id} className={`group bg-white p-4 rounded-[2rem] shadow-md border ${item.is_sponsored ? 'border-orange-400 ring-2 ring-orange-400' : 'border-stone-200'} hover:bg-stone-50 transition-all relative overflow-hidden`}>
                     {item.is_sponsored && (
-                      <div className="absolute top-0 left-0 bg-orange-400 text-white text-[8px] font-black uppercase px-3 py-1.5 rounded-br-2xl z-40 tracking-widest shadow-md">
+                      <div className="absolute top-0 left-0 bg-orange-500 text-white text-[8px] font-black uppercase px-3 py-1.5 rounded-br-2xl z-40 tracking-widest shadow-sm">
                         TOP ✨
                       </div>
                     )}
@@ -407,8 +402,9 @@ function HomePageContent() {
             )}
           </section>
 
-          <section>
-            <div className="flex justify-between items-end mb-8 border-b border-stone-900/10 pb-4">
+          {/* TUTTI GLI ANNUNCI */}
+          <section className="mb-20">
+            <div className="flex justify-between items-end mb-8 border-b border-stone-300 pb-4">
               <h2 className="text-[14px] font-black uppercase tracking-[0.4em] text-stone-900 opacity-50">Tutti gli Annunci</h2>
             </div>
             
@@ -425,9 +421,9 @@ function HomePageContent() {
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-5">
                 {regularItems.slice(0, visibleCount).map(item => (
-                  <div key={item.id} className={`group bg-white rounded-3xl overflow-hidden shadow-md border ${item.is_sponsored ? 'border-orange-400' : 'border-stone-200'} hover:bg-white transition-all flex flex-col relative`}>
+                  <div key={item.id} className={`group bg-white rounded-3xl overflow-hidden shadow-sm border ${item.is_sponsored ? 'border-orange-400' : 'border-stone-200'} hover:bg-stone-50 transition-all flex flex-col relative`}>
                     {item.is_sponsored && (
-                      <div className="absolute top-0 left-0 bg-orange-400 text-white text-[7px] font-black uppercase px-2 py-1 rounded-br-xl z-40 tracking-widest shadow-sm">
+                      <div className="absolute top-0 left-0 bg-orange-500 text-white text-[7px] font-black uppercase px-2 py-1 rounded-br-xl z-40 tracking-widest shadow-sm">
                         TOP 🌟
                       </div>
                     )}
@@ -444,7 +440,7 @@ function HomePageContent() {
                           {item.condition === 'Regalo' || item.condition === 'Baratto' ? '€ 0' : `€ ${item.price}`}
                         </p>
                       </div>
-                      <Link href={`/announcement/${item.id}`} className="mt-3 block text-center w-full bg-stone-900 text-white text-[9px] font-black uppercase py-2 rounded-xl hover:bg-rose-500 transition-all">
+                      <Link href={`/announcement/${item.id}`} className="mt-3 block text-center w-full bg-stone-900 text-white text-[9px] font-black uppercase py-2 rounded-xl hover:bg-rose-600 transition-all">
                         {item.condition === 'Baratto' ? 'Baratta' : item.condition === 'Regalo' ? 'Ricevi' : 'Acquista'}
                       </Link>
                     </div>
@@ -457,7 +453,7 @@ function HomePageContent() {
               <div className="mt-12 flex justify-center w-full">
                 <button 
                   onClick={() => setVisibleCount(prev => prev + 12)}
-                  className="bg-stone-900 text-white px-10 py-4 rounded-full text-[11px] font-black uppercase tracking-widest hover:bg-rose-500 transition-all shadow-xl"
+                  className="bg-stone-900 text-white px-10 py-4 rounded-full text-[11px] font-black uppercase tracking-widest hover:bg-rose-600 transition-all shadow-md"
                 >
                   ↓ Carica Altri ({regularItems.length - visibleCount})
                 </button>
@@ -467,12 +463,12 @@ function HomePageContent() {
 
         </main>
 
-        {/* SIDEBAR BANNER DESTRA (PARTNER) - ALLARGATA A 470px */}
-        <aside className="hidden lg:flex flex-col gap-6 w-[470px] shrink-0 self-start sticky top-24">
-          <div className="bg-white border border-stone-200 rounded-[2rem] p-5 shadow-lg flex flex-col items-center text-center justify-between min-h-[560px] w-full">
+        {/* SIDEBAR BANNER DESTRA (PARTNER) - MOLTO PIÙ GRANDE (w-[540px]) */}
+        <aside className="hidden lg:flex flex-col gap-6 w-[540px] shrink-0 self-start sticky top-24">
+          <div className="bg-white border border-stone-200 rounded-[2rem] p-5 shadow-md flex flex-col items-center text-center justify-between min-h-[560px] w-full">
             <div className="w-full h-full flex flex-col">
               <span className="bg-stone-100 text-stone-500 text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full mb-4 inline-block self-center">Partner</span>
-              <div className="w-full flex-1 bg-stone-100 rounded-2xl border border-stone-200 flex items-center justify-center mb-4 overflow-hidden relative shadow-inner min-h-[360px]">
+              <div className="w-full flex-1 bg-stone-100 rounded-2xl border border-stone-200 flex items-center justify-center mb-4 overflow-hidden relative min-h-[360px]">
                 <img 
                   src="/adv-rete-partner.png" 
                   alt="Rete di Partner Sostenibili Re-love" 
@@ -485,7 +481,7 @@ function HomePageContent() {
             
             <a 
               href="mailto:dome0082@gmail.com?subject=Richiesta%20Banner%20Re-love" 
-              className="relative z-[100] pointer-events-auto block w-full mt-4 bg-stone-950 text-white py-3 rounded-xl text-[10px] font-black uppercase tracking-wider hover:bg-rose-500 transition-colors text-center shadow-sm cursor-pointer"
+              className="relative z-[100] pointer-events-auto block w-full mt-4 bg-stone-950 text-white py-3 rounded-xl text-[10px] font-black uppercase tracking-wider hover:bg-rose-600 transition-colors text-center shadow-sm cursor-pointer"
               onClick={(e) => { e.stopPropagation(); }}
             >
               <span className="flex items-center justify-center gap-2">
@@ -495,7 +491,7 @@ function HomePageContent() {
             </a>
           </div>
 
-          <div className="bg-white border border-stone-200 rounded-[2rem] p-5 shadow-md text-center">
+          <div className="bg-stone-100 border border-stone-200 rounded-[2rem] p-5 shadow-sm text-center">
             <h4 className="text-[10px] font-black uppercase tracking-widest text-emerald-600 mb-1">Eco-Friendly</h4>
             <p className="text-xs font-bold text-stone-800 leading-snug">Ogni acquisto riduce le emissioni di CO₂.</p>
           </div>
@@ -508,7 +504,7 @@ function HomePageContent() {
 
 export default function HomePage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-transparent flex items-center justify-center font-bold uppercase tracking-widest text-stone-400 text-xs">Caricamento Vetrina...</div>}>
+    <Suspense fallback={<div className="min-h-screen bg-stone-50 flex items-center justify-center font-bold uppercase tracking-widest text-stone-400 text-xs">Caricamento Vetrina...</div>}>
       <HomePageContent />
     </Suspense>
   )
