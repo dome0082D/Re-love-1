@@ -226,8 +226,8 @@ function HomePageContent() {
       {/* --- CONFIGURAZIONE GRIGLIA CON BANNER LATERALI ADATTIVI RIPORTATI A MISURE CORRETTE --- */}
       <div className="w-full max-w-[1750px] mx-auto px-4 md:px-6 mt-6 lg:-mt-12 relative z-20 flex flex-col lg:flex-row gap-6">
         
-        {/* SIDEBAR BANNER SINISTRA (SPONSOR) - RIPORTATA A DIMENSIONI REGOLARI */}
-        <aside className="hidden lg:flex flex-col gap-6 w-[280px] xl:w-[320px] shrink-0 self-start sticky top-24">
+        {/* SIDEBAR BANNER SINISTRA (SPONSOR) - ORA FLUIDA E ORDINATA */}
+        <aside className="flex flex-col gap-6 w-full lg:w-[280px] xl:w-[320px] shrink-0 self-start lg:sticky lg:top-24 order-2 lg:order-1 mt-8 lg:mt-0">
           <div className="bg-white border border-stone-200 rounded-[2rem] p-5 shadow-md flex flex-col items-center text-center justify-between min-h-[560px] w-full">
             <div className="w-full h-full flex flex-col">
               <span className="bg-stone-100 text-stone-500 text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full mb-4 inline-block self-center">Sponsor</span>
@@ -260,8 +260,8 @@ function HomePageContent() {
           </div>
         </aside>
 
-        {/* CONTENUTO CENTRALE */}
-        <main className="flex-1 w-full overflow-hidden">
+        {/* CONTENUTO CENTRALE - ORDINE AGGIORNATO PER MOBILE */}
+        <main className="flex-1 w-full overflow-hidden order-1 lg:order-2">
           
           {/* FILTRI CON COLORI SOLIDI E PIATTI */}
           <section className="mb-12 bg-white p-6 rounded-[2.5rem] shadow-md border border-stone-200 flex flex-col gap-8">
@@ -463,8 +463,8 @@ function HomePageContent() {
 
         </main>
 
-        {/* SIDEBAR BANNER DESTRA (PARTNER) - RIPORTATA A DIMENSIONI REGOLARI */}
-        <aside className="hidden lg:flex flex-col gap-6 w-[280px] xl:w-[320px] shrink-0 self-start sticky top-24">
+        {/* SIDEBAR BANNER DESTRA (PARTNER) - ORA FLUIDA E ORDINATA */}
+        <aside className="flex flex-col gap-6 w-full lg:w-[280px] xl:w-[320px] shrink-0 self-start lg:sticky lg:top-24 order-3 mt-8 lg:mt-0">
           <div className="bg-white border border-stone-200 rounded-[2rem] p-5 shadow-md flex flex-col items-center text-center justify-between min-h-[560px] w-full">
             <div className="w-full h-full flex flex-col">
               <span className="bg-stone-100 text-stone-500 text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full mb-4 inline-block self-center">Partner</span>
