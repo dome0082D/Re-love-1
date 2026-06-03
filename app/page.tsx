@@ -223,11 +223,11 @@ function HomePageContent() {
           </div>
       </div>
 
-      {/* --- CONFIGURAZIONE GRIGLIA CON BANNER LATERALI ADATTIVI PORTATI A 540PX --- */}
+      {/* --- CONFIGURAZIONE GRIGLIA CON BANNER LATERALI ADATTIVI RIPORTATI A MISURE CORRETTE --- */}
       <div className="w-full max-w-[1750px] mx-auto px-4 md:px-6 mt-6 lg:-mt-12 relative z-20 flex flex-col lg:flex-row gap-6">
         
-        {/* SIDEBAR BANNER SINISTRA (SPONSOR) - MOLTO PIÙ GRANDE (w-[540px]) */}
-        <aside className="hidden lg:flex flex-col gap-6 w-[540px] shrink-0 self-start sticky top-24">
+        {/* SIDEBAR BANNER SINISTRA (SPONSOR) - RIPORTATA A DIMENSIONI REGOLARI */}
+        <aside className="hidden lg:flex flex-col gap-6 w-[280px] xl:w-[320px] shrink-0 self-start sticky top-24">
           <div className="bg-white border border-stone-200 rounded-[2rem] p-5 shadow-md flex flex-col items-center text-center justify-between min-h-[560px] w-full">
             <div className="w-full h-full flex flex-col">
               <span className="bg-stone-100 text-stone-500 text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full mb-4 inline-block self-center">Sponsor</span>
@@ -235,7 +235,7 @@ function HomePageContent() {
                 <img 
                   src="/adv-riuso-sostenibile.png" 
                   alt="Servizi di Riuso e Riparazione Re-love" 
-                  className="w-full h-full object-cover absolute inset-0"
+                  className="w-full h-full object-contain p-2 absolute inset-0"
                 />
               </div>
               <h3 className="text-base font-black uppercase text-stone-900 tracking-tight leading-tight mt-2">Servizi di Riuso e Riparazione</h3>
@@ -323,39 +323,39 @@ function HomePageContent() {
             </div>
           </section>
 
-          {/* QUATTRO RIQUADRI CENTRALI - INGRANDITI A 220PX E CON IMMAGINI NITIDE, INTERE E SENZA FILTRI SCURI */}
+          {/* QUATTRO RIQUADRI CENTRALI - RIPORTATI A WIDTH COMPLETA E IMMAGINI CONTAIN */}
           {!catFilter && !typeFilter && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-16 max-w-5xl mx-auto px-2">
-              <Link href="/add?mode=new" className="group flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-white hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative max-w-[220px] mx-auto w-full">
+              <Link href="/add?mode=new" className="group flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-white hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto w-full">
                  <div className="absolute inset-0 w-full h-full overflow-hidden">
-                   <img src="/nuovo.png" className="w-full h-full object-cover" alt="Nuovo" />
+                   <img src="/nuovo.png" className="w-full h-full object-contain p-4 pb-10" alt="Nuovo" />
                  </div>
                  <div className="absolute bottom-3 z-10 w-full px-2">
                    <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Vendi Nuovo</span>
                  </div>
               </Link>
               
-              <Link href="/add?mode=used" className="group flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-white hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative max-w-[220px] mx-auto w-full">
+              <Link href="/add?mode=used" className="group flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-white hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto w-full">
                  <div className="absolute inset-0 w-full h-full overflow-hidden">
-                   <img src="/usato.png" className="w-full h-full object-cover" alt="Usato" />
+                   <img src="/usato.png" className="w-full h-full object-contain p-4 pb-10" alt="Usato" />
                  </div>
                  <div className="absolute bottom-3 z-10 w-full px-2">
                    <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Vendi Usato</span>
                  </div>
               </Link>
               
-              <Link href="/add?mode=gift" className="group flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-white hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative max-w-[220px] mx-auto w-full">
+              <Link href="/add?mode=gift" className="group flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-white hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto w-full">
                  <div className="absolute inset-0 w-full h-full overflow-hidden">
-                   <img src="/regalo.png" className="w-full h-full object-cover" alt="Regalo" />
+                   <img src="/regalo.png" className="w-full h-full object-contain p-4 pb-10" alt="Regalo" />
                  </div>
                  <div className="absolute bottom-3 z-10 w-full px-2">
                    <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Regalo</span>
                  </div>
               </Link>
 
-              <Link href="/add?mode=barter" className="group flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-white hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative max-w-[220px] mx-auto w-full">
+              <Link href="/add?mode=barter" className="group flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-white hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto w-full">
                  <div className="absolute inset-0 w-full h-full overflow-hidden">
-                   <img src="/baratto.png" className="w-full h-full object-cover" alt="Baratto" />
+                   <img src="/baratto.png" className="w-full h-full object-contain p-4 pb-10" alt="Baratto" />
                  </div>
                  <div className="absolute bottom-3 z-10 w-full px-2">
                    <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Baratto</span>
@@ -391,7 +391,7 @@ function HomePageContent() {
                     </button>
                     <Link href={`/announcement/${item.id}`}>
                       <div className="aspect-square rounded-2xl overflow-hidden bg-stone-100 mb-4 relative border border-stone-200">
-                        <img src={item.image_url || "/nuovo.png"} className="w-full h-full object-cover" alt={item.title} />
+                        <img src={item.image_url || "/nuovo.png"} className="w-full h-full object-contain" alt={item.title} />
                       </div>
                       <h4 className="text-[12px] font-black uppercase truncate text-stone-900 mb-1">{item.title}</h4>
                       <p className="text-xl font-black text-rose-600 italic">€ {item.price}</p>
@@ -431,7 +431,7 @@ function HomePageContent() {
                       <button onClick={(e) => handleToggleFavorite(e, item.id)} className="absolute top-2 right-2 z-30 bg-white w-8 h-8 flex items-center justify-center rounded-full shadow-sm hover:scale-110 transition-all">
                         <Heart size={16} className={favorites.includes(item.id) ? "fill-rose-500 text-rose-500" : "text-stone-400"} />
                       </button>
-                      <img src={item.image_url || "/usato.png"} className="w-full h-full object-cover" alt={item.title} />
+                      <img src={item.image_url || "/usato.png"} className="w-full h-full object-contain" alt={item.title} />
                     </Link>
                     <div className="p-3 flex flex-col justify-between flex-grow">
                       <div>
@@ -463,8 +463,8 @@ function HomePageContent() {
 
         </main>
 
-        {/* SIDEBAR BANNER DESTRA (PARTNER) - MOLTO PIÙ GRANDE (w-[540px]) */}
-        <aside className="hidden lg:flex flex-col gap-6 w-[540px] shrink-0 self-start sticky top-24">
+        {/* SIDEBAR BANNER DESTRA (PARTNER) - RIPORTATA A DIMENSIONI REGOLARI */}
+        <aside className="hidden lg:flex flex-col gap-6 w-[280px] xl:w-[320px] shrink-0 self-start sticky top-24">
           <div className="bg-white border border-stone-200 rounded-[2rem] p-5 shadow-md flex flex-col items-center text-center justify-between min-h-[560px] w-full">
             <div className="w-full h-full flex flex-col">
               <span className="bg-stone-100 text-stone-500 text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full mb-4 inline-block self-center">Partner</span>
@@ -472,7 +472,7 @@ function HomePageContent() {
                 <img 
                   src="/adv-rete-partner.png" 
                   alt="Rete di Partner Sostenibili Re-love" 
-                  className="w-full h-full object-cover absolute inset-0"
+                  className="w-full h-full object-contain p-2 absolute inset-0"
                 />
               </div>
               <h3 className="text-base font-black uppercase text-stone-900 tracking-tight leading-tight mt-2">Rete di Partner Sostenibili</h3>
