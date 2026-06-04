@@ -26,6 +26,23 @@ interface Announcement {
   is_sponsored?: boolean;
 }
 
+// --- COMPONENTE TOOLTIP RIUTILIZZABILE 💬 ---
+const Tooltip = ({ children, text, wrapperClass = "relative w-full h-full" }: { children: React.ReactNode, text: string, wrapperClass?: string }) => {
+  return (
+    <div className={`${wrapperClass} group flex justify-center items-center`}>
+      {children}
+      {/* La Nuvoletta (Nascosta di default, appare in hover) */}
+      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 invisible group-hover:visible transition-all duration-300 z-[999] pointer-events-none">
+        <div className="bg-stone-900 text-white text-[10px] font-bold tracking-wide uppercase px-3 py-2 rounded-xl shadow-xl whitespace-nowrap border border-stone-700">
+          {text}
+        </div>
+        {/* Triangolino sotto la nuvoletta */}
+        <div className="w-3 h-3 bg-stone-900 border-r border-b border-stone-700 rotate-45 transform origin-top-left mx-auto -mt-2"></div>
+      </div>
+    </div>
+  )
+}
+
 function HomePageContent() {
   const [user, setUser] = useState<User | null>(null)
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
@@ -203,12 +220,15 @@ function HomePageContent() {
             className="w-full py-4 pl-16 pr-20 rounded-[2rem] bg-white border-none outline-none text-base md:text-lg font-black text-stone-900 focus:ring-4 focus:ring-rose-100 transition-all placeholder:text-stone-400" 
             onChange={(e) => setMainSearch(e.target.value)} 
           />
-          <button 
-           onClick={handleVoiceSearch}
-           className={`absolute inset-y-2 right-2 w-11 h-11 md:w-12 md:h-12 rounded-[1.5rem] flex items-center justify-center transition-all ${isListening ? 'bg-rose-600 text-white' : 'bg-stone-100 text-rose-500 hover:bg-stone-200 shadow-sm'}`}
-          >
-           {isListening ? <Mic size={22} /> : <MicOff size={22} />}
-          </button>
+          {/* TOOLTIP: PULSANTE VOCALE */}
+          <Tooltip text={isListening ? "In ascolto..." : "Ricerca con la voce! 🎙️"} wrapperClass="absolute inset-y-2 right-2">
+            <button 
+             onClick={handleVoiceSearch}
+             className={`w-11 h-11 md:w-12 md:h-12 rounded-[1.5rem] flex items-center justify-center transition-all ${isListening ? 'bg-rose-600 text-white' : 'bg-stone-100 text-rose-500 hover:bg-stone-200 shadow-sm'}`}
+            >
+             {isListening ? <Mic size={22} /> : <MicOff size={22} />}
+            </button>
+          </Tooltip>
         </div>
       </div>
 
@@ -314,11 +334,14 @@ function HomePageContent() {
                 </div>
               </div>
 
+              {/* TOOLTIP: PULSANTE RADAR */}
               <div className="flex flex-col gap-2">
-                <button onClick={handleNearbySearch} className={`p-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all shadow-md flex items-center justify-center gap-2 ${distance > 0 ? 'bg-rose-600 text-white' : 'bg-stone-900 text-white hover:bg-rose-600'}`}>
-                  <MapPin size={16} />
-                  {distance > 0 ? 'Filtro 20km Attivo' : 'Radar Zona'}
-                </button>
+                <Tooltip text="Trova annunci in un raggio di 20km 📍" wrapperClass="relative w-full">
+                  <button onClick={handleNearbySearch} className={`w-full p-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all shadow-md flex items-center justify-center gap-2 ${distance > 0 ? 'bg-rose-600 text-white' : 'bg-stone-900 text-white hover:bg-rose-600'}`}>
+                    <MapPin size={16} />
+                    {distance > 0 ? 'Filtro 20km Attivo' : 'Radar Zona'}
+                  </button>
+                </Tooltip>
               </div>
             </div>
           </section>
@@ -326,41 +349,54 @@ function HomePageContent() {
           {/* QUATTRO RIQUADRI CENTRALI - RIPORTATI A WIDTH COMPLETA E IMMAGINI CONTAIN */}
           {!catFilter && !typeFilter && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-16 max-w-5xl mx-auto px-2">
-              <Link href="/add?mode=new" className="group flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-white hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto w-full">
-                 <div className="absolute inset-0 w-full h-full overflow-hidden">
-                   <img src="/nuovo.png" className="w-full h-full object-contain p-4 pb-10" alt="Nuovo" />
-                 </div>
-                 <div className="absolute bottom-3 z-10 w-full px-2">
-                   <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Vendi Nuovo</span>
-                 </div>
-              </Link>
               
-              <Link href="/add?mode=used" className="group flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-white hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto w-full">
-                 <div className="absolute inset-0 w-full h-full overflow-hidden">
-                   <img src="/usato.png" className="w-full h-full object-contain p-4 pb-10" alt="Usato" />
-                 </div>
-                 <div className="absolute bottom-3 z-10 w-full px-2">
-                   <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Vendi Usato</span>
-                 </div>
-              </Link>
+              {/* TOOLTIP: VENDI NUOVO */}
+              <Tooltip text="Metti in vendita un oggetto mai usato ✨" wrapperClass="relative w-full h-full">
+                <Link href="/add?mode=new" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-white hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
+                   <div className="absolute inset-0 w-full h-full overflow-hidden">
+                     <img src="/nuovo.png" className="w-full h-full object-contain p-4 pb-10" alt="Nuovo" />
+                   </div>
+                   <div className="absolute bottom-3 z-10 w-full px-2">
+                     <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Vendi Nuovo</span>
+                   </div>
+                </Link>
+              </Tooltip>
               
-              <Link href="/add?mode=gift" className="group flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-white hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto w-full">
-                 <div className="absolute inset-0 w-full h-full overflow-hidden">
-                   <img src="/regalo.png" className="w-full h-full object-contain p-4 pb-10" alt="Regalo" />
-                 </div>
-                 <div className="absolute bottom-3 z-10 w-full px-2">
-                   <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Regalo</span>
-                 </div>
-              </Link>
+              {/* TOOLTIP: VENDI USATO */}
+              <Tooltip text="Dai una seconda vita ai tuoi oggetti ♻️" wrapperClass="relative w-full h-full">
+                <Link href="/add?mode=used" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-white hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
+                   <div className="absolute inset-0 w-full h-full overflow-hidden">
+                     <img src="/usato.png" className="w-full h-full object-contain p-4 pb-10" alt="Usato" />
+                   </div>
+                   <div className="absolute bottom-3 z-10 w-full px-2">
+                     <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Vendi Usato</span>
+                   </div>
+                </Link>
+              </Tooltip>
+              
+              {/* TOOLTIP: REGALO */}
+              <Tooltip text="Regala o trova oggetti gratis in regalo 🎁" wrapperClass="relative w-full h-full">
+                <Link href="/add?mode=gift" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-white hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
+                   <div className="absolute inset-0 w-full h-full overflow-hidden">
+                     <img src="/regalo.png" className="w-full h-full object-contain p-4 pb-10" alt="Regalo" />
+                   </div>
+                   <div className="absolute bottom-3 z-10 w-full px-2">
+                     <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Regalo</span>
+                   </div>
+                </Link>
+              </Tooltip>
 
-              <Link href="/add?mode=barter" className="group flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-white hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto w-full">
-                 <div className="absolute inset-0 w-full h-full overflow-hidden">
-                   <img src="/baratto.png" className="w-full h-full object-contain p-4 pb-10" alt="Baratto" />
-                 </div>
-                 <div className="absolute bottom-3 z-10 w-full px-2">
-                   <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Baratto</span>
-                 </div>
-              </Link>
+              {/* TOOLTIP: BARATTO */}
+              <Tooltip text="Scambia i tuoi oggetti senza usare soldi 🤝" wrapperClass="relative w-full h-full">
+                <Link href="/add?mode=barter" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-white hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
+                   <div className="absolute inset-0 w-full h-full overflow-hidden">
+                     <img src="/baratto.png" className="w-full h-full object-contain p-4 pb-10" alt="Baratto" />
+                   </div>
+                   <div className="absolute bottom-3 z-10 w-full px-2">
+                     <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Baratto</span>
+                   </div>
+                </Link>
+              </Tooltip>
             </div>
           )}
 
