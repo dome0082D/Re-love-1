@@ -242,6 +242,20 @@ function HomePageContent() {
             />
           </div>
       </div>
+      
+      {/* --- VIDEO IN LOOP INSERITO SOTTO HERO --- */}
+      <div className="w-full px-4 md:px-6 my-8">
+        <div className="max-w-[1750px] mx-auto rounded-[2rem] overflow-hidden shadow-lg border border-stone-200">
+          <video 
+            src="/hero-video.mp4" 
+            autoPlay 
+            loop 
+            muted 
+            playsInline 
+            className="w-full h-auto object-cover"
+          />
+        </div>
+      </div>
 
       {/* --- CONFIGURAZIONE GRIGLIA CON BANNER LATERALI ADATTIVI RIPORTATI A MISURE CORRETTE --- */}
       <div className="w-full max-w-[1750px] mx-auto px-4 md:px-6 mt-6 lg:-mt-12 relative z-20 flex flex-col lg:flex-row gap-6">
@@ -334,7 +348,6 @@ function HomePageContent() {
                 </div>
               </div>
 
-              {/* TOOLTIP: PULSANTE RADAR */}
               <div className="flex flex-col gap-2">
                 <Tooltip text="Trova annunci in un raggio di 20km 📍" wrapperClass="relative w-full">
                   <button onClick={handleNearbySearch} className={`w-full p-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all shadow-md flex items-center justify-center gap-2 ${distance > 0 ? 'bg-rose-600 text-white' : 'bg-stone-900 text-white hover:bg-rose-600'}`}>
@@ -350,7 +363,6 @@ function HomePageContent() {
           {!catFilter && !typeFilter && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-16 max-w-5xl mx-auto px-2">
               
-              {/* TOOLTIP: VENDI NUOVO */}
               <Tooltip text="Metti in vendita un oggetto mai usato ✨" wrapperClass="relative w-full h-full">
                 <Link href="/add?mode=new" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-white hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
                    <div className="absolute inset-0 w-full h-full overflow-hidden">
@@ -362,7 +374,6 @@ function HomePageContent() {
                 </Link>
               </Tooltip>
               
-              {/* TOOLTIP: VENDI USATO */}
               <Tooltip text="Dai una seconda vita ai tuoi oggetti ♻️" wrapperClass="relative w-full h-full">
                 <Link href="/add?mode=used" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-white hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
                    <div className="absolute inset-0 w-full h-full overflow-hidden">
@@ -374,7 +385,6 @@ function HomePageContent() {
                 </Link>
               </Tooltip>
               
-              {/* TOOLTIP: REGALO */}
               <Tooltip text="Regala o trova oggetti gratis in regalo 🎁" wrapperClass="relative w-full h-full">
                 <Link href="/add?mode=gift" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-white hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
                    <div className="absolute inset-0 w-full h-full overflow-hidden">
@@ -386,7 +396,6 @@ function HomePageContent() {
                 </Link>
               </Tooltip>
 
-              {/* TOOLTIP: BARATTO */}
               <Tooltip text="Scambia i tuoi oggetti senza usare soldi 🤝" wrapperClass="relative w-full h-full">
                 <Link href="/add?mode=barter" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-white hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
                    <div className="absolute inset-0 w-full h-full overflow-hidden">
