@@ -364,7 +364,7 @@ function HomePageContent() {
               
               {/* TOOLTIP: VENDI NUOVO */}
               <Tooltip text="Metti in vendita un oggetto mai usato ✨" wrapperClass="relative w-full h-full">
-                <Link href="/add?mode=new" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-white hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
+                <Link href="/add?mode=new" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#e6deff] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
                    <div className="absolute inset-0 w-full h-full overflow-hidden">
                      <img src="/nuovo.png" className="w-full h-full object-contain p-4 pb-10" alt="Nuovo" />
                    </div>
@@ -376,7 +376,7 @@ function HomePageContent() {
               
               {/* TOOLTIP: VENDI USATO */}
               <Tooltip text="Dai una seconda vita ai tuoi oggetti ♻️" wrapperClass="relative w-full h-full">
-                <Link href="/add?mode=used" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-white hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
+                <Link href="/add?mode=used" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#e6deff] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
                    <div className="absolute inset-0 w-full h-full overflow-hidden">
                      <img src="/usato.png" className="w-full h-full object-contain p-4 pb-10" alt="Usato" />
                    </div>
@@ -388,7 +388,7 @@ function HomePageContent() {
               
               {/* TOOLTIP: REGALO */}
               <Tooltip text="Regala o trova oggetti gratis in regalo 🎁" wrapperClass="relative w-full h-full">
-                <Link href="/add?mode=gift" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-white hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
+                <Link href="/add?mode=gift" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#e6deff] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
                    <div className="absolute inset-0 w-full h-full overflow-hidden">
                      <img src="/regalo.png" className="w-full h-full object-contain p-4 pb-10" alt="Regalo" />
                    </div>
@@ -400,7 +400,7 @@ function HomePageContent() {
 
               {/* TOOLTIP: BARATTO */}
               <Tooltip text="Scambia i tuoi oggetti senza usare soldi 🤝" wrapperClass="relative w-full h-full">
-                <Link href="/add?mode=barter" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-white hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
+                <Link href="/add?mode=barter" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#e6deff] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
                    <div className="absolute inset-0 w-full h-full overflow-hidden">
                      <img src="/baratto.png" className="w-full h-full object-contain p-4 pb-10" alt="Baratto" />
                    </div>
@@ -537,7 +537,7 @@ function HomePageContent() {
                 Invia Email
               </span>
             </a>
-          </div>
+        </div>
 
           <div className="bg-stone-100 border border-stone-200 rounded-[2rem] p-5 shadow-sm text-center">
             <h4 className="text-[10px] font-black uppercase tracking-widest text-emerald-600 mb-1">Eco-Friendly</h4>
