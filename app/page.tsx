@@ -284,7 +284,7 @@ function HomePageContent() {
         <main className="flex-1 w-full overflow-hidden order-1 lg:order-2">
           
           {/* VIDEO IN FORMATO PIU PICCOLO BLOCCATO AL CENTRO IN AUTOMATICO E IN LOOP */}
-          <div className="w-full max-w-[480px] mx-auto mb-10 rounded-[2rem] overflow-hidden border border-stone-200 shadow-md bg-white">
+          <div className="w-full max-w-[420px] mx-auto mb-10 rounded-[2rem] overflow-hidden border border-stone-200 shadow-md bg-white">
             <video 
               src="/hero-video.mp4" 
               className="w-full h-auto object-cover block"
