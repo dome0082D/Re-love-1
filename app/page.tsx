@@ -173,7 +173,7 @@ function HomePageContent() {
     
     const itemPrice = Number(item.price);
     const minP = minPrice ? Number(minPrice) : 0;
-    const maxP = maxPrice ? Number(maxPrice) : Infinity;
+      const maxP = maxPrice ? Number(maxPrice) : Infinity;
     const priceMatch = itemPrice >= minP && itemPrice <= maxP;
 
     return titleMatch && categoryMatch && conditionMatch && typeMatch && availableMatch && priceMatch;
@@ -228,7 +228,7 @@ function HomePageContent() {
             >
              {isListening ? <Mic size={22} /> : <MicOff size={22} />}
             </button>
-          </Tooltip>
+          Tooltip>
         </div>
       </div>
 
@@ -354,7 +354,6 @@ function HomePageContent() {
                     {distance > 0 ? 'Filtro 20km Attivo' : 'Radar Zona'}
                   </button>
                 </Tooltip>
-              </div>
             </div>
           </section>
 
@@ -364,9 +363,9 @@ function HomePageContent() {
               
               {/* TOOLTIP: VENDI NUOVO */}
               <Tooltip text="Metti in vendita un oggetto mai usato ✨" wrapperClass="relative w-full h-full">
-                <Link href="/add?mode=new" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#fafafa] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
+                <Link href="/add?mode=new" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#f5efdf] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
                    <div className="absolute inset-0 w-full h-full overflow-hidden">
-                     <img src="/nuovo.png" className="w-full h-full object-contain p-4 pb-10" alt="Nuovo" />
+                     <img src="/nuovo.png" className="w-full h-full object-cover" alt="Nuovo" />
                    </div>
                    <div className="absolute bottom-3 z-10 w-full px-2">
                      <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Vendi Nuovo</span>
@@ -376,9 +375,9 @@ function HomePageContent() {
               
               {/* TOOLTIP: VENDI USATO */}
               <Tooltip text="Dai una seconda vita ai tuoi oggetti ♻️" wrapperClass="relative w-full h-full">
-                <Link href="/add?mode=used" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#fafafa] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
+                <Link href="/add?mode=used" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#f5efdf] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
                    <div className="absolute inset-0 w-full h-full overflow-hidden">
-                     <img src="/usato.png" className="w-full h-full object-contain p-4 pb-10" alt="Usato" />
+                     <img src="/usato.png" className="w-full h-full object-cover" alt="Usato" />
                    </div>
                    <div className="absolute bottom-3 z-10 w-full px-2">
                      <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Vendi Usato</span>
@@ -388,9 +387,9 @@ function HomePageContent() {
               
               {/* TOOLTIP: REGALO */}
               <Tooltip text="Regala o trova oggetti gratis in regalo 🎁" wrapperClass="relative w-full h-full">
-                <Link href="/add?mode=gift" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#fafafa] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
+                <Link href="/add?mode=gift" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#f5efdf] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
                    <div className="absolute inset-0 w-full h-full overflow-hidden">
-                     <img src="/regalo.png" className="w-full h-full object-contain p-4 pb-10" alt="Regalo" />
+                     <img src="/regalo.png" className="w-full h-full object-cover" alt="Regalo" />
                    </div>
                    <div className="absolute bottom-3 z-10 w-full px-2">
                      <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Regalo</span>
@@ -400,9 +399,9 @@ function HomePageContent() {
 
               {/* TOOLTIP: BARATTO */}
               <Tooltip text="Scambia i tuoi oggetti senza usare soldi 🤝" wrapperClass="relative w-full h-full">
-                <Link href="/add?mode=barter" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#fafafa] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
+                <Link href="/add?mode=barter" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#f5efdf] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
                    <div className="absolute inset-0 w-full h-full overflow-hidden">
-                     <img src="/baratto.png" className="w-full h-full object-contain p-4 pb-10" alt="Baratto" />
+                     <img src="/baratto.png" className="w-full h-full object-cover" alt="Baratto" />
                    </div>
                    <div className="absolute bottom-3 z-10 w-full px-2">
                      <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Baratto</span>
@@ -503,7 +502,7 @@ function HomePageContent() {
                   onClick={() => setVisibleCount(prev => prev + 12)}
                   className="bg-stone-900 text-white px-10 py-4 rounded-full text-[11px] font-black uppercase tracking-widest hover:bg-rose-600 transition-all shadow-md"
                 >
-                  ↓ Carica Altri ({regularItems.length - visibleCount})
+                  Carica Altri ({regularItems.length - visibleCount})
                 </button>
               </div>
             )}
