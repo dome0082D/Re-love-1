@@ -173,7 +173,7 @@ function HomePageContent() {
     
     const itemPrice = Number(item.price);
     const minP = minPrice ? Number(minPrice) : 0;
-      const maxP = maxPrice ? Number(maxPrice) : Infinity;
+    const maxP = maxPrice ? Number(maxPrice) : Infinity;
     const priceMatch = itemPrice >= minP && itemPrice <= maxP;
 
     return titleMatch && categoryMatch && conditionMatch && typeMatch && availableMatch && priceMatch;
@@ -286,7 +286,7 @@ function HomePageContent() {
           {/* VIDEO IN FORMATO MAX 420PX BLOCCATO AL CENTRO IN AUTOMATICO E IN LOOP PIU IN BASSO */}
           <div className="w-full max-w-[420px] mx-auto mt-8 mb-10 rounded-[2rem] overflow-hidden border border-stone-200 shadow-md bg-white">
             <video 
-              src="/hero-video.mp4" 
+              src="/hero- video.mp4" 
               className="w-full h-auto object-cover block"
               autoPlay 
               muted 
@@ -347,7 +347,6 @@ function HomePageContent() {
               </div>
 
               {/* TOOLTIP: PULSANTE RADAR */}
-              {/* TOOLTIP: PULSANTE RADAR */}
               <div className="flex flex-col gap-2">
                 <Tooltip text="Trova annunci in un raggio di 20km 📍" wrapperClass="relative w-full">
                   <button onClick={handleNearbySearch} className={`w-full p-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all shadow-md flex items-center justify-center gap-2 ${distance > 0 ? 'bg-rose-600 text-white' : 'bg-stone-900 text-white hover:bg-rose-600'}`}>
@@ -356,9 +355,10 @@ function HomePageContent() {
                   </button>
                 </Tooltip>
               </div>
+            </div>
           </section>
 
-          {/* QUATTRO RIQUADRI CENTRALI - RIPORTATI A WIDTH COMPLETA E IMMAGINI CONTAIN */}
+          {/* QUATTRO RIQUADRI CENTRALI - CONFIGURAZIONE BEIGE ED IMPOSTAZIONE SPENSIERATA COPERTURA TOTALE */}
           {!catFilter && !typeFilter && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-16 max-w-5xl mx-auto px-2">
               
@@ -541,7 +541,7 @@ function HomePageContent() {
 
           <div className="bg-stone-100 border border-stone-200 rounded-[2rem] p-5 shadow-sm text-center">
             <h4 className="text-[10px] font-black uppercase tracking-widest text-emerald-600 mb-1">Eco-Friendly</h4>
-            <p className="text-xs font-bold text-stone-800 leading-snug">Ogni acquisto riduce le emissioni di CO₂.</p>
+            <p className="text-xs font-bold text-stone-800 leading-snug">Ogni acquisto ruduce le emissioni di CO₂.</p>
           </div>
         </aside>
 
