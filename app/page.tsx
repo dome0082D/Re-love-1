@@ -347,6 +347,7 @@ function HomePageContent() {
               </div>
 
               {/* TOOLTIP: PULSANTE RADAR */}
+              {/* TOOLTIP: PULSANTE RADAR */}
               <div className="flex flex-col gap-2">
                 <Tooltip text="Trova annunci in un raggio di 20km 📍" wrapperClass="relative w-full">
                   <button onClick={handleNearbySearch} className={`w-full p-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all shadow-md flex items-center justify-center gap-2 ${distance > 0 ? 'bg-rose-600 text-white' : 'bg-stone-900 text-white hover:bg-rose-600'}`}>
@@ -354,7 +355,7 @@ function HomePageContent() {
                     {distance > 0 ? 'Filtro 20km Attivo' : 'Radar Zona'}
                   </button>
                 </Tooltip>
-            </div>
+              </div>
           </section>
 
           {/* QUATTRO RIQUADRI CENTRALI - RIPORTATI A WIDTH COMPLETA E IMMAGINI CONTAIN */}
