@@ -286,7 +286,7 @@ function HomePageContent() {
           {/* VIDEO IN FORMATO MAX 640PX BLOCCATO AL CENTRO IN AUTOMATICO E IN LOOP */}
           <div className="w-full max-w-[640px] mx-auto mb-10 rounded-[2rem] overflow-hidden border border-stone-200 shadow-md bg-white">
             <video 
-              src="/hero- video.mp4" 
+              src="/hero-video.mp4" 
               className="w-full h-auto object-cover block"
               autoPlay 
               muted 
