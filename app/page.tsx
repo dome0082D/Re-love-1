@@ -228,7 +228,7 @@ function HomePageContent() {
             >
              {isListening ? <Mic size={22} /> : <MicOff size={22} />}
             </button>
-          Tooltip>
+          </Tooltip>
         </div>
       </div>
 
