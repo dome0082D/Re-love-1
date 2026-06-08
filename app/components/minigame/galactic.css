@@ -1,0 +1,97 @@
+/* --- NUOVO LAYOUT AVANZATO --- */
+.sys-container-advanced {
+    position: relative;
+    z-index: 5;
+    width: 98vw;
+    max-width: 1400px;
+    height: 92vh;
+    margin: 4vh auto;
+    display: grid;
+    grid-template-columns: 300px 1fr 350px; /* 3 Colonne */
+    grid-template-rows: auto 1fr;
+    gap: 20px;
+}
+
+.global-header {
+    grid-column: 1 / -1;
+    background: rgba(10, 15, 24, 0.8);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    padding: 15px 30px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 0 20px rgba(0,255,204,0.1);
+}
+
+.top-stats {
+    display: flex;
+    gap: 30px;
+    font-size: 1.4rem;
+    font-weight: 900;
+}
+
+.panel {
+    background: rgba(10, 15, 24, 0.7);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(0, 255, 204, 0.15);
+    border-radius: 8px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+}
+
+/* --- BARRE DI PROGRESSO --- */
+.progress-container {
+    margin-bottom: 20px;
+}
+
+.progress-header {
+    display: flex;
+    justify-content: space-between;
+    font-weight: bold;
+    margin-bottom: 8px;
+    font-size: 0.9rem;
+    letter-spacing: 1px;
+}
+
+.progress-track {
+    width: 100%;
+    height: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    box-shadow: 0 0 10px currentColor;
+}
+
+/* --- INFRASTRUTTURA --- */
+.infra-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.infra-box {
+    display: flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255,255,255,0.1);
+    padding: 15px;
+    border-radius: 6px;
+}
+
+.infra-icon {
+    font-size: 2rem;
+    margin-right: 15px;
+}
+
+.infra-info {
+    font-weight: bold;
+}
