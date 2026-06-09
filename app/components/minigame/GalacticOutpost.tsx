@@ -1,299 +1,394 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import './galactic.css';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { PointerLockControls, Box, Text, Plane, Cone, Cylinder, Sphere } from '@react-three/drei';
+import * as THREE from 'three';
 
-// --- DATABASE OGGETTI ESPANSO ---
+// --- DATABASE MERCE ---
 const dbItems = [
-    { id: "rations", name: "Razioni Sintetiche", val: 50, illegal: false, icon: "🥫" },
-    { id: "scrap", name: "Rottami di Droide", val: 80, illegal: false, icon: "⚙️" },
-    { id: "solar", name: "Matrice Eco-Solare", val: 250, illegal: false, icon: "☀️" },
-    { id: "med", name: "Gel Medico", val: 120, illegal: false, icon: "💉" },
-    { id: "miner", name: "ASIC Quantum Miner", val: 600, illegal: false, icon: "🖥️" },
-    { id: "sneakers", name: "Stivali Air-J8", val: 350, illegal: true, icon: "👟" },
-    { id: "cpu", name: "Chip Neurale R9", val: 500, illegal: true, icon: "🧠" },
-    { id: "spores", name: "Spore Allucinogene", val: 400, illegal: true, icon: "🍄" },
-    { id: "data", name: "Dati Militari", val: 800, illegal: true, icon: "💾" }
+    { id: "cpu", name: "Processore Quantico", val: 750, color: "#ff4040" },
+    { id: "gpu", name: "Scheda Grafica RTX", val: 1200, color: "#00ff00" },
+    { id: "shoes", name: "Stivali Anti-Gravità", val: 400, color: "#ffffff" },
+    { id: "solar", name: "Cella Solare", val: 800, color: "#00ccff" },
+    { id: "relic", name: "Reliquia Antica", val: 1500, color: "#bb86fc" }
 ];
 
-const aliens = ["un contrabbandiere Zorgon", "un androide dismesso", "una canaglia Umana", "un monaco Xylothiano"];
+const npcNames = ["Mercante Nomade", "Cercatore", "Abitante Locale", "Contrabbandiere"];
 
-export default function GalacticOutpost() {
-    // --- STATI DEL GIOCO ---
-    const [credits, setCredits] = useState(1000);
-    const [energy, setEnergy] = useState(100);
-    const [suspicion, setSuspicion] = useState(0);
-    const [cycle, setCycle] = useState(1);
-    const [encounters, setEncounters] = useState(0);
-    const [inventory, setInventory] = useState<any[]>([]);
-    
-    // Infrastruttura
-    const [miners, setMiners] = useState(0);
-    const [solarPanels, setSolarPanels] = useState(0);
+// --- CONTROLLER GIOCATORE (WASD) ---
+function Player() {
+    const { camera } = useThree();
+    const keys = useRef({ w: false, a: false, s: false, d: false });
 
-    const [screenOutput, setScreenOutput] = useState<React.ReactNode>(
-        <p className="glitch-text" data-text="Inizializzazione sistema visivo... OK.">
-            Inizializzazione sistema visivo... <span className="highlight-green">OK</span>.
-        </p>
-    );
-    const [currentOffer, setCurrentOffer] = useState<any>(null);
-    const [controlsType, setControlsType] = useState('scan');
-    const canvasRef = useRef<HTMLCanvasElement>(null);
-
-    // --- SFONDO STELLARE ---
     useEffect(() => {
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-        let animationFrameId: number;
-        let stars: any[] = [];
-        const resizeCanvas = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; };
-        window.addEventListener('resize', resizeCanvas);
-        resizeCanvas();
-
-        for (let i = 0; i < 200; i++) stars.push({ x: Math.random() * canvas.width, y: Math.random() * canvas.height, z: Math.random() * canvas.width, radius: Math.random() * 1.5 });
-
-        const drawStars = () => {
-            ctx.fillStyle = '#020205'; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.fillStyle = '#ffffff';
-            stars.forEach(star => {
-                star.z -= 1.5; 
-                if (star.z <= 0) { star.z = canvas.width; star.x = Math.random() * canvas.width; star.y = Math.random() * canvas.height; }
-                let k = 128.0 / star.z;
-                let px = (star.x - canvas.width / 2) * k + canvas.width / 2;
-                let py = (star.y - canvas.height / 2) * k + canvas.height / 2;
-                let size = (1 - star.z / canvas.width) * 3;
-                if (px >= 0 && px <= canvas.width && py >= 0 && py <= canvas.height) {
-                    ctx.beginPath(); ctx.arc(px, py, size, 0, Math.PI * 2);
-                    ctx.fillStyle = `rgba(${100 + size*50}, ${200 + size*10}, 255, ${1 - star.z/canvas.width})`; ctx.fill();
-                }
-            });
-            animationFrameId = requestAnimationFrame(drawStars);
+        const handleKeyDown = (e: KeyboardEvent) => {
+            const key = e.key.toLowerCase();
+            if (key in keys.current) keys.current[key as keyof typeof keys.current] = true;
         };
-        drawStars();
-        return () => { window.removeEventListener('resize', resizeCanvas); cancelAnimationFrame(animationFrameId); };
+        const handleKeyUp = (e: KeyboardEvent) => {
+            const key = e.key.toLowerCase();
+            if (key in keys.current) keys.current[key as keyof typeof keys.current] = false;
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('keyup', handleKeyUp);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('keyup', handleKeyUp);
+        };
     }, []);
 
-    // --- LOGICA DEL CICLO E MINING ---
-    const nextEvent = () => {
-        let currentEncounters = encounters + 1;
-        let currentEnergy = energy;
-        let currentCycle = cycle;
-        let currentSusp = suspicion;
-        let currentCreds = credits;
+    useFrame(() => {
+        const speed = 0.15; 
+        const dir = new THREE.Vector3();
+        camera.getWorldDirection(dir);
+        dir.y = 0; 
+        dir.normalize();
 
-        if (currentEncounters >= 4) {
-            currentEncounters = 0;
-            currentCycle += 1;
+        const side = new THREE.Vector3().crossVectors(camera.up, dir).normalize();
+
+        if (keys.current.w) camera.position.addScaledVector(dir, speed);
+        if (keys.current.s) camera.position.addScaledVector(dir, -speed);
+        if (keys.current.a) camera.position.addScaledVector(side, speed);
+        if (keys.current.d) camera.position.addScaledVector(side, -speed);
+    });
+
+    return <PointerLockControls />;
+}
+
+// --- COMPONENTI DEL MONDO (LOW-POLY) ---
+function Tree({ position }: { position: [number, number, number] }) {
+    return (
+        <group position={position}>
+            <Cylinder args={[0.2, 0.2, 2]} position={[0, 1, 0]}>
+                <meshStandardMaterial color="#5c4033" />
+            </Cylinder>
+            <Cone args={[1.5, 3]} position={[0, 3, 0]}>
+                <meshStandardMaterial color="#2d4c1e" />
+            </Cone>
+        </group>
+    );
+}
+
+function Mountain({ position, scale = 1 }: { position: [number, number, number], scale?: number }) {
+    return (
+        <Cone args={[10 * scale, 20 * scale, 4]} position={position} rotation={[0, Math.PI / 4, 0]}>
+            <meshStandardMaterial color="#555555" roughness={0.9} />
+        </Cone>
+    );
+}
+
+function Portal({ position, onClick }: { position: [number, number, number], onClick: () => void }) {
+    const portalRef = useRef<any>();
+    useFrame((state) => {
+        if(portalRef.current) portalRef.current.rotation.y += 0.02;
+    });
+
+    return (
+        <group position={position} onClick={onClick}>
+            <Box ref={portalRef} args={[2, 4, 2]} position={[0, 2, 0]}>
+                <meshStandardMaterial color="#bb86fc" emissive="#bb86fc" emissiveIntensity={0.5} wireframe={true} />
+            </Box>
+            <Text position={[0, 4.5, 0]} fontSize={0.4} color="white" anchorX="center" anchorY="middle">
+                PORTALE (Viaggia)
+            </Text>
+        </group>
+    );
+}
+
+// --- PERSONAGGIO UMANO (NPC DETTAGLIATO) ---
+function NPC({ position, data, onClick }: { position: [number, number, number], data: any, onClick: () => void }) {
+    const npcRef = useRef<any>();
+    const leftArmRef = useRef<any>();
+    const rightArmRef = useRef<any>();
+    const [hovered, setHover] = useState(false);
+    const { camera } = useThree();
+
+    useFrame((state) => {
+        const t = state.clock.elapsedTime;
+        if(npcRef.current) {
+            // Guarda sempre verso il giocatore
+            npcRef.current.lookAt(camera.position.x, npcRef.current.position.y, camera.position.z);
             
-            // Calcolo Infrastruttura
-            let baseDrain = 10;
-            let minerDrain = miners * 15;
-            let solarGen = solarPanels * 12;
-            let cryptoMined = miners * 60;
-            
-            currentEnergy = currentEnergy - baseDrain - minerDrain + solarGen;
-            currentCreds += cryptoMined;
-            
-            if (currentSusp > 0) currentSusp = Math.max(0, currentSusp - 5);
-            
-            if (currentEnergy < 0) {
-                setScreenOutput(<h2><span className="highlight-red">TERMINAZIONE SISTEMA</span><br/>SISTEMA DI SUPPORTO VITALE OFFLINE.</h2>);
-                setControlsType('gameover');
-                return;
-            }
+            // Animazione respiro
+            npcRef.current.position.y = Math.sin(t * 2 + position[0]) * 0.03;
         }
-
-        setEncounters(currentEncounters);
-        setCycle(currentCycle);
-        setEnergy(Math.min(100, currentEnergy)); // Cap max 100
-        setSuspicion(currentSusp);
-        setCredits(currentCreds);
-
-        if (currentSusp >= 100) {
-            triggerRaid();
-            return;
+        if(leftArmRef.current && rightArmRef.current) {
+            // Oscillazione naturale delle braccia
+            leftArmRef.current.rotation.x = Math.sin(t * 1.5) * 0.1;
+            rightArmRef.current.rotation.x = Math.sin(t * 1.5 + Math.PI) * 0.1;
         }
+    });
 
-        generateEvent();
+    const skinColor = "#ffcc99";
+    const shirtColor = hovered ? "#ffea00" : (data.isSelling ? "#2a52be" : "#be2a40");
+    const pantsColor = "#333333";
+    const hairColor = "#4a3000";
+
+    return (
+        <group position={position} onClick={onClick} onPointerOver={() => setHover(true)} onPointerOut={() => setHover(false)}>
+            <group ref={npcRef}>
+                
+                {/* Gambe e Bacino */}
+                <Box args={[0.2, 0.7, 0.2]} position={[-0.15, 0.35, 0]}>
+                    <meshStandardMaterial color={pantsColor} />
+                </Box>
+                <Box args={[0.2, 0.7, 0.2]} position={[0.15, 0.35, 0]}>
+                    <meshStandardMaterial color={pantsColor} />
+                </Box>
+                <Box args={[0.52, 0.2, 0.25]} position={[0, 0.8, 0]}>
+                    <meshStandardMaterial color={pantsColor} />
+                </Box>
+
+                {/* Torso */}
+                <Box args={[0.5, 0.6, 0.25]} position={[0, 1.2, 0]}>
+                    <meshStandardMaterial color={shirtColor} emissive={hovered ? "#ffea00" : "#000"} emissiveIntensity={0.3} />
+                </Box>
+
+                {/* Collo */}
+                <Cylinder args={[0.06, 0.08, 0.15]} position={[0, 1.55, 0]}>
+                    <meshStandardMaterial color={skinColor} />
+                </Cylinder>
+
+                {/* Testa, Capelli e Occhi */}
+                <group position={[0, 1.75, 0]}>
+                    <Sphere args={[0.18, 16, 16]}>
+                        <meshStandardMaterial color={skinColor} />
+                    </Sphere>
+                    <Box args={[0.38, 0.1, 0.38]} position={[0, 0.15, -0.02]}>
+                        <meshStandardMaterial color={hairColor} />
+                    </Box>
+                    <Sphere args={[0.025, 8, 8]} position={[-0.06, 0.02, 0.16]}>
+                        <meshBasicMaterial color="#111" />
+                    </Sphere>
+                    <Sphere args={[0.025, 8, 8]} position={[0.06, 0.02, 0.16]}>
+                        <meshBasicMaterial color="#111" />
+                    </Sphere>
+                </group>
+
+                {/* Braccia collegate alle spalle */}
+                <group position={[-0.35, 1.45, 0]} ref={leftArmRef}>
+                    <Box args={[0.15, 0.55, 0.15]} position={[0, -0.25, 0]}>
+                        <meshStandardMaterial color={skinColor} />
+                    </Box>
+                </group>
+                <group position={[0.35, 1.45, 0]} ref={rightArmRef}>
+                    <Box args={[0.15, 0.55, 0.15]} position={[0, -0.25, 0]}>
+                        <meshStandardMaterial color={skinColor} />
+                    </Box>
+                </group>
+            </group>
+            
+            <Text position={[0, 2.4, 0]} fontSize={0.2} color="white" anchorX="center" anchorY="middle">
+                {data.name}
+            </Text>
+        </group>
+    );
+}
+
+// --- OGGETTI OLOGRAFICI (Loot) ---
+function HologramItem({ position, item, onClick }: { position: [number, number, number], item: any, onClick: () => void }) {
+    const [hovered, setHover] = useState(false);
+    return (
+        <group position={position} onClick={onClick} onPointerOver={() => setHover(true)} onPointerOut={() => setHover(false)}>
+            <Box args={[0.8, 0.8, 0.8]} position={[0, 0.4, 0]}>
+                <meshStandardMaterial color={hovered ? "#ffffff" : item.color} emissive={item.color} emissiveIntensity={0.8} wireframe={true} />
+            </Box>
+            <Text position={[0, 1.2, 0]} fontSize={0.2} color="white" anchorX="center" anchorY="middle">{item.name}</Text>
+        </group>
+    );
+}
+
+// --- GESTORE DELLE MAPPE ---
+function MapEnvironment({ mapIndex, changeMap, items, npcs, interactNPC, interactItem }: any) {
+    return (
+        <>
+            <Player />
+            <ambientLight intensity={0.4} />
+            <pointLight position={[0, 10, 0]} intensity={1.5} />
+
+            <Portal position={[0, 0, -15]} onClick={changeMap} />
+            
+            {items.map((item: any) => <HologramItem key={item.uid} position={[item.x, 0, item.z]} item={item} onClick={() => interactItem(item)} />)}
+            {npcs.map((npc: any) => <NPC key={npc.uid} position={[npc.x, 0, npc.z]} data={npc} onClick={() => interactNPC(npc)} />)}
+
+            {/* MAPPA 0: VALLE VERDE */}
+            {mapIndex === 0 && (
+                <group>
+                    <Plane args={[100, 100]} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
+                        <meshStandardMaterial color="#2d4c1e" roughness={1} />
+                    </Plane>
+                    <Plane args={[100, 8]} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 10]}>
+                        <meshStandardMaterial color="#1e5f8a" roughness={0.1} />
+                    </Plane>
+                    <Tree position={[-5, 0, -5]} />
+                    <Tree position={[8, 0, -8]} />
+                    <Tree position={[-12, 0, 5]} />
+                    <Mountain position={[-30, 0, -20]} scale={0.8} />
+                </group>
+            )}
+
+            {/* MAPPA 1: MONTAGNE */}
+            {mapIndex === 1 && (
+                <group>
+                    <Plane args={[100, 100]} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
+                        <meshStandardMaterial color="#dddddd" roughness={0.8} />
+                    </Plane>
+                    <Mountain position={[-15, 0, -10]} scale={1.2} />
+                    <Mountain position={[15, 0, -15]} scale={1.5} />
+                    <Mountain position={[0, 0, 20]} scale={1} />
+                </group>
+            )}
+
+            {/* MAPPA 2: LAGO */}
+            {mapIndex === 2 && (
+                <group>
+                    <Plane args={[100, 100]} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
+                        <meshStandardMaterial color="#c2b280" roughness={1} />
+                    </Plane>
+                    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.1, 5]}>
+                        <circleGeometry args={[15, 32]} />
+                        <meshStandardMaterial color="#00aaff" roughness={0} metalness={0.5} />
+                    </mesh>
+                    <Tree position={[-18, 0, 0]} />
+                    <Tree position={[18, 0, 5]} />
+                </group>
+            )}
+        </>
+    );
+}
+
+// --- APP PRINCIPALE ---
+export default function GalacticOutpost() {
+    const [credits, setCredits] = useState(1500);
+    const [mapIndex, setMapIndex] = useState(0);
+    const mapNames = ["Valle Verde", "Passo Montano", "Lago Cristallo"];
+
+    const [logs, setLogs] = useState<string[]>([
+        "GALACTIC OUTPOST ONLINE.",
+        "WASD per muoverti. Cerca l'obelisco viola.",
+        "Clicca sugli umani o oggetti."
+    ]);
+    const [activeTerminal, setActiveTerminal] = useState<any>(null);
+
+    const [worldData, setWorldData] = useState<any>({
+        0: { items: generateItems(4), npcs: generateNPCs(3) },
+        1: { items: generateItems(3), npcs: generateNPCs(2) },
+        2: { items: generateItems(5), npcs: generateNPCs(3) }
+    });
+
+    function generateItems(count: number) {
+        return Array.from({ length: count }).map(() => ({
+            ...dbItems[Math.floor(Math.random() * dbItems.length)],
+            uid: Math.random().toString(36).substr(2, 9),
+            x: (Math.random() - 0.5) * 30, z: (Math.random() - 0.5) * 30
+        }));
+    }
+
+    function generateNPCs(count: number) {
+        return Array.from({ length: count }).map(() => ({
+            name: npcNames[Math.floor(Math.random() * npcNames.length)],
+            uid: Math.random().toString(36).substr(2, 9),
+            x: (Math.random() - 0.5) * 20, z: (Math.random() - 0.5) * 20,
+            offerItem: dbItems[Math.floor(Math.random() * dbItems.length)],
+            isSelling: Math.random() > 0.5
+        }));
+    }
+
+    const addLog = (msg: string) => setLogs(prev => [msg, ...prev].slice(0, 3));
+
+    const handleNextMap = () => {
+        const next = (mapIndex + 1) % 3;
+        setMapIndex(next);
+        addLog(`Viaggio verso: ${mapNames[next]}`);
     };
 
-    const triggerRaid = () => {
-        const fine = Math.floor(credits * 0.8);
-        setCredits(prev => prev - fine);
-        setInventory(prev => prev.filter(i => !i.illegal));
-        setSuspicion(0);
-        setScreenOutput(
-            <>
-                <p className="highlight-red" style={{fontSize:'1.5rem'}}>ALLARME ROSSO: RAID FEDERAZIONE</p>
-                <p>La tua merce illegale è stata sequestrata. È stata prelevata una multa di <strong>{fine} ⌬</strong> dai tuoi conti.</p>
-            </>
-        );
-        setControlsType('scan');
-    };
+    const handleInteractItem = (item: any) => setActiveTerminal({ type: 'loot', data: item });
+    const handleInteractNPC = (npc: any) => setActiveTerminal({ type: 'npc', data: npc });
 
-    const generateEvent = () => {
-        const rand = Math.random();
-        if (rand < 0.2) {
-            // Evento: Commerciante Hardware
-            setScreenOutput(<p>Un cargo industriale offre infrastrutture in saldo.</p>);
-            setControlsType('infrastructure');
-        } else {
-            // Evento Cliente (Compra/Vende)
-            const alien = aliens[Math.floor(Math.random() * aliens.length)];
-            const isSelling = Math.random() > 0.5 || inventory.length === 0;
+    const processTrade = (accepted: boolean) => {
+        if (!activeTerminal) return;
 
-            if (!isSelling) {
-                const item = inventory[Math.floor(Math.random() * inventory.length)];
-                const offer = Math.floor(item.val * (0.8 + Math.random() * 0.5));
-                setCurrentOffer({ type: 'sell', itemUID: item.uid, price: offer, illegal: item.illegal });
-                setScreenOutput(<><p>Attracco di {alien}.</p><p>"Compro il tuo <strong>{item.name}</strong> per <span className="highlight-green">{offer} ⌬</span>."</p></>);
-                setControlsType('sell');
+        if (activeTerminal.type === 'loot' && accepted) {
+            setCredits(prev => prev + activeTerminal.data.val);
+            setWorldData((prev: any) => {
+                const newData = { ...prev };
+                newData[mapIndex].items = newData[mapIndex].items.filter((i: any) => i.uid !== activeTerminal.data.uid);
+                return newData;
+            });
+            addLog(`Raccolto e venduto per ${activeTerminal.data.val} ⌬`);
+        } 
+        else if (activeTerminal.type === 'npc' && accepted) {
+            const npc = activeTerminal.data;
+            if (npc.isSelling && credits >= npc.offerItem.val) {
+                setCredits(prev => prev - npc.offerItem.val);
+                addLog(`Comprato ${npc.offerItem.name} da ${npc.name}.`);
+            } else if (!npc.isSelling) {
+                setCredits(prev => prev + npc.offerItem.val);
+                addLog(`Venduto merce a ${npc.name} per ${npc.offerItem.val} ⌬.`);
             } else {
-                const item = { ...dbItems[Math.floor(Math.random() * dbItems.length)], uid: Math.random().toString(36).substring(2, 9) };
-                const ask = Math.floor(item.val * (0.7 + Math.random() * 0.4));
-                setCurrentOffer({ type: 'buy', item: item, price: ask });
-                setScreenOutput(<><p>{alien} offre un carico.</p><p>"Ti lascio <strong>{item.name}</strong> per <span className="highlight-yellow">{ask} ⌬</span>."</p></>);
-                setControlsType('buy');
+                addLog("Crediti insufficienti!");
             }
-        }
-    };
-
-    // --- AZIONI ---
-    const handleTransaction = (action: 'buy' | 'sell') => {
-        if (action === 'sell') {
-            setInventory(prev => prev.filter(i => i.uid !== currentOffer.itemUID));
-            setCredits(prev => prev + currentOffer.price);
-            if (currentOffer.illegal) setSuspicion(prev => prev + 15);
-            setScreenOutput(<p>Transazione completata. <span className="highlight-green">+{currentOffer.price} ⌬</span></p>);
         } else {
-            setCredits(prev => prev - currentOffer.price);
-            setInventory(prev => [...prev, currentOffer.item]);
-            if (currentOffer.item.illegal) setSuspicion(prev => prev + 10);
-            setScreenOutput(<p>Carico acquisito. <span className="highlight-red">-{currentOffer.price} ⌬</span></p>);
+            addLog("Azione annullata.");
         }
-        setControlsType('scan');
+        setActiveTerminal(null);
     };
 
-    const buyInfra = (type: 'miner' | 'solar') => {
-        if (type === 'miner' && credits >= 600) {
-            setCredits(prev => prev - 600);
-            setMiners(prev => prev + 1);
-            setScreenOutput(<p>ASIC Miner installato. <span className="highlight-red">Consumo energetico aumentato!</span></p>);
-        } else if (type === 'solar' && credits >= 300) {
-            setCredits(prev => prev - 300);
-            setSolarPanels(prev => prev + 1);
-            setScreenOutput(<p>Matrice Eco-Solare connessa alla rete.</p>);
-        }
-        setControlsType('scan');
-    };
+    return (
+        <div style={{ width: '100%', minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#050505' }}>
+            
+            {/* CONTAINER DEL GIOCO MINIATURIZZATO (10x5 cm) */}
+            <div style={{ width: '10cm', height: '5cm', backgroundColor: '#000', position: 'relative', border: '2px solid #00ffcc', boxShadow: '0 0 15px rgba(0, 255, 204, 0.3)', overflow: 'hidden' }}>
+                
+                {/* OVERLAY HUD ADATTATO */}
+                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 10, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '5px', boxSizing: 'border-box', fontFamily: '"Courier New", Courier, monospace', color: '#00ffcc', textShadow: '0 0 2px rgba(0,255,204,0.8)' }}>
+                    
+                    <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', color: 'rgba(255, 255, 255, 0.5)', fontSize: '10px' }}>+</div>
 
-    // --- COMPONENTI UI ---
-    const ProgressBar = ({ label, value, color, max = 100 }: any) => (
-        <div className="progress-container">
-            <div className="progress-header"><span>{label}</span><span>{value}/{max}</span></div>
-            <div className="progress-track">
-                <motion.div className="progress-fill" style={{ backgroundColor: color }} initial={{ width: 0 }} animate={{ width: `${(value/max)*100}%` }} transition={{ duration: 0.5 }} />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', fontWeight: 'bold' }}>
+                        <div>{mapNames[mapIndex].toUpperCase()}</div>
+                        <div style={{ color: '#ffea00' }}>CREDITI: {credits} ⌬</div>
+                    </div>
+
+                    {/* FINESTRA INTERATTIVA */}
+                    {activeTerminal && (
+                        <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', backgroundColor: 'rgba(0, 0, 0, 0.9)', border: '1px solid #00ffcc', padding: '8px', pointerEvents: 'auto', textAlign: 'center', width: '90%' }}>
+                            
+                            {activeTerminal.type === 'loot' ? (
+                                <p style={{ fontSize: '9px', marginBottom: '8px', margin: 0 }}>Trovi: {activeTerminal.data.name} ({activeTerminal.data.val} ⌬)</p>
+                            ) : (
+                                <p style={{ fontSize: '9px', marginBottom: '8px', margin: 0 }}>
+                                    {activeTerminal.data.name}: "{activeTerminal.data.isSelling ? 'Ti vendo' : 'Compro'} {activeTerminal.data.offerItem.name} per {activeTerminal.data.offerItem.val} ⌬"
+                                </p>
+                            )}
+
+                            <div style={{ display: 'flex', justifyContent: 'center', gap: '5px', marginTop: '10px' }}>
+                                <button onClick={() => processTrade(true)} style={btnStyle}>ACCETTA</button>
+                                <button onClick={() => processTrade(false)} style={{...btnStyle, borderColor: '#ff0055', color: '#ff0055'}}>RIFIUTA</button>
+                            </div>
+                        </div>
+                    )}
+
+                    <div style={{ backgroundColor: 'rgba(0,0,0,0.6)', padding: '3px', borderLeft: '2px solid #00ffcc', fontSize: '7px' }}>
+                        {logs.map((log, i) => <div key={i} style={{ opacity: 1 - i * 0.2 }}>{`> ${log}`}</div>)}
+                    </div>
+                </div>
+
+                {/* TELA 3D */}
+                <Canvas camera={{ position: [0, 1.5, 0], fov: 75 }}>
+                    <MapEnvironment 
+                        mapIndex={mapIndex} 
+                        changeMap={handleNextMap}
+                        items={worldData[mapIndex].items} 
+                        npcs={worldData[mapIndex].npcs}
+                        interactItem={handleInteractItem}
+                        interactNPC={handleInteractNPC}
+                    />
+                </Canvas>
             </div>
         </div>
     );
-
-    return (
-        <div className="game-wrapper crt-effect">
-            <canvas ref={canvasRef} id="starfield"></canvas>
-            <div className="scanlines"></div>
-            <div className="noise-overlay"></div>
-
-            <motion.div className="sys-container-advanced" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.8 }}>
-                
-                {/* HEADER GLOBALE */}
-                <header className="global-header">
-                    <div className="title glitch-text" data-text="OS // AVAMPOSTO 9">OS // AVAMPOSTO 9</div>
-                    <div className="top-stats">
-                        <span className="stat-cred">⌬ {credits}</span>
-                        <span className="stat-cycle">CICLO {cycle}</span>
-                    </div>
-                </header>
-
-                {/* COLONNA SINISTRA: MAGAZZINO */}
-                <div className="panel cargo-hold">
-                    <h3>STIVA PRINCIPALE</h3>
-                    <AnimatePresence>
-                        {inventory.map(item => (
-                            <motion.div key={item.uid} layout initial={{opacity:0, x:-20}} animate={{opacity:1, x:0}} exit={{opacity:0, scale:0.8}} className={`item-slot ${item.illegal ? 'item-illegal' : ''}`}>
-                                <div className="item-title">{item.icon} {item.name}</div>
-                                <div className="item-meta"><span>{item.val} ⌬</span>{item.illegal ? <span className="highlight-red">ILLEGALE</span> : <span className="highlight-green">LEGALE</span>}</div>
-                            </motion.div>
-                        ))}
-                    </AnimatePresence>
-                </div>
-
-                {/* COLONNA CENTRALE: TERMINALE */}
-                <div className="panel terminal">
-                    <div className="screen-output">
-                        <AnimatePresence mode="wait">
-                            <motion.div key={controlsType} initial={{opacity:0, filter:"blur(4px)"}} animate={{opacity:1, filter:"blur(0px)"}} exit={{opacity:0}}>
-                                {screenOutput}
-                            </motion.div>
-                        </AnimatePresence>
-                    </div>
-                    
-                    <div className="command-panel">
-                        {controlsType === 'scan' && <motion.button whileHover={{scale:1.02}} whileTap={{scale:0.98}} onClick={nextEvent} className="btn-full">[ AVVIA SCANSIONE SETTORE ]</motion.button>}
-                        {controlsType === 'sell' && (
-                            <>
-                                <button onClick={() => handleTransaction('sell')} className="btn-neutral">[ ACCETTA OFFERTA ]</button>
-                                <button onClick={() => { setScreenOutput(<p>Comunicazione chiusa.</p>); setControlsType('scan'); }} className="btn-danger">[ RIFIUTA ]</button>
-                            </>
-                        )}
-                        {controlsType === 'buy' && (
-                            <>
-                                <button disabled={credits < currentOffer?.price} onClick={() => handleTransaction('buy')} className="btn-neutral">[ COMPRA MERCE ]</button>
-                                <button onClick={() => { setScreenOutput(<p>Canale chiuso.</p>); setControlsType('scan'); }} className="btn-danger">[ RIFIUTA ]</button>
-                            </>
-                        )}
-                        {controlsType === 'infrastructure' && (
-                            <>
-                                <button disabled={credits < 600} onClick={() => buyInfra('miner')} className="btn-neutral">[ COMPRA MINER (600⌬) ]</button>
-                                <button disabled={credits < 300} onClick={() => buyInfra('solar')} className="btn-neutral">[ COMPRA PANNELLO (300⌬) ]</button>
-                                <button onClick={() => { setControlsType('scan'); setScreenOutput(<p>Nessun acquisto.</p>); }} className="btn-danger">[ ESCI ]</button>
-                            </>
-                        )}
-                        {controlsType === 'gameover' && <button onClick={() => window.location.reload()} className="btn-danger btn-full">[ RIAVVIA SISTEMA ]</button>}
-                    </div>
-                </div>
-
-                {/* COLONNA DESTRA: STATO E INFRASTRUTTURA */}
-                <div className="panel status-panel">
-                    <h3>STATO SISTEMA</h3>
-                    <ProgressBar label="ENERGIA (⚡)" value={energy} color={energy < 30 ? "#ff0055" : "#00e5ff"} />
-                    <ProgressBar label="SOSPETTO (🚨)" value={suspicion} color={suspicion > 70 ? "#ff0055" : "#ffea00"} />
-                    
-                    <h3 style={{marginTop: '30px'}}>INFRASTRUTTURA</h3>
-                    <div className="infra-grid">
-                        <div className="infra-box">
-                            <span className="infra-icon">🖥️</span>
-                            <div className="infra-info">
-                                <div>ASIC Miners</div>
-                                <div className="highlight-yellow">{miners} Attivi</div>
-                            </div>
-                        </div>
-                        <div className="infra-box">
-                            <span className="infra-icon">☀️</span>
-                            <div className="infra-info">
-                                <div>Pannelli Solari</div>
-                                <div className="highlight-green">{solarPanels} Attivi</div>
-                            </div>
-                        </div>
-                    </div>
-                    <div style={{marginTop: '15px', fontSize: '0.85rem', color: '#888'}}>
-                        * I Miners generano 60⌬ ma consumano 15⚡/ciclo.<br/>
-                        * I Pannelli generano 12⚡/ciclo.
-                    </div>
-                </div>
-
-            </motion.div>
-        </div>
-    );
 }
+
+const btnStyle = { background: 'transparent', color: '#00ffcc', border: '1px solid #00ffcc', padding: '3px 6px', fontFamily: 'inherit', fontSize: '8px', cursor: 'pointer', textTransform: 'uppercase' as const };

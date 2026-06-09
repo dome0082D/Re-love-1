@@ -284,9 +284,16 @@ function HomePageContent() {
         {/* CONTENUTO CENTRALE - ORDINE AGGIORNATO PER MOBILE */}
         <main className="flex-1 w-full overflow-hidden order-1 lg:order-2">
           
-          {/* GIOCO GALACTIC OUTPOST A LARGHEZZA INTERA */}
-          <div className="w-full mx-auto mt-8 mb-10 rounded-[2rem] overflow-hidden border border-stone-200 shadow-md bg-[#020205] relative min-h-[350px] flex">
-            <GalacticOutpost />
+          {/* VIDEO RIPORTATO IN ALTO AL CENTRO */}
+          <div className="w-full max-w-[420px] mx-auto mt-8 mb-10 rounded-[2rem] overflow-hidden border border-stone-200 shadow-md bg-white">
+            <video 
+              src="/hero-video.mp4" 
+              className="w-full h-auto object-cover block"
+              autoPlay 
+              muted 
+              loop 
+              playsInline
+            />
           </div>
 
           {/* FILTRI CON COLORI SOLIDI E PIATTI */}
@@ -503,16 +510,9 @@ function HomePageContent() {
             )}
           </section>
 
-          {/* VIDEO SPOSTATO IN BASSO */}
-          <div className="w-full max-w-[420px] mx-auto mt-12 mb-10 rounded-[2rem] overflow-hidden border border-stone-200 shadow-md bg-white">
-            <video 
-              src="/hero-video.mp4" 
-              className="w-full h-auto object-cover block"
-              autoPlay 
-              muted 
-              loop 
-              playsInline
-            />
+          {/* GIOCO GALACTIC OUTPOST SPOSTATO IN FONDO - FORMATO PICCOLO */}
+          <div className="w-full max-w-[400px] mx-auto mt-12 mb-10 rounded-2xl overflow-hidden shadow-sm bg-[#020205] relative h-[200px] flex">
+            <GalacticOutpost />
           </div>
 
         </main>

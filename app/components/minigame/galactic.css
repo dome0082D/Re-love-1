@@ -4,7 +4,7 @@
     z-index: 5;
     width: 98vw;
     max-width: 1400px;
-    height: 32vh;
+    height: 2vh;
     margin: 4vh auto;
     display: grid;
     grid-template-columns: 300px 1fr 350px; /* 3 Colonne */
