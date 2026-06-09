@@ -284,7 +284,7 @@ function HomePageContent() {
         {/* CONTENUTO CENTRALE - ORDINE AGGIORNATO PER MOBILE */}
         <main className="flex-1 w-full overflow-hidden order-1 lg:order-2">
           
-          {/* VIDEO RIPORTATO IN ALTO AL CENTRO */}
+          {/* VIDEO IN ALTO AL CENTRO */}
           <div className="w-full max-w-[420px] mx-auto mt-8 mb-10 rounded-[2rem] overflow-hidden border border-stone-200 shadow-md bg-white">
             <video 
               src="/hero-video.mp4" 
@@ -510,8 +510,8 @@ function HomePageContent() {
             )}
           </section>
 
-          {/* GIOCO GALACTIC OUTPOST SPOSTATO IN FONDO - FORMATO PICCOLO */}
-          <div className="w-full max-w-[400px] mx-auto mt-12 mb-10 rounded-2xl overflow-hidden shadow-sm bg-[#020205] relative h-[200px] flex">
+          {/* GIOCO GALACTIC OUTPOST SPOSTATO IN FONDO - FORMATO 20x10 cm */}
+          <div className="w-full max-w-[800px] mx-auto mt-12 mb-10 rounded-[2rem] overflow-hidden shadow-sm bg-[#020205] relative h-[400px] flex">
             <GalacticOutpost />
           </div>
 
