@@ -341,26 +341,40 @@ function HomePageContent() {
             </div>
 
             {/* RIQUADRO LABORATORI & CORSI (SFONDO IN PALETTE HERO BEIGE) */}
-            <div className="w-full rounded-[2rem] border border-stone-200 shadow-md bg-[#f5efdf] p-6 flex flex-col justify-between min-h-[360px] text-stone-900">
+            <div className="w-full rounded-[2rem] border border-stone-200 shadow-md bg-[#f5efdf] p-6 flex flex-col justify-between min-h-[360px] text-stone-900 relative">
               <div>
                 <div className="flex justify-between items-center mb-4">
                   <div>
                     <span className="text-[9px] font-black uppercase tracking-widest text-rose-600 block">Community</span>
-                    <h3 className="text-base font-black uppercase tracking-tight">Laboratori & Corsi</h3>
+                    <Link href="/laboratori" className="text-base font-black uppercase tracking-tight hover:text-rose-600 transition-colors">Laboratori & Corsi</Link>
                   </div>
-                  <button 
-                    onClick={() => {
-                      if (!user) {
-                        toast.error("Devi accedere per creare un corso! 🔑")
-                      } else {
-                        setShowCreateForm(!showCreateForm)
-                      }
-                    }}
-                    className="bg-stone-900 text-white text-[10px] font-black uppercase tracking-wider px-3 py-2 rounded-xl hover:bg-rose-600 transition-all flex items-center gap-1"
-                  >
-                    <Plus size={12} />
-                    Crea
-                  </button>
+                  <div className="flex gap-2">
+                    <Link 
+                      href="/laboratori"
+                      className="bg-white text-stone-900 border border-stone-200 text-[10px] font-black uppercase tracking-wider px-3 py-2 rounded-xl hover:bg-stone-100 transition-all flex items-center gap-1 shadow-sm"
+                    >
+                      Bacheca
+                    </Link>
+                    <Link 
+                      href="/laboratori/agenda"
+                      className="bg-stone-100 text-stone-900 border border-stone-300 text-[10px] font-black uppercase tracking-wider px-3 py-2 rounded-xl hover:bg-stone-200 transition-all flex items-center gap-1 shadow-sm"
+                    >
+                      Agenda
+                    </Link>
+                    <button 
+                      onClick={() => {
+                        if (!user) {
+                          toast.error("Devi accedere per creare un corso! 🔑")
+                        } else {
+                          setShowCreateForm(!showCreateForm)
+                        }
+                      }}
+                      className="bg-stone-900 text-white text-[10px] font-black uppercase tracking-wider px-3 py-2 rounded-xl hover:bg-rose-600 transition-all flex items-center gap-1 shadow-sm"
+                    >
+                      <Plus size={12} />
+                      Crea
+                    </button>
+                  </div>
                 </div>
 
                 {/* FORM INLINE DI CREAZIONE RAPIDA LABORATORIO */}
@@ -394,14 +408,14 @@ function HomePageContent() {
                   </div>
                 )}
 
-                {/* SCROLLABLE LIST DEI LABORATORI DISPONIBILI */}
-                <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
+                {/* SCROLLABLE LIST DEI LABORATORI DISPONIBILI CON LINK ALLA PAGINA DEDICATA */}
+                <div className="space-y-2 max-h-[190px] overflow-y-auto pr-1">
                   {courses.map(course => {
                     const isFounder = user?.email === course.creator;
                     const canModify = IS_STAFF || isFounder;
                     return (
-                      <div key={course.id} className="bg-white/80 p-3 rounded-xl border border-stone-200/60 flex items-center justify-between gap-2 shadow-sm">
-                        <div className="overflow-hidden">
+                      <div key={course.id} className="bg-white/80 p-3 rounded-xl border border-stone-200/60 flex items-center justify-between gap-2 shadow-sm group">
+                        <Link href={`/laboratori/${course.id}`} className="overflow-hidden flex-1 cursor-pointer hover:opacity-75 transition-opacity">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="bg-stone-900 text-white text-[7px] font-black uppercase px-1.5 py-0.5 rounded-md tracking-wider">
                               {course.category}
@@ -410,9 +424,9 @@ function HomePageContent() {
                               da {isFounder ? 'te' : course.creator.split('@')[0]}
                             </span>
                           </div>
-                          <h4 className="text-xs font-black uppercase text-stone-900 truncate mt-1">{course.title}</h4>
+                          <h4 className="text-xs font-black uppercase text-stone-900 truncate mt-1 group-hover:text-rose-600 transition-colors">{course.title}</h4>
                           <p className="text-[9px] font-bold text-stone-500 uppercase mt-0.5">👥 {course.members} partecipanti</p>
-                        </div>
+                        </Link>
                         <div className="flex gap-1 shrink-0">
                           <button 
                             onClick={() => handleJoinCourse(course.id)}
@@ -436,9 +450,18 @@ function HomePageContent() {
                 </div>
               </div>
 
-              <div className="text-[9px] font-bold text-stone-500 uppercase mt-3 tracking-wide border-t border-stone-300/50 pt-2 flex justify-between">
-                <span>Ingresso Libero 🤝</span>
-                {IS_STAFF && <span className="text-rose-600 font-black">Staff Control 👑</span>}
+              {/* FOOTER DEL RIQUADRO CON PULSANTE "TUTTI I CORSI" */}
+              <div className="flex justify-between items-center mt-3 border-t border-stone-300/50 pt-3">
+                <div className="text-[9px] font-bold text-stone-500 uppercase tracking-wide flex items-center gap-2">
+                  <span>Ingresso Libero 🤝</span>
+                  {IS_STAFF && <span className="text-rose-600 font-black">Staff 👑</span>}
+                </div>
+                <Link 
+                  href="/laboratori" 
+                  className="bg-stone-900 text-white text-[9px] font-black uppercase px-3 py-1.5 rounded-lg hover:bg-rose-600 transition-colors shadow-sm"
+                >
+                  Tutti i Corsi →
+                </Link>
               </div>
             </div>
           </div>
