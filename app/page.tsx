@@ -67,9 +67,25 @@ function HomePageContent() {
     { id: '1', title: 'Riparazione Oggetti & Elettronica 🛠️', category: 'Riuso', creator: 'dome0082@gmail.com', members: 14 },
     { id: '2', title: 'Corsi di Cucina Antispreco 🍳', category: 'Cucina', creator: 'luca@relove.it', members: 9 },
   ])
+  
+  // N.B: Questo stato gestiva il form piccolo. Lo lascio per non rompere niente se lo usavi da altre parti
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [newCourseTitle, setNewCourseTitle] = useState('')
   const [newCourseCategory, setNewCourseCategory] = useState('Riuso')
+  
+  // --- NUOVI STATI PER IL MODALE COMPLETO DI CREAZIONE CORSO ---
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [courseForm, setCourseForm] = useState({
+    title: '',
+    category: 'Riuso',
+    description: '',
+    date: '',
+    startTime: '',
+    endTime: '',
+    location: '',
+    price: '',
+    imageUrl: ''
+  })
   
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -102,26 +118,37 @@ function HomePageContent() {
     setLoading(false)
   }
 
-  // LOGICA GESTIONE CORSI E LABORATORI
+  // LOGICA GESTIONE CORSI E LABORATORI (Adattata per usare i dati del Modale)
   const handleCreateCourse = () => {
     if (!user) {
       toast.error("Devi accedere per creare un corso! 🔑")
       return
     }
-    if (!newCourseTitle.trim()) {
+    
+    // Controlliamo che abbia almeno inserito il titolo nel modale
+    const titleToUse = courseForm.title || newCourseTitle;
+    
+    if (!titleToUse.trim()) {
       toast.error("Inserisci un titolo valido per il laboratorio!")
       return
     }
+    
     const newCourse = {
       id: Math.random().toString(),
-      title: newCourseTitle,
-      category: newCourseCategory,
+      title: titleToUse,
+      category: courseForm.category || newCourseCategory,
       creator: user.email || '',
       members: 1
     }
+    
     setCourses([newCourse, ...courses])
+    
+    // Resetta tutto
     setNewCourseTitle('')
     setShowCreateForm(false)
+    setCourseForm({ title: '', category: 'Riuso', description: '', date: '', startTime: '', endTime: '', location: '', price: '', imageUrl: '' })
+    setIsCreateModalOpen(false)
+    
     toast.success("Nuovo laboratorio creato con successo! 🎉")
   }
 
@@ -366,7 +393,8 @@ function HomePageContent() {
                         if (!user) {
                           toast.error("Devi accedere per creare un corso! 🔑")
                         } else {
-                          setShowCreateForm(!showCreateForm)
+                          // ATTIVIAMO IL MODALE GRANDE E COMPLETO INVECE DI QUELLO PICCOLO
+                          setIsCreateModalOpen(true)
                         }
                       }}
                       className="bg-stone-900 text-white text-[10px] font-black uppercase tracking-wider px-3 py-2 rounded-xl hover:bg-rose-600 transition-all flex items-center gap-1 shadow-sm"
@@ -376,37 +404,6 @@ function HomePageContent() {
                     </button>
                   </div>
                 </div>
-
-                {/* FORM INLINE DI CREAZIONE RAPIDA LABORATORIO */}
-                {showCreateForm && (
-                  <div className="bg-white p-3 rounded-2xl border border-stone-200 mb-4 flex flex-col gap-2 shadow-sm">
-                    <input 
-                      type="text" 
-                      placeholder="Nome del corso (es. Corso di Cucina)" 
-                      value={newCourseTitle}
-                      onChange={(e) => setNewCourseTitle(e.target.value)}
-                      className="w-full p-2 bg-stone-50 border border-stone-200 rounded-xl text-xs font-bold outline-none focus:border-rose-500"
-                    />
-                    <div className="flex gap-2">
-                      <select 
-                        value={newCourseCategory}
-                        onChange={(e) => setNewCourseCategory(e.target.value)}
-                        className="p-2 bg-stone-50 border border-stone-200 rounded-xl text-[11px] font-black uppercase text-stone-800"
-                      >
-                        <option value="Riuso">🛠️ Riuso / Riparazione</option>
-                        <option value="Cucina">🍳 Cucina Sostenibile</option>
-                        <option value="Fai da te">🎨 Fai da Te</option>
-                        <option value="Altro">📦 Altro</option>
-                      </select>
-                      <button 
-                        onClick={handleCreateCourse}
-                        className="flex-1 bg-rose-600 text-white text-[10px] font-black uppercase rounded-xl tracking-wider hover:bg-stone-900 transition-all"
-                      >
-                        Conferma
-                      </button>
-                    </div>
-                  </div>
-                )}
 
                 {/* SCROLLABLE LIST DEI LABORATORI DISPONIBILI CON LINK ALLA PAGINA DEDICATA */}
                 <div className="space-y-2 max-h-[190px] overflow-y-auto pr-1">
@@ -722,6 +719,73 @@ function HomePageContent() {
         </aside>
 
       </div>
+
+      {/* --- MODALE CREAZIONE CORSO COMPLETO --- */}
+      {isCreateModalOpen && (
+        <div className="fixed inset-0 z-[999] bg-stone-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-[2rem] p-6 md:p-8 w-full max-w-2xl shadow-2xl relative border border-stone-200 overflow-y-auto max-h-[90vh]">
+            <h2 className="text-2xl font-black uppercase tracking-tight text-stone-900 mb-6">Crea Nuovo Corso</h2>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <div className="md:col-span-2">
+                <label className="text-[10px] font-black uppercase text-stone-500 tracking-widest ml-2 block mb-1">Titolo del Corso</label>
+                <input type="text" value={courseForm.title} onChange={(e) => setCourseForm({...courseForm, title: e.target.value})} placeholder="Es. Riparazione Bici Elettriche" className="w-full p-3 bg-stone-50 border border-stone-200 rounded-xl outline-none focus:border-rose-500 text-sm font-bold text-stone-900" />
+              </div>
+              
+              <div className="md:col-span-2">
+                <label className="text-[10px] font-black uppercase text-stone-500 tracking-widest ml-2 block mb-1">Descrizione Completa</label>
+                <textarea value={courseForm.description} onChange={(e) => setCourseForm({...courseForm, description: e.target.value})} rows={3} placeholder="Cosa impareremo in questo corso? Cosa serve portare?" className="w-full p-3 bg-stone-50 border border-stone-200 rounded-xl outline-none focus:border-rose-500 text-sm font-medium resize-none text-stone-900" />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase text-stone-500 tracking-widest ml-2 block mb-1">Categoria</label>
+                <select value={courseForm.category} onChange={(e) => setCourseForm({...courseForm, category: e.target.value})} className="w-full p-3 bg-stone-50 border border-stone-200 rounded-xl outline-none focus:border-rose-500 text-sm font-bold uppercase text-stone-900">
+                  <option value="Riuso">🛠️ Riuso / Riparazione</option>
+                  <option value="Cucina">🍳 Cucina Sostenibile</option>
+                  <option value="Fai da te">🎨 Fai da Te</option>
+                  <option value="Altro">📦 Altro</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase text-stone-500 tracking-widest ml-2 block mb-1">Prezzo (€)</label>
+                <input type="number" value={courseForm.price} onChange={(e) => setCourseForm({...courseForm, price: e.target.value})} placeholder="0 per Gratuito" className="w-full p-3 bg-stone-50 border border-stone-200 rounded-xl outline-none focus:border-rose-500 text-sm font-bold text-stone-900" />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="text-[10px] font-black uppercase text-stone-500 tracking-widest ml-2 block mb-1">Luogo / Indirizzo / Zona</label>
+                <input type="text" value={courseForm.location} onChange={(e) => setCourseForm({...courseForm, location: e.target.value})} placeholder="Es. Cortile Gemme, Via delle Rose" className="w-full p-3 bg-stone-50 border border-stone-200 rounded-xl outline-none focus:border-rose-500 text-sm font-bold text-stone-900" />
+              </div>
+
+              <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-[10px] font-black uppercase text-stone-500 tracking-widest ml-2 block mb-1">Data</label>
+                  <input type="date" value={courseForm.date} onChange={(e) => setCourseForm({...courseForm, date: e.target.value})} className="w-full p-3 bg-stone-50 border border-stone-200 rounded-xl outline-none focus:border-rose-500 text-sm font-bold text-stone-900" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black uppercase text-stone-500 tracking-widest ml-2 block mb-1">Ora Inizio</label>
+                  <input type="time" value={courseForm.startTime} onChange={(e) => setCourseForm({...courseForm, startTime: e.target.value})} className="w-full p-3 bg-stone-50 border border-stone-200 rounded-xl outline-none focus:border-rose-500 text-sm font-bold text-stone-900" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black uppercase text-stone-500 tracking-widest ml-2 block mb-1">Ora Fine</label>
+                  <input type="time" value={courseForm.endTime} onChange={(e) => setCourseForm({...courseForm, endTime: e.target.value})} className="w-full p-3 bg-stone-50 border border-stone-200 rounded-xl outline-none focus:border-rose-500 text-sm font-bold text-stone-900" />
+                </div>
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="text-[10px] font-black uppercase text-stone-500 tracking-widest ml-2 block mb-1">Immagine (URL o link)</label>
+                <input type="text" value={courseForm.imageUrl} onChange={(e) => setCourseForm({...courseForm, imageUrl: e.target.value})} placeholder="https://..." className="w-full p-3 bg-stone-50 border border-stone-200 rounded-xl outline-none focus:border-rose-500 text-sm font-bold text-stone-900" />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6 pt-4 border-t border-stone-100">
+              <button onClick={() => setIsCreateModalOpen(false)} className="flex-1 p-4 rounded-xl bg-stone-100 text-stone-600 text-[11px] font-black uppercase tracking-widest hover:bg-stone-200 transition-colors">Annulla</button>
+              <button onClick={handleCreateCourse} className="flex-1 p-4 rounded-xl bg-rose-600 text-white text-[11px] font-black uppercase tracking-widest hover:bg-stone-900 transition-colors shadow-md">Pubblica Corso</button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }
