@@ -1,12 +1,12 @@
 'use client'
 export const dynamic = 'force-dynamic'
 
-import { useEffect, useState, Suspense } from 'react'
+import { useEffect, useState, Suspense, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { User } from '@supabase/supabase-js'
-import { Mic, MicOff, Search, MapPin, Heart, Crown, Mail, Plus } from 'lucide-react'
+import { Mic, MicOff, Search, MapPin, Heart, Crown, Mail, Plus, Send, Trash2, Edit2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import GalacticOutpost from './components/minigame/GalacticOutpost'
 
@@ -86,6 +86,13 @@ function HomePageContent() {
     price: '',
     imageUrl: ''
   })
+
+  // --- STATI PER LA CHAT GLOBALE IN TEMPO REALE 💬 ---
+  const [chatMessages, setChatMessages] = useState<any[]>([])
+  const [newChatMessage, setNewChatMessage] = useState('')
+  const [editingMsgId, setEditingMsgId] = useState<string | null>(null)
+  const [editMsgContent, setEditMsgContent] = useState('')
+  const chatContainerRef = useRef<HTMLDivElement>(null)
   
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -95,7 +102,24 @@ function HomePageContent() {
 
   useEffect(() => { 
     fetchInitialData() 
+
+    // Avvia l'ascolto per i messaggi chat in tempo reale
+    fetchChatMessages()
+    const chatChannel = supabase.channel('public:global_chat')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'global_chat' }, () => {
+        fetchChatMessages()
+      })
+      .subscribe()
+      
+    return () => { supabase.removeChannel(chatChannel) }
   }, [])
+
+  // Auto-scroll della chat verso il basso
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+  }, [chatMessages])
 
   async function fetchInitialData() {
     setLoading(true)
@@ -118,14 +142,70 @@ function HomePageContent() {
     setLoading(false)
   }
 
-  // LOGICA GESTIONE CORSI E LABORATORI (Adattata per usare i dati del Modale)
+  // --- LOGICA GESTIONE CHAT GLOBALE 💬 ---
+  async function fetchChatMessages() {
+    const { data, error } = await supabase
+      .from('global_chat')
+      .select('*')
+      .order('created_at', { ascending: true }) // Ordine cronologico
+      .limit(100)
+    
+    if (!error && data) {
+      setChatMessages(data)
+    }
+  }
+
+  const containsPhoneNumber = (text: string) => {
+    // Blocca se ci sono 9 o più cifre consecutive
+    const digitsOnly = text.replace(/\D/g, '')
+    return digitsOnly.length >= 9
+  }
+
+  const handleSendChat = async () => {
+    if (!user) return toast.error("Devi accedere per scrivere in chat! 🔑")
+    if (!newChatMessage.trim()) return
+
+    if (containsPhoneNumber(newChatMessage)) {
+      return toast.error("⚠️ Non è consentito inviare numeri di telefono in chat pubblica!")
+    }
+
+    const content = newChatMessage
+    setNewChatMessage('') 
+
+    const { error } = await supabase.from('global_chat').insert([{
+      user_id: user.id,
+      user_email: user.email,
+      content: content
+    }])
+
+    if (error) toast.error("Errore nell'invio del messaggio.")
+  }
+
+  const handleDeleteChat = async (id: string, msgUserId: string) => {
+    if (IS_STAFF || user?.id === msgUserId) {
+      await supabase.from('global_chat').delete().eq('id', id)
+      toast.success("Messaggio eliminato.")
+    } else {
+      toast.error("Non hai i permessi per cancellare questo messaggio.")
+    }
+  }
+
+  const handleUpdateChat = async (id: string) => {
+    if (containsPhoneNumber(editMsgContent)) {
+      return toast.error("⚠️ Non è consentito inserire numeri di telefono!")
+    }
+    await supabase.from('global_chat').update({ content: editMsgContent }).eq('id', id)
+    setEditingMsgId(null)
+    toast.success("Messaggio modificato.")
+  }
+
+  // --- LOGICA GESTIONE CORSI E LABORATORI ---
   const handleCreateCourse = () => {
     if (!user) {
       toast.error("Devi accedere per creare un corso! 🔑")
       return
     }
     
-    // Controlliamo che abbia almeno inserito il titolo nel modale
     const titleToUse = courseForm.title || newCourseTitle;
     
     if (!titleToUse.trim()) {
@@ -143,7 +223,6 @@ function HomePageContent() {
     
     setCourses([newCourse, ...courses])
     
-    // Resetta tutto
     setNewCourseTitle('')
     setShowCreateForm(false)
     setCourseForm({ title: '', category: 'Riuso', description: '', date: '', startTime: '', endTime: '', location: '', price: '', imageUrl: '' })
@@ -393,7 +472,6 @@ function HomePageContent() {
                         if (!user) {
                           toast.error("Devi accedere per creare un corso! 🔑")
                         } else {
-                          // ATTIVIAMO IL MODALE GRANDE E COMPLETO INVECE DI QUELLO PICCOLO
                           setIsCreateModalOpen(true)
                         }
                       }}
@@ -526,58 +604,161 @@ function HomePageContent() {
             </div>
           </section>
 
-          {/* QUATTRO RIQUADRI CENTRALI - CONFIGURAZIONE BEIGE ED IMPOSTAZIONE SPENSIERATA COPERTURA TOTALE */}
+          {/* QUATTRO RIQUADRI CENTRALI + CHAT DI COMUNITÀ IN TEMPO REALE */}
           {!catFilter && !typeFilter && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-16 max-w-5xl mx-auto px-2">
-              
-              {/* TOOLTIP: VENDI NUOVO */}
-              <Tooltip text="Metti in vendita un oggetto mai usato ✨" wrapperClass="relative w-full h-full">
-                <Link href="/add?mode=new" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#f5efdf] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
-                   <div className="absolute inset-0 w-full h-full overflow-hidden">
-                     <img src="/nuovo.png" className="w-full h-full object-cover" alt="Nuovo" />
-                   </div>
-                   <div className="absolute bottom-3 z-10 w-full px-2">
-                     <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Vendi Nuovo</span>
-                   </div>
-                </Link>
-              </Tooltip>
-              
-              {/* TOOLTIP: VENDI USATO */}
-              <Tooltip text="Dai una seconda vita ai tuoi oggetti ♻️" wrapperClass="relative w-full h-full">
-                <Link href="/add?mode=used" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#f5efdf] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
-                   <div className="absolute inset-0 w-full h-full overflow-hidden">
-                     <img src="/usato.png" className="w-full h-full object-cover" alt="Usato" />
-                   </div>
-                   <div className="absolute bottom-3 z-10 w-full px-2">
-                     <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Vendi Usato</span>
-                   </div>
-                </Link>
-              </Tooltip>
-              
-              {/* TOOLTIP: REGALO */}
-              <Tooltip text="Regala o trova oggetti gratis in regalo 🎁" wrapperClass="relative w-full h-full">
-                <Link href="/add?mode=gift" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#f5efdf] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
-                   <div className="absolute inset-0 w-full h-full overflow-hidden">
-                     <img src="/regalo.png" className="w-full h-full object-cover" alt="Regalo" />
-                   </div>
-                   <div className="absolute bottom-3 z-10 w-full px-2">
-                     <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Regalo</span>
-                   </div>
-                </Link>
-              </Tooltip>
+            <>
+              {/* I 4 RIQUADRI */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-6 max-w-5xl mx-auto px-2">
+                
+                {/* TOOLTIP: VENDI NUOVO */}
+                <Tooltip text="Metti in vendita un oggetto mai usato ✨" wrapperClass="relative w-full h-full">
+                  <Link href="/add?mode=new" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#f5efdf] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
+                     <div className="absolute inset-0 w-full h-full overflow-hidden">
+                       <img src="/nuovo.png" className="w-full h-full object-cover" alt="Nuovo" />
+                     </div>
+                     <div className="absolute bottom-3 z-10 w-full px-2">
+                       <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Vendi Nuovo</span>
+                     </div>
+                  </Link>
+                </Tooltip>
+                
+                {/* TOOLTIP: VENDI USATO */}
+                <Tooltip text="Dai una seconda vita ai tuoi oggetti ♻️" wrapperClass="relative w-full h-full">
+                  <Link href="/add?mode=used" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#f5efdf] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
+                     <div className="absolute inset-0 w-full h-full overflow-hidden">
+                       <img src="/usato.png" className="w-full h-full object-cover" alt="Usato" />
+                     </div>
+                     <div className="absolute bottom-3 z-10 w-full px-2">
+                       <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Vendi Usato</span>
+                     </div>
+                  </Link>
+                </Tooltip>
+                
+                {/* TOOLTIP: REGALO */}
+                <Tooltip text="Regala o trova oggetti gratis in regalo 🎁" wrapperClass="relative w-full h-full">
+                  <Link href="/add?mode=gift" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#f5efdf] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
+                     <div className="absolute inset-0 w-full h-full overflow-hidden">
+                       <img src="/regalo.png" className="w-full h-full object-cover" alt="Regalo" />
+                     </div>
+                     <div className="absolute bottom-3 z-10 w-full px-2">
+                       <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Regalo</span>
+                     </div>
+                  </Link>
+                </Tooltip>
 
-              {/* TOOLTIP: BARATTO */}
-              <Tooltip text="Scambia i tuoi oggetti senza usare soldi 🤝" wrapperClass="relative w-full h-full">
-                <Link href="/add?mode=barter" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#f5efdf] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
-                   <div className="absolute inset-0 w-full h-full overflow-hidden">
-                     <img src="/baratto.png" className="w-full h-full object-cover" alt="Baratto" />
-                   </div>
-                   <div className="absolute bottom-3 z-10 w-full px-2">
-                     <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Baratto</span>
-                   </div>
-                </Link>
-              </Tooltip>
-            </div>
+                {/* TOOLTIP: BARATTO */}
+                <Tooltip text="Scambia i tuoi oggetti senza usare soldi 🤝" wrapperClass="relative w-full h-full">
+                  <Link href="/add?mode=barter" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#f5efdf] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
+                     <div className="absolute inset-0 w-full h-full overflow-hidden">
+                       <img src="/baratto.png" className="w-full h-full object-cover" alt="Baratto" />
+                     </div>
+                     <div className="absolute bottom-3 z-10 w-full px-2">
+                       <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Baratto</span>
+                     </div>
+                  </Link>
+                </Tooltip>
+              </div>
+
+              {/* LA CHAT DI GRUPPO REATTIVA (Stessa altezza di un box, larga il doppio su desktop, quadrata su mobile) */}
+              <div className="max-w-5xl mx-auto px-2 mb-16 flex justify-start">
+                <div className="w-full md:w-1/2 aspect-square md:aspect-[2/1] bg-white border border-stone-200 rounded-[2rem] shadow-sm flex flex-col overflow-hidden relative">
+                  
+                  {/* Header Chat */}
+                  <div className="bg-[#f5efdf] px-4 py-3 border-b border-stone-200 flex justify-between items-center shrink-0">
+                    <span className="text-[11px] font-black uppercase tracking-widest text-stone-900 flex items-center gap-2">
+                      Community Chat <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_5px_rgba(16,185,129,0.8)]"></span>
+                    </span>
+                    <span className="text-[8px] font-bold text-stone-500 uppercase">Live</span>
+                  </div>
+
+                  {/* Messaggi */}
+                  <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-3 flex flex-col gap-3 custom-scrollbar bg-stone-50/50">
+                    {chatMessages.length === 0 ? (
+                      <p className="text-center text-[10px] font-bold text-stone-400 uppercase mt-auto mb-auto">Nessun messaggio. Scrivi per primo!</p>
+                    ) : (
+                      chatMessages.map(msg => {
+                        const isMine = user?.id === msg.user_id;
+                        const canModify = isMine || IS_STAFF;
+                        const isEditingThis = editingMsgId === msg.id;
+
+                        return (
+                          <div key={msg.id} className={`flex flex-col max-w-[85%] ${isMine ? 'self-end items-end' : 'self-start items-start'}`}>
+                            {/* Nome mittente (visibile solo se non è il tuo messaggio) */}
+                            {!isMine && (
+                              <span className="text-[8px] font-black uppercase text-stone-400 mb-0.5 ml-1">
+                                {msg.user_email.split('@')[0]}
+                              </span>
+                            )}
+                            
+                            <div className={`px-3 py-2 rounded-2xl shadow-sm text-sm relative group ${isMine ? 'bg-rose-600 text-white rounded-br-sm' : 'bg-white border border-stone-200 text-stone-800 rounded-bl-sm'}`}>
+                              
+                              {/* Gestione Modifica Inline */}
+                              {isEditingThis ? (
+                                <div className="flex gap-2 items-center">
+                                  <input 
+                                    type="text" 
+                                    value={editMsgContent} 
+                                    onChange={e => setEditMsgContent(e.target.value)} 
+                                    className={`text-[11px] p-1.5 rounded-lg outline-none w-full min-w-[150px] font-medium ${isMine ? 'bg-rose-700 text-white placeholder-rose-300 border-none' : 'bg-stone-50 border border-stone-300'}`}
+                                    autoFocus
+                                    onKeyDown={(e) => e.key === 'Enter' && handleUpdateChat(msg.id)}
+                                  />
+                                  <button onClick={() => handleUpdateChat(msg.id)} className="shrink-0"><Send size={14} /></button>
+                                  <button onClick={() => setEditingMsgId(null)} className="shrink-0"><X size={14} /></button>
+                                </div>
+                              ) : (
+                                <p className="leading-snug break-words pr-2 font-medium">{msg.content}</p>
+                              )}
+
+                              {/* Azioni del messaggio (Modifica/Elimina) che appaiono al passaggio del mouse */}
+                              {canModify && !isEditingThis && (
+                                <div className={`absolute top-1/2 -translate-y-1/2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity bg-white p-1 rounded-lg shadow-sm border border-stone-200 ${isMine ? 'right-full mr-2' : 'left-full ml-2'}`}>
+                                  {isMine && (
+                                    <button onClick={() => { setEditingMsgId(msg.id); setEditMsgContent(msg.content); }} className="text-stone-400 hover:text-stone-900 transition-colors">
+                                      <Edit2 size={12} />
+                                    </button>
+                                  )}
+                                  <button onClick={() => handleDeleteChat(msg.id, msg.user_id)} className="text-stone-400 hover:text-red-500 transition-colors">
+                                    <Trash2 size={12} />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
+
+                  {/* Input Chat */}
+                  <div className="p-3 bg-white border-t border-stone-100 shrink-0">
+                    {user ? (
+                      <div className="flex gap-2 items-center bg-stone-50 border border-stone-200 rounded-xl px-2 py-1 focus-within:border-rose-300 focus-within:ring-2 focus-within:ring-rose-50 transition-all">
+                        <input 
+                          type="text" 
+                          placeholder="Scrivi un messaggio alla community..." 
+                          value={newChatMessage}
+                          onChange={(e) => setNewChatMessage(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && handleSendChat()}
+                          className="flex-1 bg-transparent border-none outline-none text-xs font-bold text-stone-900 p-2"
+                        />
+                        <button 
+                          onClick={handleSendChat}
+                          disabled={!newChatMessage.trim()}
+                          className="bg-stone-900 text-white w-8 h-8 rounded-lg flex items-center justify-center hover:bg-rose-600 transition-colors disabled:opacity-50 disabled:hover:bg-stone-900 shrink-0"
+                        >
+                          <Send size={14} className="ml-0.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="text-center p-2">
+                        <span className="text-[10px] font-black uppercase text-stone-400 tracking-widest">Devi accedere per partecipare</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </>
           )}
 
           {/* SEZIONE VETRINA TOP */}
