@@ -722,66 +722,80 @@ function HomePageContent() {
 
       {/* --- MODALE CREAZIONE CORSO COMPLETO --- */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 z-[999] bg-stone-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-[2rem] p-6 md:p-8 w-full max-w-2xl shadow-2xl relative border border-stone-200 overflow-y-auto max-h-[90vh]">
-            <h2 className="text-2xl font-black uppercase tracking-tight text-stone-900 mb-6">Crea Nuovo Corso</h2>
+        <div className="fixed inset-0 z-[999] bg-stone-900/60 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
+          <div className="bg-white rounded-[1.5rem] md:rounded-[2rem] w-full max-w-2xl shadow-2xl relative flex flex-col max-h-[95vh] md:max-h-[90vh] overflow-hidden border border-stone-200">
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              <div className="md:col-span-2">
-                <label className="text-[10px] font-black uppercase text-stone-500 tracking-widest ml-2 block mb-1">Titolo del Corso</label>
-                <input type="text" value={courseForm.title} onChange={(e) => setCourseForm({...courseForm, title: e.target.value})} placeholder="Es. Riparazione Bici Elettriche" className="w-full p-3 bg-stone-50 border border-stone-200 rounded-xl outline-none focus:border-rose-500 text-sm font-bold text-stone-900" />
-              </div>
-              
-              <div className="md:col-span-2">
-                <label className="text-[10px] font-black uppercase text-stone-500 tracking-widest ml-2 block mb-1">Descrizione Completa</label>
-                <textarea value={courseForm.description} onChange={(e) => setCourseForm({...courseForm, description: e.target.value})} rows={3} placeholder="Cosa impareremo in questo corso? Cosa serve portare?" className="w-full p-3 bg-stone-50 border border-stone-200 rounded-xl outline-none focus:border-rose-500 text-sm font-medium resize-none text-stone-900" />
-              </div>
+            {/* HEADER FISSO */}
+            <div className="px-5 py-4 border-b border-stone-100 shrink-0 bg-white flex justify-between items-center z-10">
+              <h2 className="text-lg md:text-2xl font-black uppercase tracking-tight text-stone-900">Crea Nuovo Corso</h2>
+              <button onClick={() => setIsCreateModalOpen(false)} className="text-stone-400 hover:text-stone-900 transition-colors p-1">
+                <span className="font-black text-xl leading-none">✕</span>
+              </button>
+            </div>
 
-              <div>
-                <label className="text-[10px] font-black uppercase text-stone-500 tracking-widest ml-2 block mb-1">Categoria</label>
-                <select value={courseForm.category} onChange={(e) => setCourseForm({...courseForm, category: e.target.value})} className="w-full p-3 bg-stone-50 border border-stone-200 rounded-xl outline-none focus:border-rose-500 text-sm font-bold uppercase text-stone-900">
-                  <option value="Riuso">🛠️ Riuso / Riparazione</option>
-                  <option value="Cucina">🍳 Cucina Sostenibile</option>
-                  <option value="Fai da te">🎨 Fai da Te</option>
-                  <option value="Altro">📦 Altro</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-[10px] font-black uppercase text-stone-500 tracking-widest ml-2 block mb-1">Prezzo (€)</label>
-                <input type="number" value={courseForm.price} onChange={(e) => setCourseForm({...courseForm, price: e.target.value})} placeholder="0 per Gratuito" className="w-full p-3 bg-stone-50 border border-stone-200 rounded-xl outline-none focus:border-rose-500 text-sm font-bold text-stone-900" />
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="text-[10px] font-black uppercase text-stone-500 tracking-widest ml-2 block mb-1">Luogo / Indirizzo / Zona</label>
-                <input type="text" value={courseForm.location} onChange={(e) => setCourseForm({...courseForm, location: e.target.value})} placeholder="Es. Cortile Gemme, Via delle Rose" className="w-full p-3 bg-stone-50 border border-stone-200 rounded-xl outline-none focus:border-rose-500 text-sm font-bold text-stone-900" />
-              </div>
-
-              <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="text-[10px] font-black uppercase text-stone-500 tracking-widest ml-2 block mb-1">Data</label>
-                  <input type="date" value={courseForm.date} onChange={(e) => setCourseForm({...courseForm, date: e.target.value})} className="w-full p-3 bg-stone-50 border border-stone-200 rounded-xl outline-none focus:border-rose-500 text-sm font-bold text-stone-900" />
+            {/* CORPO CENTRALE SCROLLABILE */}
+            <div className="p-5 overflow-y-auto flex-1 bg-stone-50/30">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+                <div className="md:col-span-2">
+                  <label className="text-[10px] font-black uppercase text-stone-500 tracking-widest ml-2 block mb-1">Titolo del Corso</label>
+                  <input type="text" value={courseForm.title} onChange={(e) => setCourseForm({...courseForm, title: e.target.value})} placeholder="Es. Riparazione Bici Elettriche" className="w-full p-3 bg-white border border-stone-200 rounded-xl outline-none focus:border-rose-500 text-sm font-bold text-stone-900 shadow-sm" />
                 </div>
-                <div>
-                  <label className="text-[10px] font-black uppercase text-stone-500 tracking-widest ml-2 block mb-1">Ora Inizio</label>
-                  <input type="time" value={courseForm.startTime} onChange={(e) => setCourseForm({...courseForm, startTime: e.target.value})} className="w-full p-3 bg-stone-50 border border-stone-200 rounded-xl outline-none focus:border-rose-500 text-sm font-bold text-stone-900" />
+                
+                <div className="md:col-span-2">
+                  <label className="text-[10px] font-black uppercase text-stone-500 tracking-widest ml-2 block mb-1">Descrizione Completa</label>
+                  <textarea value={courseForm.description} onChange={(e) => setCourseForm({...courseForm, description: e.target.value})} rows={3} placeholder="Cosa impareremo in questo corso? Cosa serve portare?" className="w-full p-3 bg-white border border-stone-200 rounded-xl outline-none focus:border-rose-500 text-sm font-medium resize-none text-stone-900 shadow-sm" />
                 </div>
-                <div>
-                  <label className="text-[10px] font-black uppercase text-stone-500 tracking-widest ml-2 block mb-1">Ora Fine</label>
-                  <input type="time" value={courseForm.endTime} onChange={(e) => setCourseForm({...courseForm, endTime: e.target.value})} className="w-full p-3 bg-stone-50 border border-stone-200 rounded-xl outline-none focus:border-rose-500 text-sm font-bold text-stone-900" />
-                </div>
-              </div>
 
-              <div className="md:col-span-2">
-                <label className="text-[10px] font-black uppercase text-stone-500 tracking-widest ml-2 block mb-1">Immagine (URL o link)</label>
-                <input type="text" value={courseForm.imageUrl} onChange={(e) => setCourseForm({...courseForm, imageUrl: e.target.value})} placeholder="https://..." className="w-full p-3 bg-stone-50 border border-stone-200 rounded-xl outline-none focus:border-rose-500 text-sm font-bold text-stone-900" />
+                <div>
+                  <label className="text-[10px] font-black uppercase text-stone-500 tracking-widest ml-2 block mb-1">Categoria</label>
+                  <select value={courseForm.category} onChange={(e) => setCourseForm({...courseForm, category: e.target.value})} className="w-full p-3 bg-white border border-stone-200 rounded-xl outline-none focus:border-rose-500 text-[11px] font-black uppercase text-stone-900 shadow-sm">
+                    <option value="Riuso">🛠️ Riuso / Riparazione</option>
+                    <option value="Cucina">🍳 Cucina Sostenibile</option>
+                    <option value="Fai da te">🎨 Fai da Te</option>
+                    <option value="Altro">📦 Altro</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase text-stone-500 tracking-widest ml-2 block mb-1">Prezzo (€)</label>
+                  <input type="number" value={courseForm.price} onChange={(e) => setCourseForm({...courseForm, price: e.target.value})} placeholder="0 per Gratuito" className="w-full p-3 bg-white border border-stone-200 rounded-xl outline-none focus:border-rose-500 text-sm font-bold text-stone-900 shadow-sm" />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="text-[10px] font-black uppercase text-stone-500 tracking-widest ml-2 block mb-1">Luogo / Indirizzo / Zona</label>
+                  <input type="text" value={courseForm.location} onChange={(e) => setCourseForm({...courseForm, location: e.target.value})} placeholder="Es. Cortile Gemme, Via delle Rose" className="w-full p-3 bg-white border border-stone-200 rounded-xl outline-none focus:border-rose-500 text-sm font-bold text-stone-900 shadow-sm" />
+                </div>
+
+                <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-stone-500 tracking-widest ml-2 block mb-1">Data</label>
+                    <input type="date" value={courseForm.date} onChange={(e) => setCourseForm({...courseForm, date: e.target.value})} className="w-full p-3 bg-white border border-stone-200 rounded-xl outline-none focus:border-rose-500 text-sm font-bold text-stone-900 shadow-sm" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 md:col-span-2">
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-stone-500 tracking-widest ml-2 block mb-1">Ora Inizio</label>
+                      <input type="time" value={courseForm.startTime} onChange={(e) => setCourseForm({...courseForm, startTime: e.target.value})} className="w-full p-3 bg-white border border-stone-200 rounded-xl outline-none focus:border-rose-500 text-sm font-bold text-stone-900 shadow-sm" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-stone-500 tracking-widest ml-2 block mb-1">Ora Fine</label>
+                      <input type="time" value={courseForm.endTime} onChange={(e) => setCourseForm({...courseForm, endTime: e.target.value})} className="w-full p-3 bg-white border border-stone-200 rounded-xl outline-none focus:border-rose-500 text-sm font-bold text-stone-900 shadow-sm" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="md:col-span-2 pb-2">
+                  <label className="text-[10px] font-black uppercase text-stone-500 tracking-widest ml-2 block mb-1">Immagine (URL o link)</label>
+                  <input type="text" value={courseForm.imageUrl} onChange={(e) => setCourseForm({...courseForm, imageUrl: e.target.value})} placeholder="https://..." className="w-full p-3 bg-white border border-stone-200 rounded-xl outline-none focus:border-rose-500 text-sm font-bold text-stone-900 shadow-sm" />
+                </div>
               </div>
             </div>
 
-            <div className="flex gap-3 mt-6 pt-4 border-t border-stone-100">
-              <button onClick={() => setIsCreateModalOpen(false)} className="flex-1 p-4 rounded-xl bg-stone-100 text-stone-600 text-[11px] font-black uppercase tracking-widest hover:bg-stone-200 transition-colors">Annulla</button>
-              <button onClick={handleCreateCourse} className="flex-1 p-4 rounded-xl bg-rose-600 text-white text-[11px] font-black uppercase tracking-widest hover:bg-stone-900 transition-colors shadow-md">Pubblica Corso</button>
+            {/* FOOTER FISSO */}
+            <div className="px-5 py-4 border-t border-stone-100 shrink-0 bg-white z-10 flex gap-2 md:gap-3">
+              <button onClick={() => setIsCreateModalOpen(false)} className="flex-1 p-3 md:p-4 rounded-xl bg-stone-100 text-stone-600 text-[11px] font-black uppercase tracking-widest hover:bg-stone-200 transition-colors">Annulla</button>
+              <button onClick={handleCreateCourse} className="flex-1 p-3 md:p-4 rounded-xl bg-rose-600 text-white text-[11px] font-black uppercase tracking-widest hover:bg-stone-900 transition-colors shadow-md">Pubblica Corso</button>
             </div>
+
           </div>
         </div>
       )}
