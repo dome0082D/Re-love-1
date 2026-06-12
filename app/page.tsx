@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { User } from '@supabase/supabase-js'
-import { Mic, MicOff, Search, MapPin, Heart, Crown, Mail } from 'lucide-react'
+import { Mic, MicOff, Search, MapPin, Heart, Crown, Mail, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import GalacticOutpost from './components/minigame/GalacticOutpost'
 
@@ -61,6 +61,15 @@ function HomePageContent() {
   const [distance, setDistance] = useState(0) 
   
   const [visibleCount, setVisibleCount] = useState(12)
+
+  // STATI PER LA MODALITÀ LABORATORI E CORSI 🛠️
+  const [courses, setCourses] = useState([
+    { id: '1', title: 'Riparazione Oggetti & Elettronica 🛠️', category: 'Riuso', creator: 'dome0082@gmail.com', members: 14 },
+    { id: '2', title: 'Corsi di Cucina Antispreco 🍳', category: 'Cucina', creator: 'luca@relove.it', members: 9 },
+  ])
+  const [showCreateForm, setShowCreateForm] = useState(false)
+  const [newCourseTitle, setNewCourseTitle] = useState('')
+  const [newCourseCategory, setNewCourseCategory] = useState('Riuso')
   
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -91,6 +100,39 @@ function HomePageContent() {
       if (favs) setFavorites(favs.map(f => f.announcement_id))
     }
     setLoading(false)
+  }
+
+  // LOGICA GESTIONE CORSI E LABORATORI
+  const handleCreateCourse = () => {
+    if (!user) {
+      toast.error("Devi accedere per creare un corso! 🔑")
+      return
+    }
+    if (!newCourseTitle.trim()) {
+      toast.error("Inserisci un titolo valido per il laboratorio!")
+      return
+    }
+    const newCourse = {
+      id: Math.random().toString(),
+      title: newCourseTitle,
+      category: newCourseCategory,
+      creator: user.email || '',
+      members: 1
+    }
+    setCourses([newCourse, ...courses])
+    setNewCourseTitle('')
+    setShowCreateForm(false)
+    toast.success("Nuovo laboratorio creato con successo! 🎉")
+  }
+
+  const handleJoinCourse = (id: string) => {
+    setCourses(courses.map(c => c.id === id ? { ...c, members: c.members + 1 } : c))
+    toast.success("Iscrizione avvenuta! L'ingresso è libero 🤝")
+  }
+
+  const handleDeleteCourse = (id: string) => {
+    setCourses(courses.filter(c => c.id !== id))
+    toast.success("Laboratorio rimosso con successo.")
   }
 
   // --- MOTORE DI RICERCA VOCALE REALE 🎙️ ---
@@ -284,16 +326,121 @@ function HomePageContent() {
         {/* CONTENUTO CENTRALE - ORDINE AGGIORNATO PER MOBILE */}
         <main className="flex-1 w-full overflow-hidden order-1 lg:order-2">
           
-          {/* VIDEO IN ALTO AL CENTRO */}
-          <div className="w-full max-w-[420px] mx-auto mt-8 mb-10 rounded-[2rem] overflow-hidden border border-stone-200 shadow-md bg-white">
-            <video 
-              src="/hero-video.mp4" 
-              className="w-full h-auto object-cover block"
-              autoPlay 
-              muted 
-              loop 
-              playsInline
-            />
+          {/* GRIGLIA COMPLETA: VIDEO E SEZIONE LABORATORI AFFIANCATI */}
+          <div className="w-full max-w-5xl mx-auto grid grid-cols-1 xl:grid-cols-2 gap-6 mt-8 mb-10 px-2">
+            {/* RIQUADRO VIDEO */}
+            <div className="w-full rounded-[2rem] overflow-hidden border border-stone-200 shadow-md bg-white flex items-center justify-center min-h-[360px]">
+              <video 
+                src="/hero-video.mp4" 
+                className="w-full h-full object-cover block"
+                autoPlay 
+                muted 
+                loop 
+                playsInline
+              />
+            </div>
+
+            {/* RIQUADRO LABORATORI & CORSI (SFONDO IN PALETTE HERO BEIGE) */}
+            <div className="w-full rounded-[2rem] border border-stone-200 shadow-md bg-[#f5efdf] p-6 flex flex-col justify-between min-h-[360px] text-stone-900">
+              <div>
+                <div className="flex justify-between items-center mb-4">
+                  <div>
+                    <span className="text-[9px] font-black uppercase tracking-widest text-rose-600 block">Community</span>
+                    <h3 className="text-base font-black uppercase tracking-tight">Laboratori & Corsi</h3>
+                  </div>
+                  <button 
+                    onClick={() => {
+                      if (!user) {
+                        toast.error("Devi accedere per creare un corso! 🔑")
+                      } else {
+                        setShowCreateForm(!showCreateForm)
+                      }
+                    }}
+                    className="bg-stone-900 text-white text-[10px] font-black uppercase tracking-wider px-3 py-2 rounded-xl hover:bg-rose-600 transition-all flex items-center gap-1"
+                  >
+                    <Plus size={12} />
+                    Crea
+                  </button>
+                </div>
+
+                {/* FORM INLINE DI CREAZIONE RAPIDA LABORATORIO */}
+                {showCreateForm && (
+                  <div className="bg-white p-3 rounded-2xl border border-stone-200 mb-4 flex flex-col gap-2 shadow-sm">
+                    <input 
+                      type="text" 
+                      placeholder="Nome del corso (es. Corso di Cucina)" 
+                      value={newCourseTitle}
+                      onChange={(e) => setNewCourseTitle(e.target.value)}
+                      className="w-full p-2 bg-stone-50 border border-stone-200 rounded-xl text-xs font-bold outline-none focus:border-rose-500"
+                    />
+                    <div className="flex gap-2">
+                      <select 
+                        value={newCourseCategory}
+                        onChange={(e) => setNewCourseCategory(e.target.value)}
+                        className="p-2 bg-stone-50 border border-stone-200 rounded-xl text-[11px] font-black uppercase text-stone-800"
+                      >
+                        <option value="Riuso">🛠️ Riuso / Riparazione</option>
+                        <option value="Cucina">🍳 Cucina Sostenibile</option>
+                        <option value="Fai da te">🎨 Fai da Te</option>
+                        <option value="Altro">📦 Altro</option>
+                      </select>
+                      <button 
+                        onClick={handleCreateCourse}
+                        className="flex-1 bg-rose-600 text-white text-[10px] font-black uppercase rounded-xl tracking-wider hover:bg-stone-900 transition-all"
+                      >
+                        Conferma
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* SCROLLABLE LIST DEI LABORATORI DISPONIBILI */}
+                <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
+                  {courses.map(course => {
+                    const isFounder = user?.email === course.creator;
+                    const canModify = IS_STAFF || isFounder;
+                    return (
+                      <div key={course.id} className="bg-white/80 p-3 rounded-xl border border-stone-200/60 flex items-center justify-between gap-2 shadow-sm">
+                        <div className="overflow-hidden">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="bg-stone-900 text-white text-[7px] font-black uppercase px-1.5 py-0.5 rounded-md tracking-wider">
+                              {course.category}
+                            </span>
+                            <span className="text-[10px] font-bold text-stone-500 truncate">
+                              da {isFounder ? 'te' : course.creator.split('@')[0]}
+                            </span>
+                          </div>
+                          <h4 className="text-xs font-black uppercase text-stone-900 truncate mt-1">{course.title}</h4>
+                          <p className="text-[9px] font-bold text-stone-500 uppercase mt-0.5">👥 {course.members} partecipanti</p>
+                        </div>
+                        <div className="flex gap-1 shrink-0">
+                          <button 
+                            onClick={() => handleJoinCourse(course.id)}
+                            className="bg-stone-900 text-white text-[9px] font-black uppercase px-2.5 py-1.5 rounded-lg hover:bg-rose-600 transition-all"
+                          >
+                            Partecipa
+                          </button>
+                          {canModify && (
+                            <button 
+                              onClick={() => handleDeleteCourse(course.id)}
+                              className="bg-red-100 text-red-600 text-[9px] font-black uppercase px-2 py-1.5 rounded-lg hover:bg-red-600 hover:text-white transition-all"
+                              title="Rimuovi Corso"
+                            >
+                              X
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div className="text-[9px] font-bold text-stone-500 uppercase mt-3 tracking-wide border-t border-stone-300/50 pt-2 flex justify-between">
+                <span>Ingresso Libero 🤝</span>
+                {IS_STAFF && <span className="text-rose-600 font-black">Staff Control 👑</span>}
+              </div>
+            </div>
           </div>
 
           {/* FILTRI CON COLORI SOLIDI E PIATTI */}
@@ -510,7 +657,7 @@ function HomePageContent() {
             )}
           </section>
 
-          {/* GIOCO GALACTIC OUTPOST SPOSTATO IN FONDO - FORMATO 20x10 cm */}
+          {/* GIOCO GALACTIC OUTPOST IN FONDO - FORMATO 20x10 cm (800x400 PX) INVARIATO */}
           <div className="w-full max-w-[800px] mx-auto mt-12 mb-10 rounded-[2rem] overflow-hidden shadow-sm bg-[#020205] relative h-[400px] flex">
             <GalacticOutpost />
           </div>
