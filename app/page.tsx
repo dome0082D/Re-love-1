@@ -62,18 +62,14 @@ function HomePageContent() {
   
   const [visibleCount, setVisibleCount] = useState(12)
 
-  // STATI PER LA MODALITÀ LABORATORI E CORSI 🛠️
-  const [courses, setCourses] = useState([
-    { id: '1', title: 'Riparazione Oggetti & Elettronica 🛠️', category: 'Riuso', creator: 'dome0082@gmail.com', members: 14 },
-    { id: '2', title: 'Corsi di Cucina Antispreco 🍳', category: 'Cucina', creator: 'luca@relove.it', members: 9 },
-  ])
+  // --- STATI PER I LABORATORI E CORSI (ORA 100% REALI E VUOTI DI DEFAULT) 🛠️ ---
+  const [courses, setCourses] = useState<any[]>([])
   
-  // N.B: Questo stato gestiva il form piccolo. Lo lascio per non rompere niente se lo usavi da altre parti
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [newCourseTitle, setNewCourseTitle] = useState('')
   const [newCourseCategory, setNewCourseCategory] = useState('Riuso')
   
-  // --- NUOVI STATI PER IL MODALE COMPLETO DI CREAZIONE CORSO ---
+  // STATI PER IL MODALE COMPLETO DI CREAZIONE CORSO
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [courseForm, setCourseForm] = useState({
     title: '',
@@ -126,6 +122,7 @@ function HomePageContent() {
     const { data: { user: u } } = await supabase.auth.getUser()
     setUser(u)
     
+    // 1. Fetch Annunci
     const { data: ads, error } = await supabase
       .from('announcements')
       .select('*')
@@ -135,10 +132,34 @@ function HomePageContent() {
       setAnnouncements(ads as Announcement[])
     }
     
+    // 2. Fetch Preferiti
     if (u) {
       const { data: favs } = await supabase.from('favorites').select('announcement_id').eq('user_id', u.id)
       if (favs) setFavorites(favs.map(f => f.announcement_id))
     }
+
+    // 3. FETCH CORSI 100% REALI DAL DATABASE 🎯
+    const { data: wsData } = await supabase
+      .from('workshops')
+      .select('*')
+      .order('created_at', { ascending: false })
+      
+    if (wsData) {
+      // Peschiamo anche i membri per conteggiarli in tempo reale
+      const { data: membersData } = await supabase.from('workshop_members').select('*')
+      const realCourses = wsData.map(ws => {
+        const membersCount = membersData ? membersData.filter(m => m.workshop_id === ws.id).length : 0;
+        return {
+          id: ws.id,
+          title: ws.title,
+          category: ws.category,
+          creator: ws.creator_email,
+          members: membersCount + 1 // Il creatore conta come 1
+        }
+      })
+      setCourses(realCourses)
+    }
+
     setLoading(false)
   }
 
@@ -156,7 +177,7 @@ function HomePageContent() {
   }
 
   const containsPhoneNumber = (text: string) => {
-    // Blocca se ci sono 9 o più cifre consecutive
+    // Blocca se ci sono 9 o più cifre consecutive (Regex)
     const digitsOnly = text.replace(/\D/g, '')
     return digitsOnly.length >= 9
   }
@@ -199,46 +220,80 @@ function HomePageContent() {
     toast.success("Messaggio modificato.")
   }
 
-  // --- LOGICA GESTIONE CORSI E LABORATORI ---
-  const handleCreateCourse = () => {
+  // --- LOGICA GESTIONE CORSI E LABORATORI (DATABASE REALE) 🛠️ ---
+  const handleCreateCourse = async () => {
     if (!user) {
       toast.error("Devi accedere per creare un corso! 🔑")
       return
     }
     
     const titleToUse = courseForm.title || newCourseTitle;
-    
     if (!titleToUse.trim()) {
       toast.error("Inserisci un titolo valido per il laboratorio!")
       return
     }
-    
-    const newCourse = {
-      id: Math.random().toString(),
+
+    // Prepariamo i dati per il database Reale Supabase
+    const newCourseData = {
       title: titleToUse,
       category: courseForm.category || newCourseCategory,
-      creator: user.email || '',
-      members: 1
+      creator_email: user.email,
+      creator_id: user.id,
+      description: courseForm.description || null,
+      price: courseForm.price ? Number(courseForm.price) : 0,
+      location: courseForm.location || 'Da definire',
+      event_date: courseForm.date || null,
+      start_time: courseForm.startTime || null,
+      end_time: courseForm.endTime || null,
+      image_url: courseForm.imageUrl || null
     }
+
+    // INVIO AL DATABASE SUPABASE
+    const { data, error } = await supabase.from('workshops').insert([newCourseData]).select()
     
-    setCourses([newCourse, ...courses])
+    if (error) {
+      toast.error("C'è stato un problema nel salvataggio. Riprova.")
+      console.error(error)
+      return
+    }
+
+    toast.success("Nuovo laboratorio pubblicato e salvato nel Database! 🎉")
     
+    // Resetta form e aggiorna dati
     setNewCourseTitle('')
     setShowCreateForm(false)
     setCourseForm({ title: '', category: 'Riuso', description: '', date: '', startTime: '', endTime: '', location: '', price: '', imageUrl: '' })
     setIsCreateModalOpen(false)
+    fetchInitialData() // Ricarica la bacheca in tempo reale
+  }
+
+  const handleJoinCourse = async (id: string) => {
+    if (!user) { toast.error("Devi accedere per iscriverti!"); return; }
     
-    toast.success("Nuovo laboratorio creato con successo! 🎉")
+    // Inserimento Reale nel DB
+    const { error } = await supabase.from('workshop_members').insert([{
+      workshop_id: id,
+      user_id: user.id,
+      user_email: user.email
+    }])
+
+    if (error) {
+      toast.error("Sei già iscritto o c'è stato un errore tecnico!")
+    } else {
+      toast.success("Iscrizione avvenuta! L'ingresso è libero 🤝")
+      fetchInitialData() // Aggiorna il contatore partecipanti
+    }
   }
 
-  const handleJoinCourse = (id: string) => {
-    setCourses(courses.map(c => c.id === id ? { ...c, members: c.members + 1 } : c))
-    toast.success("Iscrizione avvenuta! L'ingresso è libero 🤝")
-  }
-
-  const handleDeleteCourse = (id: string) => {
-    setCourses(courses.filter(c => c.id !== id))
-    toast.success("Laboratorio rimosso con successo.")
+  const handleDeleteCourse = async (id: string) => {
+    // Cancellazione Reale dal DB
+    const { error } = await supabase.from('workshops').delete().eq('id', id)
+    if (!error) {
+      toast.success("Laboratorio rimosso dal database con successo.")
+      fetchInitialData()
+    } else {
+      toast.error("Errore durante l'eliminazione.")
+    }
   }
 
   // --- MOTORE DI RICERCA VOCALE REALE 🎙️ ---
@@ -487,45 +542,52 @@ function HomePageContent() {
                   </div>
                 </div>
 
-                {/* SCROLLABLE LIST DEI LABORATORI (Si allunga per riempire i 400px) */}
+                {/* SCROLLABLE LIST DEI LABORATORI (Dati Reali da Database) */}
                 <div className="space-y-2 flex-1 overflow-y-auto pr-1 custom-scrollbar min-h-[220px]">
-                  {courses.map(course => {
-                    const isFounder = user?.email === course.creator;
-                    const canModify = IS_STAFF || isFounder;
-                    return (
-                      <div key={course.id} className="bg-white/80 p-3 rounded-xl border border-stone-200/60 flex items-center justify-between gap-2 shadow-sm group">
-                        <Link href={`/laboratori/${course.id}`} className="overflow-hidden flex-1 cursor-pointer hover:opacity-75 transition-opacity">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="bg-stone-900 text-white text-[7px] font-black uppercase px-1.5 py-0.5 rounded-md tracking-wider">
-                              {course.category}
-                            </span>
-                            <span className="text-[10px] font-bold text-stone-500 truncate">
-                              da {isFounder ? 'te' : course.creator.split('@')[0]}
-                            </span>
-                          </div>
-                          <h4 className="text-xs font-black uppercase text-stone-900 truncate mt-1 group-hover:text-rose-600 transition-colors">{course.title}</h4>
-                          <p className="text-[9px] font-bold text-stone-500 uppercase mt-0.5">👥 {course.members} partecipanti</p>
-                        </Link>
-                        <div className="flex gap-1 shrink-0">
-                          <button 
-                            onClick={() => handleJoinCourse(course.id)}
-                            className="bg-stone-900 text-white text-[9px] font-black uppercase px-2.5 py-1.5 rounded-lg hover:bg-rose-600 transition-all"
-                          >
-                            Partecipa
-                          </button>
-                          {canModify && (
+                  {courses.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full opacity-50">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-stone-600 text-center">Nessun corso attivo.</p>
+                      <p className="text-[9px] font-bold text-stone-500 mt-1">Sii il primo a crearne uno!</p>
+                    </div>
+                  ) : (
+                    courses.map(course => {
+                      const isFounder = user?.email === course.creator;
+                      const canModify = IS_STAFF || isFounder;
+                      return (
+                        <div key={course.id} className="bg-white/80 p-3 rounded-xl border border-stone-200/60 flex items-center justify-between gap-2 shadow-sm group">
+                          <Link href={`/laboratori/${course.id}`} className="overflow-hidden flex-1 cursor-pointer hover:opacity-75 transition-opacity">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="bg-stone-900 text-white text-[7px] font-black uppercase px-1.5 py-0.5 rounded-md tracking-wider">
+                                {course.category}
+                              </span>
+                              <span className="text-[10px] font-bold text-stone-500 truncate">
+                                da {isFounder ? 'te' : course.creator?.split('@')[0]}
+                              </span>
+                            </div>
+                            <h4 className="text-xs font-black uppercase text-stone-900 truncate mt-1 group-hover:text-rose-600 transition-colors">{course.title}</h4>
+                            <p className="text-[9px] font-bold text-stone-500 uppercase mt-0.5">👥 {course.members} partecipanti</p>
+                          </Link>
+                          <div className="flex gap-1 shrink-0">
                             <button 
-                              onClick={() => handleDeleteCourse(course.id)}
-                              className="bg-red-100 text-red-600 text-[9px] font-black uppercase px-2 py-1.5 rounded-lg hover:bg-red-600 hover:text-white transition-all"
-                              title="Rimuovi Corso"
+                              onClick={() => handleJoinCourse(course.id)}
+                              className="bg-stone-900 text-white text-[9px] font-black uppercase px-2.5 py-1.5 rounded-lg hover:bg-rose-600 transition-all"
                             >
-                              X
+                              Partecipa
                             </button>
-                          )}
+                            {canModify && (
+                              <button 
+                                onClick={() => handleDeleteCourse(course.id)}
+                                className="bg-red-100 text-red-600 text-[9px] font-black uppercase px-2 py-1.5 rounded-lg hover:bg-red-600 hover:text-white transition-all"
+                                title="Rimuovi Corso"
+                              >
+                                X
+                              </button>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    )
-                  })}
+                      )
+                    })
+                  )}
                 </div>
               </div>
 
@@ -567,11 +629,10 @@ function HomePageContent() {
 
                     return (
                       <div key={msg.id} className={`flex flex-col max-w-[85%] ${isMine ? 'self-end items-end' : 'self-start items-start'}`}>
-                        {!isMine && (
-                          <span className="text-[8px] font-black uppercase text-stone-400 mb-0.5 ml-1">
-                            {msg.user_email.split('@')[0]}
-                          </span>
-                        )}
+                        {/* NOME MITTENTE VISIBILE SU TUTTI I MESSAGGI ORA! */}
+                        <span className={`text-[8px] font-black uppercase text-stone-400 mb-0.5 ${isMine ? 'mr-1 text-right' : 'ml-1 text-left'}`}>
+                          {msg.user_email.split('@')[0]}
+                        </span>
                         
                         <div className={`px-3 py-2 rounded-2xl shadow-sm text-sm relative group ${isMine ? 'bg-rose-600 text-white rounded-br-sm' : 'bg-white border border-stone-200 text-stone-800 rounded-bl-sm'}`}>
                           
