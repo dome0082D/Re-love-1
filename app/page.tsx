@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { User } from '@supabase/supabase-js'
-import { Mic, MicOff, Search, MapPin, Heart, Crown, Mail, Plus, Send, Trash2, Edit2, X, BookOpen } from 'lucide-react'
+import { Mic, MicOff, Search, MapPin, Heart, Crown, Mail, Plus, Send, Trash2, Edit2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import GalacticOutpost from './components/minigame/GalacticOutpost'
 
@@ -156,6 +156,7 @@ function HomePageContent() {
   }
 
   const containsPhoneNumber = (text: string) => {
+    // Blocca se ci sono 9 o più cifre consecutive
     const digitsOnly = text.replace(/\D/g, '')
     return digitsOnly.length >= 9
   }
@@ -431,12 +432,12 @@ function HomePageContent() {
         {/* CONTENUTO CENTRALE - ORDINE AGGIORNATO E PERFETTAMENTE ADATTATO */}
         <main className="flex-1 w-full overflow-hidden order-1 lg:order-2">
           
-          {/* 1. RIQUADRO VIDEO (Centrato, Larghezza -5% (w-95% e 1235px max), Altezza ridotta del 15% -> 272px) */}
-          <div className="w-[95%] max-w-[1235px] mx-auto mt-8 mb-8 px-2">
-            <div className="w-full rounded-[2rem] overflow-hidden border border-stone-200 shadow-md bg-white flex items-center justify-center h-[272px]">
+          {/* 1. RIQUADRO VIDEO (Centrato, Larghezza -10%, Altezza -35%, Adattato e colore hero) */}
+          <div className="w-full max-w-[1170px] mx-auto mt-8 mb-8 px-2">
+            <div className="w-full rounded-[2rem] overflow-hidden border border-stone-200 shadow-md bg-[#f5efdf] flex items-center justify-center h-[210px]">
               <video 
                 src="/hero-video.mp4" 
-                className="w-full h-full object-cover block"
+                className="w-full h-full object-contain block"
                 autoPlay 
                 muted 
                 loop 
@@ -528,7 +529,7 @@ function HomePageContent() {
                 </div>
               </div>
 
-              {/* FOOTER DEL RIQUADRO CON PULSANTE PER VEDERE TUTTI I CORSI */}
+              {/* FOOTER DEL RIQUADRO CON PULSANTE "TUTTI I CORSI" */}
               <div className="flex justify-between items-center mt-3 border-t border-stone-300/50 pt-3 shrink-0">
                 <div className="text-[9px] font-bold text-stone-500 uppercase tracking-wide flex items-center gap-2">
                   <span>Ingresso Libero 🤝</span>
