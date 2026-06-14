@@ -51,6 +51,7 @@ export default function LaboratoriPage() {
   return (
     <div className="min-h-screen bg-stone-50 font-sans text-stone-900 pb-20">
       
+      {/* HEADER DELLA BACHECA */}
       <header className="w-full bg-[#f5efdf] border-b border-stone-200 pt-12 pb-16 px-4 md:px-6">
         <div className="max-w-5xl mx-auto flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div>
@@ -64,6 +65,7 @@ export default function LaboratoriPage() {
               Unisciti alla community. Impara, baratta competenze e crea i tuoi gruppi di lavoro.
             </p>
           </div>
+          {/* Questo pulsante rimanda alla Home con un "segnale" nell'URL per far aprire il modale magico */}
           <Link href="/?create=true" className="bg-stone-900 text-white text-[10px] font-black uppercase tracking-wider px-5 py-3 rounded-xl hover:bg-rose-600 transition-all flex items-center gap-2 shadow-md shrink-0 w-fit">
             <Plus size={14} /> Crea Laboratorio
           </Link>
@@ -71,7 +73,8 @@ export default function LaboratoriPage() {
       </header>
 
       <main className="max-w-5xl mx-auto px-4 md:px-6 mt-8">
-        {/* TABS REALI */}
+        
+        {/* TABS SELEZIONE: BACHECA O CALENDARIO */}
         <div className="flex gap-6 border-b border-stone-200 mb-8">
           <button 
             onClick={() => setActiveTab('bacheca')}
@@ -89,40 +92,44 @@ export default function LaboratoriPage() {
           </button>
         </div>
 
-        {/* CONTENUTO REALE */}
+        {/* GRIGLIA CONTENUTO REALE DAL DATABASE */}
         {loading ? (
-          <div className="text-center py-20 text-[10px] font-black uppercase text-stone-400 tracking-widest">Caricamento in corso...</div>
+          <div className="text-center py-20 text-[10px] font-black uppercase text-stone-400 tracking-widest animate-pulse">Caricamento in corso...</div>
         ) : courses.length === 0 ? (
-          <div className="text-center py-20 bg-white rounded-3xl border border-stone-200">
+          <div className="text-center py-20 bg-white rounded-3xl border border-stone-200 shadow-sm">
              <p className="text-sm font-black text-stone-900 uppercase tracking-widest">Nessun laboratorio trovato</p>
-             <p className="text-[10px] font-bold text-stone-500 uppercase mt-2">Sii il primo a creare un gruppo!</p>
+             <p className="text-[10px] font-bold text-stone-500 uppercase mt-2">Sii il primo a creare un gruppo dalla Home Page!</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {courses
-              .filter(course => activeTab === 'bacheca' ? true : course.event_date) // Il calendario mostra solo quelli con data
+              .filter(course => activeTab === 'bacheca' ? true : course.event_date) // Il calendario mostra solo quelli con data fissata
               .sort((a, b) => activeTab === 'calendario' ? new Date(a.event_date).getTime() - new Date(b.event_date).getTime() : 0)
               .map(course => (
               <Link href={`/laboratori/${course.id}`} key={course.id} className="bg-white rounded-[2rem] p-6 border border-stone-200 shadow-sm hover:shadow-md hover:border-rose-200 transition-all flex flex-col group cursor-pointer">
+                
+                {/* CATEGORIA */}
                 <div className="mb-6 flex justify-between items-start">
-                  <span className="bg-stone-900 text-white text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded-md">
+                  <span className="bg-stone-900 text-white text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded-md shadow-sm">
                     {course.category}
                   </span>
                 </div>
                 
+                {/* TITOLO DEL CORSO */}
                 <h3 className="text-sm font-black uppercase text-stone-900 mb-6 leading-snug group-hover:text-rose-600 transition-colors line-clamp-2">
                   {course.title}
                 </h3>
                 
-                <div className="mt-auto space-y-2">
+                {/* INFO BOTTOM: MEMBRI E DATE */}
+                <div className="mt-auto space-y-3">
                   <div className="flex items-center gap-2 text-[9px] font-black text-stone-500 uppercase tracking-widest">
-                    <Users size={12} /> {getMembersCount(course.id)} Iscritti
+                    <Users size={12} className="text-stone-400" /> {getMembersCount(course.id)} Iscritti
                   </div>
                   <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-widest">
                     <div className="flex items-center gap-2 text-stone-500">
-                      <Clock size={12} /> {formatEventDate(course.event_date, course.start_time)}
+                      <Clock size={12} className="text-stone-400" /> {formatEventDate(course.event_date, course.start_time)}
                     </div>
-                    <div className="w-6 h-6 rounded-full bg-stone-100 flex items-center justify-center group-hover:bg-rose-100 group-hover:text-rose-600 transition-colors">
+                    <div className="w-7 h-7 rounded-full bg-stone-50 border border-stone-200 flex items-center justify-center group-hover:bg-rose-600 group-hover:text-white group-hover:border-rose-600 transition-all shadow-sm">
                       <ArrowRight size={12} />
                     </div>
                   </div>
