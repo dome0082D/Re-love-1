@@ -9,7 +9,7 @@ import { User } from '@supabase/supabase-js'
 import { Mic, MicOff, Search, MapPin, Heart, Crown, Mail, Plus, Send, Trash2, Edit2, X, BookOpen, MessageCircle, Settings, User as UserIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import GalacticOutpost from './components/minigame/GalacticOutpost'
-import ExternalResultsFallback from '@/components/ExternalResultsFallback'
+import ExternalResultsFallback from './components/ExternalResultsFallback'
 
 // --- RILEVAMENTO ANDROID (solo lato client, per adattare l'hero) ---
 function useIsAndroid() {
