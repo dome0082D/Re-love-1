@@ -51,6 +51,17 @@
    quando si aprono input di testo dentro contenitori con altezza fissa (es. chat). */
 html {
   height: 100%;
+  /* FIX: rete di sicurezza contro lo scroll orizzontale di TUTTA la pagina -
+     se qualsiasi elemento risultasse anche solo di poco più largo dello
+     schermo, senza questo l'intera interfaccia (navbar compresa) diventava
+     scorrevole lateralmente invece di restare ferma. Non impedisce lo scroll
+     interno di contenitori che lo dichiarano esplicitamente (come l'hero
+     qui sotto), solo quello dell'intero documento. */
+  overflow-x: hidden;
+}
+
+body {
+  overflow-x: hidden;
 }
 
 /*
@@ -78,6 +89,14 @@ html {
 */
 .android-hero-scroll {
   touch-action: pan-x;
+  /* FIX: questa è la causa più probabile di "tutta la pagina si muove" -
+     senza questa proprietà, arrivare al limite dello scroll orizzontale
+     dell'hero durante uno swipe fa "rimbalzare" anche la pagina intera
+     insieme ad essa (comportamento di overscroll che si propaga al
+     genitore). "contain" dice al browser: quando lo scroll orizzontale
+     qui dentro arriva al limite, fermati - non lasciare che l'effetto
+     continui sul resto della pagina. */
+  overscroll-behavior-x: contain;
 }
 
 @supports (-webkit-overflow-scrolling: touch) {
