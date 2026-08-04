@@ -14,8 +14,16 @@ export default function Navbar() {
   useEffect(() => {
     // Controlla utente loggato all'avvio
     const checkUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      setUser(user)
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        setUser(user)
+      } catch (err) {
+        // FIX: senza questo, un fallimento di rete nel controllare la sessione
+        // (Android instabile) lasciava "user" bloccato su null per sempre -
+        // la navbar mostrava "Accedi/Registrati" anche per chi era già
+        // loggato, senza nessun tentativo di recupero.
+        console.error('Errore controllo utente:', err)
+      }
     }
     checkUser()
 
@@ -25,12 +33,27 @@ export default function Navbar() {
     })
 
     return () => {
-      authListener.subscription.unsubscribe()
+      // FIX: aggiunto controllo di sicurezza prima di chiamare unsubscribe -
+      // se per qualche motivo authListener non fosse valorizzato, la pagina
+      // sarebbe andata in errore alla chiusura del componente.
+      authListener?.subscription?.unsubscribe()
     }
   }, [])
 
   const handleLogout = async () => {
-    await supabase.auth.signOut()
+    try {
+      const { error } = await supabase.auth.signOut()
+      if (error) {
+        console.error('Errore durante il logout:', error)
+      }
+    } catch (err) {
+      console.error('Errore durante il logout:', err)
+    }
+    // FIX: reindirizziamo e chiudiamo i menu comunque, anche se il signOut
+    // lato server fosse fallito - lato client l'utente si aspetta che il
+    // tap su "Esci" lo porti sempre fuori, e un secondo tentativo di
+    // logout (che troverebbe comunque una sessione da chiudere) è più
+    // semplice da gestire di un pulsante che sembra non fare nulla.
     router.push('/')
     setIsOpen(false)
     setIsDropdownOpen(false)
