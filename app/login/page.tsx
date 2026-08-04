@@ -24,32 +24,53 @@ export default function LoginPage() {
     setErrorMsg('')
     setSuccessMsg('')
 
-    if (isSignUp) {
-      const { error } = await supabase.auth.signUp({ 
-        email, 
-        password 
-      })
-      if (error) {
-        setErrorMsg(error.message)
+    // FIX: l'intero corpo della funzione non aveva alcuna protezione da
+    // eccezioni. Su una connessione Android che cade a metà richiesta - il
+    // caso più frequente in tutta questa revisione - la funzione si fermava
+    // prima di raggiungere "setLoading(false)": il pulsante "Accedi" restava
+    // bloccato su "Attendi..." per sempre, disabilitato, senza nessun modo
+    // di riprovare senza ricaricare tutta la pagina. Proprio sulla pagina di
+    // login, che è l'ingresso a tutto il resto.
+    try {
+      if (isSignUp) {
+        const { data, error } = await supabase.auth.signUp({ 
+          email, 
+          password 
+        })
+        if (error) {
+          setErrorMsg(error.message)
+        } else if (data?.user && data.user.identities && data.user.identities.length === 0) {
+          // FIX: per motivi di sicurezza (evitare che si possa scoprire quali
+          // email sono già registrate), Supabase risponde SENZA errore anche
+          // quando l'email esiste già - la differenza si vede solo qui,
+          // nell'array "identities" vuoto. Senza questo controllo, chi
+          // proseguiva a registrarsi con un'email già usata vedeva "Controlla
+          // la tua email per confermare" e aspettava per sempre un'email di
+          // conferma che non sarebbe mai arrivata.
+          setErrorMsg('Questo indirizzo email è già registrato. Prova ad accedere invece.')
+        } else {
+          setSuccessMsg('🎉 Registrazione completata! Controlla la tua casella email (anche nello Spam) per confermare il tuo account.')
+          // Svuotiamo i campi per sicurezza
+          setEmail('')
+          setPassword('')
+        }
       } else {
-        setSuccessMsg('🎉 Registrazione completata! Controlla la tua casella email (anche nello Spam) per confermare il tuo account.')
-        // Svuotiamo i campi per sicurezza
-        setEmail('')
-        setPassword('')
+        const { error } = await supabase.auth.signInWithPassword({ 
+          email, 
+          password 
+        })
+        if (error) {
+          setErrorMsg(error.message === 'Invalid login credentials' ? 'Email o password errate.' : error.message)
+        } else {
+          router.push('/')
+        }
       }
-    } else {
-      const { error } = await supabase.auth.signInWithPassword({ 
-        email, 
-        password 
-      })
-      if (error) {
-        setErrorMsg(error.message === 'Invalid login credentials' ? 'Email o password errate.' : error.message)
-      } else {
-        router.push('/')
-      }
+    } catch (err: any) {
+      console.error('Errore autenticazione:', err)
+      setErrorMsg('Errore di connessione. Controlla la rete e riprova.')
+    } finally {
+      setLoading(false)
     }
-    
-    setLoading(false)
   }
 
   return (
@@ -67,6 +88,7 @@ export default function LoginPage() {
             type="email" 
             placeholder="Indirizzo Email" 
             value={email}
+            autoComplete="email"
             className="w-full p-4 bg-stone-50 border border-stone-100 rounded-2xl text-sm font-bold outline-none focus:border-rose-400 focus:bg-white transition-all" 
             onChange={e => setEmail(e.target.value)} 
           />
@@ -75,6 +97,8 @@ export default function LoginPage() {
             type="password" 
             placeholder="Password (min 6 caratteri)" 
             value={password}
+            minLength={6}
+            autoComplete={isSignUp ? 'new-password' : 'current-password'}
             className="w-full p-4 bg-stone-50 border border-stone-100 rounded-2xl text-sm font-bold outline-none focus:border-rose-400 focus:bg-white transition-all" 
             onChange={e => setPassword(e.target.value)} 
           />

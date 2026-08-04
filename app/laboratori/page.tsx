@@ -14,6 +14,7 @@ export default function LaboratoriPage() {
   const [membersData, setMembersData] = useState<any[]>([])
   const [activeTab, setActiveTab] = useState<'bacheca' | 'calendario'>('bacheca')
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -22,12 +23,22 @@ export default function LaboratoriPage() {
 
   async function fetchData() {
     setLoading(true)
+    setLoadError(false)
     const { data: { user: u } } = await supabase.auth.getUser()
     setUser(u)
 
     // Peschiamo i laboratori REALI dal database
-    const { data: wsData } = await supabase.from('workshops').select('*').order('created_at', { ascending: false })
-    const { data: mData } = await supabase.from('workshop_members').select('*')
+    const { data: wsData, error: wsError } = await supabase.from('workshops').select('*').order('created_at', { ascending: false })
+    const { data: mData, error: mError } = await supabase.from('workshop_members').select('*')
+
+    // FIX: prima gli errori venivano ignorati - un caricamento fallito per
+    // rete instabile (comune su Android) mostrava "Nessun laboratorio
+    // trovato" esattamente come se non ce ne fossero davvero, inducendo in
+    // errore chi guarda la pagina.
+    if (wsError || mError) {
+      console.error('Errore caricamento laboratori:', wsError || mError)
+      setLoadError(true)
+    }
 
     if (wsData) setCourses(wsData)
     if (mData) setMembersData(mData)
@@ -95,6 +106,14 @@ export default function LaboratoriPage() {
         {/* GRIGLIA CONTENUTO REALE DAL DATABASE */}
         {loading ? (
           <div className="text-center py-20 text-[10px] font-black uppercase text-stone-400 tracking-widest animate-pulse">Caricamento in corso...</div>
+        ) : loadError ? (
+          <div className="text-center py-20 bg-white rounded-3xl border border-red-200 shadow-sm">
+             <p className="text-sm font-black text-red-500 uppercase tracking-widest">Errore di caricamento</p>
+             <p className="text-[10px] font-bold text-stone-500 uppercase mt-2 mb-6">Controlla la connessione e riprova.</p>
+             <button onClick={fetchData} className="bg-stone-900 text-white text-[10px] font-black uppercase tracking-widest px-5 py-3 rounded-xl hover:bg-rose-600 transition-all">
+               Riprova
+             </button>
+          </div>
         ) : courses.length === 0 ? (
           <div className="text-center py-20 bg-white rounded-3xl border border-stone-200 shadow-sm">
              <p className="text-sm font-black text-stone-900 uppercase tracking-widest">Nessun laboratorio trovato</p>

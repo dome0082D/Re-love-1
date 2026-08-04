@@ -9,6 +9,7 @@ import { ArrowLeft, CalendarDays, Clock, MapPin, BookOpen } from 'lucide-react'
 export default function AgendaPage() {
   const [events, setEvents] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
 
   useEffect(() => {
     fetchEvents()
@@ -16,6 +17,7 @@ export default function AgendaPage() {
 
   async function fetchEvents() {
     setLoading(true)
+    setLoadError(false)
     // Prende solo i laboratori che hanno una data impostata e li ordina
     const { data, error } = await supabase
       .from('workshops')
@@ -23,7 +25,14 @@ export default function AgendaPage() {
       .not('event_date', 'is', null)
       .order('event_date', { ascending: true })
 
-    if (!error && data) {
+    // FIX: prima un errore di rete (Android instabile) veniva ignorato in
+    // silenzio e la pagina mostrava "Nessun evento in programma" - identico
+    // a come appare quando davvero non ci sono eventi, inducendo in errore
+    // chi la guarda.
+    if (error) {
+      console.error('Errore caricamento agenda:', error)
+      setLoadError(true)
+    } else if (data) {
       setEvents(data)
     }
     setLoading(false)
@@ -60,6 +69,14 @@ export default function AgendaPage() {
       <main className="max-w-4xl mx-auto px-4 md:px-6 mt-12">
         {loading ? (
           <div className="text-center text-[11px] font-black text-stone-400 uppercase py-20 animate-pulse">Caricamento agenda reale...</div>
+        ) : loadError ? (
+          <div className="text-center py-20 bg-white rounded-[2rem] border border-red-200">
+            <p className="text-sm font-black uppercase text-red-500">Errore di caricamento</p>
+            <p className="text-[10px] font-bold text-stone-500 uppercase mt-2 mb-6">Controlla la connessione e riprova.</p>
+            <button onClick={fetchEvents} className="bg-stone-900 text-white text-[10px] font-black uppercase tracking-widest px-5 py-3 rounded-xl hover:bg-rose-600 transition-all">
+              Riprova
+            </button>
+          </div>
         ) : events.length === 0 ? (
           <div className="text-center py-20 bg-white rounded-[2rem] border border-stone-200">
             <p className="text-sm font-black uppercase text-stone-400">Nessun evento in programma</p>

@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { User } from '@supabase/supabase-js'
-import { ArrowLeft, Share2, CalendarDays, Edit, Trash2 } from 'lucide-react'
+import { ArrowLeft, Share2, CalendarDays, Edit, Trash2, MapPin, Users, Crown } from 'lucide-react'
 import { toast } from 'sonner'
 
 export default function DettaglioLaboratorio() {
@@ -18,6 +18,8 @@ export default function DettaglioLaboratorio() {
   const [course, setCourse] = useState<any>(null)
   const [members, setMembers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [actionLoading, setActionLoading] = useState(false)
+  const [openTooltipIndex, setOpenTooltipIndex] = useState<number | null>(null)
 
   useEffect(() => {
     fetchData()
@@ -51,27 +53,68 @@ export default function DettaglioLaboratorio() {
 
   const handleJoinLeave = async () => {
     if (!user) return toast.error("Devi accedere per partecipare!")
+    if (actionLoading) return // Evita doppio tap mentre la richiesta precedente è ancora in corso
 
-    if (isEnrolled) {
-      // Esci dal corso
-      await supabase.from('workshop_members').delete().eq('workshop_id', courseId).eq('user_id', user.id)
-      setMembers(members.filter(m => m.user_id !== user.id))
-      toast.success("Ti sei disiscritto dal corso.")
-    } else {
-      // Iscriviti al corso
-      const { error } = await supabase.from('workshop_members').insert([{ workshop_id: courseId, user_id: user.id, user_email: user.email }])
-      if (!error) {
+    setActionLoading(true)
+    try {
+      if (isEnrolled) {
+        // Esci dal corso
+        const { error } = await supabase.from('workshop_members').delete().eq('workshop_id', courseId).eq('user_id', user.id)
+        if (error) {
+          toast.error("Errore durante l'uscita dal gruppo. Riprova.")
+          return
+        }
+        setMembers(members.filter(m => m.user_id !== user.id))
+        toast.success("Ti sei disiscritto dal corso.")
+      } else {
+        // Iscriviti al corso
+        const { error } = await supabase.from('workshop_members').insert([{ workshop_id: courseId, user_id: user.id, user_email: user.email }])
+        if (error) {
+          toast.error("Errore durante l'iscrizione. Riprova.")
+          return
+        }
         setMembers([...members, { workshop_id: courseId, user_id: user.id, user_email: user.email }])
         toast.success("Iscrizione avvenuta con successo! 🎉")
       }
+    } catch (err) {
+      console.error('Errore iscrizione/uscita:', err)
+      toast.error("Errore di connessione. Riprova.")
+    } finally {
+      setActionLoading(false)
     }
   }
 
   const handleDelete = async () => {
-    if (confirm("Sei sicuro di voler eliminare questo laboratorio?")) {
-      await supabase.from('workshops').delete().eq('id', courseId)
+    if (!confirm("Sei sicuro di voler eliminare questo laboratorio?")) return
+
+    setActionLoading(true)
+    try {
+      const { error } = await supabase.from('workshops').delete().eq('id', courseId)
+      if (error) {
+        toast.error("Errore durante l'eliminazione. Riprova.")
+        return
+      }
       toast.success("Laboratorio eliminato.")
       router.push('/laboratori')
+    } catch (err) {
+      console.error('Errore eliminazione:', err)
+      toast.error("Errore di connessione. Riprova.")
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleShare = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href)
+      toast.success("Link copiato!")
+    } catch (err) {
+      // Alcuni browser in-app su Android (WebView di Instagram, Facebook,
+      // TikTok - comuni quando si apre un link condiviso) bloccano l'accesso
+      // alla clipboard. Prima il "Link copiato!" veniva mostrato comunque,
+      // anche quando la copia falliva davvero.
+      console.error('Copia link fallita:', err)
+      toast.error("Impossibile copiare il link su questo browser. Copialo manualmente dalla barra degli indirizzi.")
     }
   }
 
@@ -79,7 +122,7 @@ export default function DettaglioLaboratorio() {
   if (!course) return null
 
   // Estrae le vere iniziali dall'email per i tondini
-  const getInitials = (email: string) => email.substring(0, 2).toUpperCase()
+  const getInitials = (email?: string) => (email || '??').substring(0, 2).toUpperCase()
 
   // Unisce il creatore ai membri per la visualizzazione
   const allParticipants = [{ user_email: course.creator_email, isCreator: true }, ...members]
@@ -100,11 +143,11 @@ export default function DettaglioLaboratorio() {
             <h2 className="mt-4 text-xl font-bold text-stone-800">{course.title}</h2>
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={() => { navigator.clipboard.writeText(window.location.href); toast.success("Link copiato!") }} className="w-12 h-12 rounded-full bg-white border border-stone-200 flex items-center justify-center shadow-sm hover:bg-stone-100 transition-colors text-stone-600">
+            <button onClick={handleShare} className="w-12 h-12 rounded-full bg-white border border-stone-200 flex items-center justify-center shadow-sm hover:bg-stone-100 transition-colors text-stone-600">
               <Share2 size={18} />
             </button>
-            <button onClick={handleJoinLeave} className={`px-6 py-3 rounded-xl text-[11px] font-black uppercase tracking-widest shadow-md transition-colors ${isEnrolled ? 'bg-stone-200 text-stone-600 hover:bg-stone-300' : 'bg-stone-900 text-white hover:bg-rose-600'}`}>
-              {isEnrolled ? 'Esci dal Gruppo' : 'Partecipa'}
+            <button onClick={handleJoinLeave} disabled={actionLoading} className={`px-6 py-3 rounded-xl text-[11px] font-black uppercase tracking-widest shadow-md transition-colors disabled:opacity-50 ${isEnrolled ? 'bg-stone-200 text-stone-600 hover:bg-stone-300' : 'bg-stone-900 text-white hover:bg-rose-600'}`}>
+              {actionLoading ? 'Attendi...' : (isEnrolled ? 'Esci dal Gruppo' : 'Partecipa')}
             </button>
           </div>
         </div>
@@ -176,11 +219,20 @@ export default function DettaglioLaboratorio() {
             <div className="flex flex-wrap gap-2">
               {allParticipants.map((participant, index) => (
                 <div key={index} className="relative group">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-[10px] font-black shadow-sm border-2 ${participant.isCreator ? 'bg-rose-100 text-rose-600 border-rose-200' : 'bg-stone-100 text-stone-600 border-stone-200'}`}>
+                  <button
+                    type="button"
+                    onClick={() => setOpenTooltipIndex(openTooltipIndex === index ? null : index)}
+                    className={`w-10 h-10 rounded-full flex items-center justify-center text-[10px] font-black shadow-sm border-2 ${participant.isCreator ? 'bg-rose-100 text-rose-600 border-rose-200' : 'bg-stone-100 text-stone-600 border-stone-200'}`}
+                  >
                     {getInitials(participant.user_email)}
-                  </div>
-                  {/* Tooltip per vedere l'email intera al passaggio del mouse */}
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block bg-stone-900 text-white text-[9px] font-bold px-2 py-1 rounded shadow-lg whitespace-nowrap z-10">
+                  </button>
+                  {/* FIX ANDROID: "group-hover" da solo non funziona sul touch -
+                      niente hover reale su mobile, quindi il tooltip con l'email
+                      era semplicemente impossibile da vedere su Android. Ora si
+                      apre anche con un tap (oltre a restare disponibile via
+                      hover su desktop), toccando di nuovo lo stesso avatar per
+                      richiuderlo. */}
+                  <div className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2 ${openTooltipIndex === index ? 'block' : 'hidden'} group-hover:block bg-stone-900 text-white text-[9px] font-bold px-2 py-1 rounded shadow-lg whitespace-nowrap z-10`}>
                     {participant.user_email} {participant.isCreator && '(Creatore)'}
                   </div>
                 </div>
@@ -197,8 +249,8 @@ export default function DettaglioLaboratorio() {
                 Sei il proprietario di questo gruppo {isStaff && '(Staff)'}. Puoi rimuoverlo definitivamente dal database.
               </p>
               
-              <button onClick={handleDelete} className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-colors text-[10px] font-black uppercase tracking-widest border border-red-500/20">
-                <Trash2 size={14} /> Elimina Laboratorio
+              <button onClick={handleDelete} disabled={actionLoading} className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-colors text-[10px] font-black uppercase tracking-widest border border-red-500/20 disabled:opacity-50">
+                <Trash2 size={14} /> {actionLoading ? 'Attendi...' : 'Elimina Laboratorio'}
               </button>
             </div>
           )}

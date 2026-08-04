@@ -77,6 +77,18 @@ body {
   .min-h-screen {
     min-height: 100dvh;
   }
+  /* FIX: il modale "Crea Nuovo Corso" usa max-h-[95vh]/max-h-[90vh] - stesso
+     problema già risolto per min-h-screen: su Android, quando si apre la
+     tastiera per scrivere titolo/descrizione, un'altezza in vh non riflette
+     lo spazio realmente visibile e il modale può risultare più alto dello
+     schermo utile, con parte del contenuto o dei pulsanti in fondo
+     irraggiungibili finché la tastiera resta aperta. */
+  .max-h-\[95vh\] {
+    max-height: 95dvh;
+  }
+  .max-h-\[90vh\] {
+    max-height: 90dvh;
+  }
 }
 
 /*

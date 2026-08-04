@@ -6,16 +6,12 @@ import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { User } from '@supabase/supabase-js'
-import { Mic, MicOff, Search, MapPin, Heart, Crown, Mail, Plus, Send, Trash2, Edit2, X } from 'lucide-react'
+import { Mic, MicOff, Search, MapPin, Heart, Crown, Mail, Plus, Send, Trash2, Edit2, X, BookOpen, MessageCircle, Settings, User as UserIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import GalacticOutpost from './components/minigame/GalacticOutpost'
+import ExternalResultsFallback from '@/components/ExternalResultsFallback'
 
 // --- RILEVAMENTO ANDROID (solo lato client, per adattare l'hero) ---
-// Non esiste un modo via CSS per distinguere Android da altri touch device,
-// quindi il controllo si fa sullo user agent. Parte da `false` (stesso valore
-// che vede il server) e si aggiorna dopo il mount in un useEffect: così
-// l'HTML del primo render lato client combacia sempre con quello del server
-// e non genera un errore di hydration mismatch.
 function useIsAndroid() {
   const [isAndroid, setIsAndroid] = useState(false)
   useEffect(() => {
@@ -43,17 +39,14 @@ interface Announcement {
   is_sponsored?: boolean;
 }
 
-// --- COMPONENTE TOOLTIP RIUTILIZZABILE 💬 ---
 const Tooltip = ({ children, text, wrapperClass = "relative w-full h-full" }: { children: React.ReactNode, text: string, wrapperClass?: string }) => {
   return (
     <div className={`${wrapperClass} group flex justify-center items-center`}>
       {children}
-      {/* La Nuvoletta (Nascosta di default, appare in hover) */}
       <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 invisible group-hover:visible transition-all duration-300 z-[999] pointer-events-none">
         <div className="bg-stone-900 text-white text-[10px] font-bold tracking-wide uppercase px-3 py-2 rounded-xl shadow-xl whitespace-nowrap border border-stone-700">
           {text}
         </div>
-        {/* Triangolino sotto la nuvoletta */}
         <div className="w-3 h-3 bg-stone-900 border-r border-b border-stone-700 rotate-45 transform origin-top-left mx-auto -mt-2"></div>
       </div>
     </div>
@@ -67,7 +60,6 @@ function HomePageContent() {
   const [loading, setLoading] = useState(true)
   const isAndroid = useIsAndroid()
   
-  // STATI PER LA RICERCA AVANZATA (FILTRI GRANULARI) E VOCALE 🎙️
   const [mainSearch, setMainSearch] = useState('') 
   const [isListening, setIsListening] = useState(false)
   
@@ -79,14 +71,12 @@ function HomePageContent() {
   
   const [visibleCount, setVisibleCount] = useState(12)
 
-  // --- STATI PER I LABORATORI E CORSI (ORA 100% REALI E VUOTI DI DEFAULT) 🛠️ ---
   const [courses, setCourses] = useState<any[]>([])
   
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [newCourseTitle, setNewCourseTitle] = useState('')
   const [newCourseCategory, setNewCourseCategory] = useState('Riuso')
   
-  // STATI PER IL MODALE COMPLETO DI CREAZIONE CORSO
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [courseForm, setCourseForm] = useState({
     title: '',
@@ -99,8 +89,8 @@ function HomePageContent() {
     price: '',
     imageUrl: ''
   })
+  const [creatingCourse, setCreatingCourse] = useState(false)
 
-  // --- STATI PER LA CHAT GLOBALE IN TEMPO REALE 💬 ---
   const [chatMessages, setChatMessages] = useState<any[]>([])
   const [newChatMessage, setNewChatMessage] = useState('')
   const [editingMsgId, setEditingMsgId] = useState<string | null>(null)
@@ -117,7 +107,6 @@ function HomePageContent() {
   useEffect(() => { 
     fetchInitialData() 
 
-    // Avvia l'ascolto per i messaggi chat in tempo reale
     fetchChatMessages()
     const chatChannel = supabase.channel('public:global_chat')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'global_chat' }, () => {
@@ -127,7 +116,6 @@ function HomePageContent() {
       
     return () => {
       supabase.removeChannel(chatChannel)
-      // Ferma il riconoscimento vocale se ancora attivo quando si lascia la pagina
       if (recognitionRef.current) {
         try { recognitionRef.current.stop() } catch { /* già fermo */ }
         recognitionRef.current = null
@@ -135,10 +123,29 @@ function HomePageContent() {
     }
   }, [])
 
-  // Auto-scroll della chat verso il basso
+  const hasScrolledInitially = useRef(false)
+
+  // FIX: prima questo effect forzava SEMPRE lo scroll in fondo a ogni nuovo
+  // messaggio, chiunque lo avesse scritto - se stavi scorrendo in su per
+  // leggere la cronologia, ogni messaggio nuovo (frequente, essendo una chat
+  // pubblica) ti riportava giù di scatto, dando la sensazione che la chat
+  // fosse "bloccata" e impossibile da leggere per intero. Ora scende in
+  // fondo automaticamente solo al primo caricamento e quando l'utente era
+  // già vicino al fondo - se ha scrollato in su, resta dove si trova.
   useEffect(() => {
-    if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    const el = chatContainerRef.current
+    if (!el) return
+
+    if (!hasScrolledInitially.current && chatMessages.length > 0) {
+      el.scrollTop = el.scrollHeight
+      hasScrolledInitially.current = true
+      return
+    }
+
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+    const wasNearBottom = distanceFromBottom < 100
+    if (wasNearBottom) {
+      el.scrollTop = el.scrollHeight
     }
   }, [chatMessages])
 
@@ -147,7 +154,6 @@ function HomePageContent() {
     const { data: { user: u } } = await supabase.auth.getUser()
     setUser(u)
     
-    // 1. Fetch Annunci
     const { data: ads, error } = await supabase
       .from('announcements')
       .select('*')
@@ -157,20 +163,17 @@ function HomePageContent() {
       setAnnouncements(ads as Announcement[])
     }
     
-    // 2. Fetch Preferiti
     if (u) {
       const { data: favs } = await supabase.from('favorites').select('announcement_id').eq('user_id', u.id)
       if (favs) setFavorites(favs.map(f => f.announcement_id))
     }
 
-    // 3. FETCH CORSI 100% REALI DAL DATABASE 🎯
     const { data: wsData } = await supabase
       .from('workshops')
       .select('*')
       .order('created_at', { ascending: false })
       
     if (wsData) {
-      // Peschiamo anche i membri per conteggiarli in tempo reale
       const { data: membersData } = await supabase.from('workshop_members').select('*')
       const realCourses = wsData.map(ws => {
         const membersCount = membersData ? membersData.filter(m => m.workshop_id === ws.id).length : 0;
@@ -179,7 +182,7 @@ function HomePageContent() {
           title: ws.title,
           category: ws.category,
           creator: ws.creator_email,
-          members: membersCount + 1 // Il creatore conta come 1
+          members: membersCount + 1
         }
       })
       setCourses(realCourses)
@@ -188,12 +191,11 @@ function HomePageContent() {
     setLoading(false)
   }
 
-  // --- LOGICA GESTIONE CHAT GLOBALE 💬 ---
   async function fetchChatMessages() {
     const { data, error } = await supabase
       .from('global_chat')
       .select('*')
-      .order('created_at', { ascending: true }) // Ordine cronologico
+      .order('created_at', { ascending: true })
       .limit(100)
     
     if (!error && data) {
@@ -202,7 +204,6 @@ function HomePageContent() {
   }
 
   const containsPhoneNumber = (text: string) => {
-    // Blocca se ci sono 9 o più cifre consecutive (Regex)
     const digitsOnly = text.replace(/\D/g, '')
     return digitsOnly.length >= 9
   }
@@ -216,7 +217,6 @@ function HomePageContent() {
     }
 
     const content = newChatMessage
-    setNewChatMessage('') 
 
     const { error } = await supabase.from('global_chat').insert([{
       user_id: user.id,
@@ -224,13 +224,21 @@ function HomePageContent() {
       content: content
     }])
 
-    if (error) toast.error("Errore nell'invio del messaggio.")
+    if (error) {
+      toast.error("Errore nell'invio del messaggio.")
+    } else {
+      setNewChatMessage('')
+    }
   }
 
   const handleDeleteChat = async (id: string, msgUserId: string) => {
     if (IS_STAFF || user?.id === msgUserId) {
-      await supabase.from('global_chat').delete().eq('id', id)
-      toast.success("Messaggio eliminato.")
+      const { error } = await supabase.from('global_chat').delete().eq('id', id)
+      if (error) {
+        toast.error("Errore durante l'eliminazione del messaggio.")
+      } else {
+        toast.success("Messaggio eliminato.")
+      }
     } else {
       toast.error("Non hai i permessi per cancellare questo messaggio.")
     }
@@ -240,12 +248,15 @@ function HomePageContent() {
     if (containsPhoneNumber(editMsgContent)) {
       return toast.error("⚠️ Non è consentito inserire numeri di telefono!")
     }
-    await supabase.from('global_chat').update({ content: editMsgContent }).eq('id', id)
+    const { error } = await supabase.from('global_chat').update({ content: editMsgContent }).eq('id', id)
+    if (error) {
+      toast.error("Errore durante la modifica del messaggio.")
+      return
+    }
     setEditingMsgId(null)
     toast.success("Messaggio modificato.")
   }
 
-  // --- LOGICA GESTIONE CORSI E LABORATORI (DATABASE REALE) 🛠️ ---
   const handleCreateCourse = async () => {
     if (!user) {
       toast.error("Devi accedere per creare un corso! 🔑")
@@ -258,7 +269,9 @@ function HomePageContent() {
       return
     }
 
-    // Prepariamo i dati per il database Reale Supabase
+    if (creatingCourse) return
+    setCreatingCourse(true)
+
     const newCourseData = {
       title: titleToUse,
       category: courseForm.category || newCourseCategory,
@@ -273,29 +286,33 @@ function HomePageContent() {
       image_url: courseForm.imageUrl || null
     }
 
-    // INVIO AL DATABASE SUPABASE
-    const { data, error } = await supabase.from('workshops').insert([newCourseData]).select()
-    
-    if (error) {
-      toast.error("C'è stato un problema nel salvataggio. Riprova.")
-      console.error(error)
-      return
-    }
+    try {
+      const { data, error } = await supabase.from('workshops').insert([newCourseData]).select()
+      
+      if (error) {
+        toast.error("C'è stato un problema nel salvataggio. Riprova.")
+        console.error(error)
+        return
+      }
 
-    toast.success("Nuovo laboratorio pubblicato e salvato nel Database! 🎉")
-    
-    // Resetta form e aggiorna dati
-    setNewCourseTitle('')
-    setShowCreateForm(false)
-    setCourseForm({ title: '', category: 'Riuso', description: '', date: '', startTime: '', endTime: '', location: '', price: '', imageUrl: '' })
-    setIsCreateModalOpen(false)
-    fetchInitialData() // Ricarica la bacheca in tempo reale
+      toast.success("Nuovo laboratorio pubblicato e salvato nel Database! 🎉")
+      
+      setNewCourseTitle('')
+      setShowCreateForm(false)
+      setCourseForm({ title: '', category: 'Riuso', description: '', date: '', startTime: '', endTime: '', location: '', price: '', imageUrl: '' })
+      setIsCreateModalOpen(false)
+      fetchInitialData()
+    } catch (err) {
+      console.error('Errore creazione corso:', err)
+      toast.error("Errore di connessione. Riprova.")
+    } finally {
+      setCreatingCourse(false)
+    }
   }
 
   const handleJoinCourse = async (id: string) => {
     if (!user) { toast.error("Devi accedere per iscriverti!"); return; }
     
-    // Inserimento Reale nel DB
     const { error } = await supabase.from('workshop_members').insert([{
       workshop_id: id,
       user_id: user.id,
@@ -306,12 +323,13 @@ function HomePageContent() {
       toast.error("Sei già iscritto o c'è stato un errore tecnico!")
     } else {
       toast.success("Iscrizione avvenuta! L'ingresso è libero 🤝")
-      fetchInitialData() // Aggiorna il contatore partecipanti
+      fetchInitialData()
     }
   }
 
   const handleDeleteCourse = async (id: string) => {
-    // Cancellazione Reale dal DB
+    if (!confirm("Sei sicuro di voler eliminare questo laboratorio? L'azione è permanente.")) return
+
     const { error } = await supabase.from('workshops').delete().eq('id', id)
     if (!error) {
       toast.success("Laboratorio rimosso dal database con successo.")
@@ -321,18 +339,12 @@ function HomePageContent() {
     }
   }
 
-  // --- MOTORE DI RICERCA VOCALE REALE 🎙️ ---
-  // NOTE: su Android il supporto a SpeechRecognition è incostante (spesso assente in
-  // WebView/browser non-Chrome, e recognition.start() può lanciare un errore sincrono
-  // se chiamato mentre un'istanza precedente è ancora attiva). Aggiunta protezione
-  // completa con try/catch, cleanup all'unmount e blocco doppio-tap.
   const handleVoiceSearch = () => {
     if (typeof window === 'undefined' || (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window))) {
       toast.error("Il tuo browser non supporta la ricerca vocale.");
       return;
     }
 
-    // Evita doppio avvio (tap ripetuto veloce su Android causa InvalidStateError)
     if (isListening) return;
 
     try {
@@ -357,7 +369,6 @@ function HomePageContent() {
       };
 
       recognition.onerror = (event: any) => {
-        // "no-speech" e "aborted" sono normali (utente non ha parlato o ha chiuso il permesso su Android)
         if (event?.error !== 'no-speech' && event?.error !== 'aborted') {
           toast.error("Non ho capito, riprova.");
         }
@@ -372,8 +383,6 @@ function HomePageContent() {
 
       recognition.start();
     } catch (err) {
-      // Cattura InvalidStateError e simili, frequenti su Chrome Android quando
-      // il microfono è già in uso o il permesso è stato negato
       console.error('Voice search error:', err)
       toast.error("Ricerca vocale non disponibile su questo dispositivo.");
       setIsListening(false);
@@ -415,8 +424,6 @@ function HomePageContent() {
         }
       },
       (geoError) => {
-        // Su Android, permesso negato o GPS/localizzazione disattivata finiscono qui:
-        // senza questo handler la richiesta falliva in silenzio e il pulsante restava bloccato
         if (geoError.code === geoError.PERMISSION_DENIED) {
           toast.error("Permesso di localizzazione negato. Abilitalo nelle impostazioni del browser.")
         } else {
@@ -441,7 +448,6 @@ function HomePageContent() {
     }
   }
 
-  // --- MOTORE DI RICERCA A FACCETTE MULTIPLE ---
   const filteredData = announcements.filter(item => {
     const titleMatch = item.title.toLowerCase().includes(mainSearch.toLowerCase())
     const categoryMatch = catFilter ? item.category_id?.toString() === catFilter : (searchCategory === 'all' || item.category === searchCategory)
@@ -466,7 +472,6 @@ function HomePageContent() {
   const topItems = sortedData.filter(i => i.condition === 'Nuovo').slice(0, 5)
   const regularItems = sortedData.filter(i => !topItems.find(t => t.id === i.id))
 
-  // SKELETON LOADER COMPONENT (Sagome pulsanti senza sfocature) 🦴
   const SkeletonCard = ({ isTop = false }) => (
     <div className={`bg-white rounded-[2rem] p-4 shadow-sm border border-stone-200 animate-pulse flex flex-col relative overflow-hidden ${isTop ? 'h-64' : 'h-56'}`}>
        <div className={`w-full bg-stone-200 rounded-2xl mb-4 ${isTop ? 'h-32' : 'h-28'}`}></div>
@@ -485,7 +490,6 @@ function HomePageContent() {
         </Link>
       )}
 
-      {/* BARRA DI RICERCA SENZA SFUMATURE ED EFFETTI SFOCATI */}
       <div className="w-full max-w-7xl mx-auto px-4 pt-4 flex justify-center sticky top-0 z-[100] bg-stone-50">
         <div className="relative w-full max-w-2xl shadow-md rounded-[2rem] bg-white border border-stone-200">
           <div className="absolute inset-y-0 left-6 flex items-center pointer-events-none">
@@ -498,7 +502,6 @@ function HomePageContent() {
             className="w-full py-4 pl-16 pr-20 rounded-[2rem] bg-white border-none outline-none text-base md:text-lg font-black text-stone-900 focus:ring-4 focus:ring-rose-100 transition-all placeholder:text-stone-400" 
             onChange={(e) => setMainSearch(e.target.value)} 
           />
-          {/* TOOLTIP: PULSANTE VOCALE */}
           <Tooltip text={isListening ? "In ascolto..." : "Ricerca con la voce! 🎙️"} wrapperClass="absolute inset-y-2 right-2">
             <button 
              onClick={handleVoiceSearch}
@@ -510,7 +513,46 @@ function HomePageContent() {
         </div>
       </div>
 
-      {/* --- HERO SECTION: 16/9 di default; su Android più grande e scorrevole orizzontalmente --- */}
+      {/* 5 PULSANTI RAPIDI ACCOUNT: Profilo, Inserisci Corso, Inserisci Annuncio, Messaggi, Impostazioni.
+          "Inserisci Corso" riusa la stessa logica del pulsante "+ Crea" più in basso (apre il modale,
+          chiede il login se serve) perché non esiste una pagina a sé per creare un corso - è un modale.
+          "Impostazioni" porta a /profile: è la stessa destinazione di "Profilo" perché nel resto
+          dell'app (Navbar) "Impostazioni" punta già lì - non esiste ancora una pagina impostazioni
+          separata. Se un giorno ne crei una dedicata, basta cambiare questo singolo link. */}
+      <div className="w-full max-w-[1300px] mx-auto px-4 mt-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+          <Link href="/profile" className="flex flex-col items-center justify-center gap-2 bg-white border border-stone-200 rounded-2xl py-4 px-2 shadow-sm hover:shadow-md hover:border-rose-200 transition-all text-center">
+            <UserIcon size={22} className="text-rose-500" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-stone-800">Profilo</span>
+          </Link>
+          <button
+            onClick={() => {
+              if (!user) {
+                toast.error("Devi accedere per creare un corso! 🔑")
+              } else {
+                setIsCreateModalOpen(true)
+              }
+            }}
+            className="flex flex-col items-center justify-center gap-2 bg-white border border-stone-200 rounded-2xl py-4 px-2 shadow-sm hover:shadow-md hover:border-rose-200 transition-all text-center"
+          >
+            <BookOpen size={22} className="text-rose-500" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-stone-800">Inserisci Corso</span>
+          </button>
+          <Link href="/add" className="flex flex-col items-center justify-center gap-2 bg-white border border-stone-200 rounded-2xl py-4 px-2 shadow-sm hover:shadow-md hover:border-rose-200 transition-all text-center">
+            <Plus size={22} className="text-rose-500" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-stone-800">Inserisci Annuncio</span>
+          </Link>
+          <Link href="/chat" className="flex flex-col items-center justify-center gap-2 bg-white border border-stone-200 rounded-2xl py-4 px-2 shadow-sm hover:shadow-md hover:border-rose-200 transition-all text-center">
+            <MessageCircle size={22} className="text-rose-500" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-stone-800">Messaggi</span>
+          </Link>
+          <Link href="/profile" className="flex flex-col items-center justify-center gap-2 bg-white border border-stone-200 rounded-2xl py-4 px-2 shadow-sm hover:shadow-md hover:border-rose-200 transition-all text-center">
+            <Settings size={22} className="text-rose-500" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-stone-800">Impostazioni</span>
+          </Link>
+        </div>
+      </div>
+
       {isAndroid ? (
         <div className="relative w-full overflow-x-auto overflow-y-hidden mt-2 android-hero-scroll">
           <div className="h-[400px] w-max flex items-center">
@@ -533,10 +575,8 @@ function HomePageContent() {
         </div>
       )}
 
-      {/* --- CONFIGURAZIONE GRIGLIA CON BANNER LATERALI ADATTIVI RIPORTATI A MISURE CORRETTE --- */}
       <div className="w-full max-w-[1750px] mx-auto px-4 md:px-6 mt-6 lg:-mt-12 relative z-20 flex flex-col lg:flex-row gap-6">
         
-        {/* SIDEBAR BANNER SINISTRA (SPONSOR) */}
         <aside className="flex flex-col gap-6 w-full lg:w-[280px] xl:w-[320px] shrink-0 self-start lg:sticky lg:top-24 order-2 lg:order-1 mt-8 lg:mt-0">
           <div className="bg-white border border-stone-200 rounded-[2rem] p-5 shadow-md flex flex-col items-center text-center justify-between min-h-[560px] w-full">
             <div className="w-full h-full flex flex-col">
@@ -570,10 +610,8 @@ function HomePageContent() {
           </div>
         </aside>
 
-        {/* CONTENUTO CENTRALE - ORDINE AGGIORNATO E PERFETTAMENTE ADATTATO */}
         <main className="flex-1 w-full overflow-hidden order-1 lg:order-2">
           
-          {/* 1. RIQUADRO VIDEO (Centrato, Larghezza -10%, Altezza -35%, Adattato e colore hero) */}
           <div className="w-full max-w-[1170px] mx-auto mt-8 mb-8 px-2">
             <div className="w-full rounded-[2rem] overflow-hidden border border-stone-200 shadow-md bg-[#f5efdf] flex items-center justify-center h-[210px]">
               <video 
@@ -587,19 +625,16 @@ function HomePageContent() {
             </div>
           </div>
 
-          {/* 2. GRIGLIA GEMELLA: LABORATORI & CORSI + CHAT DI COMUNITÀ */}
-          {/* Allineati di fianco su schermi grandi, stessa altezza, centrati nel layout */}
           <div className="w-full max-w-[1300px] mx-auto grid grid-cols-1 xl:grid-cols-2 gap-6 mb-12 px-2">
             
-            {/* BOX LABORATORI & CORSI (Altezza maggiorata a 400px) */}
             <div className="w-full h-full rounded-[2rem] border border-stone-200 shadow-md bg-[#f5efdf] p-6 flex flex-col justify-between min-h-[400px] text-stone-900 relative">
               <div className="flex-1 flex flex-col">
-                <div className="flex justify-between items-center mb-4 shrink-0">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4 shrink-0">
                   <div>
                     <span className="text-[9px] font-black uppercase tracking-widest text-rose-600 block">Community</span>
                     <Link href="/laboratori" className="text-base font-black uppercase tracking-tight hover:text-rose-600 transition-colors">Laboratori & Corsi</Link>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <Link 
                       href="/laboratori"
                       className="bg-white text-stone-900 border border-stone-200 text-[10px] font-black uppercase tracking-wider px-3 py-2 rounded-xl hover:bg-stone-100 transition-all flex items-center gap-1 shadow-sm"
@@ -628,7 +663,6 @@ function HomePageContent() {
                   </div>
                 </div>
 
-                {/* SCROLLABLE LIST DEI LABORATORI (Dati Reali da Database) */}
                 <div className="space-y-2 flex-1 overflow-y-auto pr-1 custom-scrollbar min-h-[220px]">
                   {courses.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full opacity-50">
@@ -677,7 +711,6 @@ function HomePageContent() {
                 </div>
               </div>
 
-              {/* FOOTER DEL RIQUADRO CON PULSANTE "TUTTI I CORSI" */}
               <div className="flex justify-between items-center mt-3 border-t border-stone-300/50 pt-3 shrink-0">
                 <div className="text-[9px] font-bold text-stone-500 uppercase tracking-wide flex items-center gap-2">
                   <span>Ingresso Libero 🤝</span>
@@ -692,10 +725,8 @@ function HomePageContent() {
               </div>
             </div>
 
-            {/* BOX CHAT DI GRUPPO REATTIVA (Gemella, 400px min-h) */}
             <div className="w-full h-full rounded-[2rem] shadow-md flex flex-col overflow-hidden relative border border-stone-200 bg-white min-h-[400px]">
               
-              {/* Header Chat */}
               <div className="bg-[#f5efdf] px-4 py-3 border-b border-stone-200 flex justify-between items-center shrink-0">
                 <span className="text-[11px] font-black uppercase tracking-widest text-stone-900 flex items-center gap-2">
                   Community Chat <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_5px_rgba(16,185,129,0.8)]"></span>
@@ -703,7 +734,6 @@ function HomePageContent() {
                 <span className="text-[8px] font-bold text-stone-500 uppercase">Live</span>
               </div>
 
-              {/* Messaggi Chat */}
               <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-3 flex flex-col gap-3 custom-scrollbar bg-stone-50/50 h-[220px]">
                 {chatMessages.length === 0 ? (
                   <p className="text-center text-[10px] font-bold text-stone-400 uppercase mt-auto mb-auto">Nessun messaggio. Scrivi per primo!</p>
@@ -715,14 +745,12 @@ function HomePageContent() {
 
                     return (
                       <div key={msg.id} className={`flex flex-col max-w-[85%] ${isMine ? 'self-end items-end' : 'self-start items-start'}`}>
-                        {/* NOME MITTENTE VISIBILE SU TUTTI I MESSAGGI ORA! */}
                         <span className={`text-[8px] font-black uppercase text-stone-400 mb-0.5 ${isMine ? 'mr-1 text-right' : 'ml-1 text-left'}`}>
                           {msg.user_email.split('@')[0]}
                         </span>
                         
                         <div className={`px-3 py-2 rounded-2xl shadow-sm text-sm relative group ${isMine ? 'bg-rose-600 text-white rounded-br-sm' : 'bg-white border border-stone-200 text-stone-800 rounded-bl-sm'}`}>
                           
-                          {/* Gestione Modifica Inline */}
                           {isEditingThis ? (
                             <div className="flex gap-2 items-center">
                               <input 
@@ -740,7 +768,6 @@ function HomePageContent() {
                             <p className="leading-snug break-words pr-2 font-medium">{msg.content}</p>
                           )}
 
-                          {/* Azioni del messaggio (Modifica/Elimina) */}
                           {canModify && !isEditingThis && (
                             <div className={`absolute top-1/2 -translate-y-1/2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity bg-white p-1.5 rounded-lg shadow-sm border border-stone-200 ${isMine ? 'right-full mr-2' : 'left-full ml-2'}`}>
                               {isMine && (
@@ -760,7 +787,6 @@ function HomePageContent() {
                 )}
               </div>
 
-              {/* Input Chat Fissa In Basso */}
               <div className="p-3 bg-white border-t border-stone-100 shrink-0 mt-auto">
                 {user ? (
                   <div className="flex gap-2 items-center bg-stone-50 border border-stone-200 rounded-xl px-2 py-1.5 focus-within:border-rose-300 focus-within:ring-2 focus-within:ring-rose-50 transition-all">
@@ -789,7 +815,6 @@ function HomePageContent() {
             </div>
           </div>
 
-          {/* 3. FILTRI CON COLORI SOLIDI E PIATTI */}
           <section className="mb-12 max-w-[1300px] mx-auto px-2">
             <div className="bg-white p-6 rounded-[2.5rem] shadow-md border border-stone-200 flex flex-col gap-8">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
@@ -841,7 +866,6 @@ function HomePageContent() {
                   </div>
                 </div>
 
-                {/* TOOLTIP: PULSANTE RADAR */}
                 <div className="flex flex-col gap-2">
                   <Tooltip text="Trova annunci in un raggio di 20km 📍" wrapperClass="relative w-full">
                     <button onClick={handleNearbySearch} className={`w-full p-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all shadow-md flex items-center justify-center gap-2 ${distance > 0 ? 'bg-rose-600 text-white' : 'bg-stone-900 text-white hover:bg-rose-600'}`}>
@@ -854,11 +878,9 @@ function HomePageContent() {
             </div>
           </section>
 
-          {/* 4. I QUATTRO RIQUADRI CENTRALI DELLA VENDITA */}
           {!catFilter && !typeFilter && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-16 max-w-[1300px] mx-auto px-2">
               
-              {/* TOOLTIP: VENDI NUOVO */}
               <Tooltip text="Metti in vendita un oggetto mai usato ✨" wrapperClass="relative w-full h-full">
                 <Link href="/add?mode=new" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#f5efdf] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
                    <div className="absolute inset-0 w-full h-full overflow-hidden">
@@ -870,7 +892,6 @@ function HomePageContent() {
                 </Link>
               </Tooltip>
               
-              {/* TOOLTIP: VENDI USATO */}
               <Tooltip text="Dai una seconda vita ai tuoi oggetti ♻️" wrapperClass="relative w-full h-full">
                 <Link href="/add?mode=used" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#f5efdf] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
                    <div className="absolute inset-0 w-full h-full overflow-hidden">
@@ -882,7 +903,6 @@ function HomePageContent() {
                 </Link>
               </Tooltip>
               
-              {/* TOOLTIP: REGALO */}
               <Tooltip text="Regala o trova oggetti gratis in regalo 🎁" wrapperClass="relative w-full h-full">
                 <Link href="/add?mode=gift" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#f5efdf] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
                    <div className="absolute inset-0 w-full h-full overflow-hidden">
@@ -894,7 +914,6 @@ function HomePageContent() {
                 </Link>
               </Tooltip>
 
-              {/* TOOLTIP: BARATTO */}
               <Tooltip text="Scambia i tuoi oggetti senza usare soldi 🤝" wrapperClass="relative w-full h-full">
                 <Link href="/add?mode=barter" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#f5efdf] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
                    <div className="absolute inset-0 w-full h-full overflow-hidden">
@@ -908,7 +927,6 @@ function HomePageContent() {
             </div>
           )}
 
-          {/* 5. SEZIONE VETRINA TOP */}
           <section className="mb-20 max-w-[1300px] mx-auto px-2">
             <div className="flex justify-between items-end mb-8 border-b border-stone-300 pb-4">
               <h2 className="text-[14px] font-black uppercase tracking-[0.4em] text-stone-900">Vetrina Top Nuovo</h2>
@@ -946,7 +964,6 @@ function HomePageContent() {
             )}
           </section>
 
-          {/* 6. TUTTI GLI ANNUNCI */}
           <section className="mb-20 max-w-[1300px] mx-auto px-2">
             <div className="flex justify-between items-end mb-8 border-b border-stone-300 pb-4">
               <h2 className="text-[14px] font-black uppercase tracking-[0.4em] text-stone-900 opacity-50">Tutti gli Annunci</h2>
@@ -961,6 +978,11 @@ function HomePageContent() {
                  <Search size={64} className="text-stone-300 mx-auto mb-4" strokeWidth={1.5} />
                  <p className="text-sm font-black text-stone-900 uppercase tracking-widest">Nessun risultato</p>
                  <p className="text-[10px] font-bold text-stone-500 uppercase mt-2">Prova ad allargare i filtri di ricerca o la fascia di prezzo.</p>
+                 {mainSearch.trim() && (
+                   <div className="mt-10 text-left">
+                     <ExternalResultsFallback query={mainSearch.trim()} />
+                   </div>
+                 )}
               </div>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-5">
@@ -1005,14 +1027,12 @@ function HomePageContent() {
             )}
           </section>
 
-          {/* 7. GIOCO GALACTIC OUTPOST IN FONDO - FORMATO 20x10 cm (800x400 PX) INVARIATO */}
           <div className="w-full max-w-[800px] mx-auto mt-12 mb-10 rounded-[2rem] overflow-hidden shadow-sm bg-[#020205] relative h-[400px] flex">
             <GalacticOutpost />
           </div>
 
         </main>
 
-        {/* SIDEBAR BANNER DESTRA (PARTNER) */}
         <aside className="flex flex-col gap-6 w-full lg:w-[280px] xl:w-[320px] shrink-0 self-start lg:sticky lg:top-24 order-3 mt-8 lg:mt-0">
           <div className="bg-white border border-stone-200 rounded-[2rem] p-5 shadow-md flex flex-col items-center text-center justify-between min-h-[560px] w-full">
             <div className="w-full h-full flex flex-col">
@@ -1048,12 +1068,10 @@ function HomePageContent() {
 
       </div>
 
-      {/* --- MODALE CREAZIONE CORSO COMPLETO (MOBILE-FRIENDLY, 3 SEZIONI) --- */}
       {isCreateModalOpen && (
         <div className="fixed inset-0 z-[999] bg-stone-900/60 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
           <div className="bg-white rounded-[1.5rem] md:rounded-[2rem] w-full max-w-2xl shadow-2xl relative flex flex-col max-h-[95vh] md:max-h-[90vh] overflow-hidden border border-stone-200">
             
-            {/* HEADER FISSO */}
             <div className="px-5 py-4 border-b border-stone-100 shrink-0 bg-white flex justify-between items-center z-10">
               <h2 className="text-lg md:text-2xl font-black uppercase tracking-tight text-stone-900">Crea Nuovo Corso</h2>
               <button onClick={() => setIsCreateModalOpen(false)} className="text-stone-400 hover:text-stone-900 transition-colors p-1">
@@ -1061,7 +1079,6 @@ function HomePageContent() {
               </button>
             </div>
 
-            {/* CORPO CENTRALE SCROLLABILE */}
             <div className="p-5 overflow-y-auto flex-1 bg-stone-50/30">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
                 <div className="md:col-span-2">
@@ -1118,10 +1135,9 @@ function HomePageContent() {
               </div>
             </div>
 
-            {/* FOOTER FISSO */}
             <div className="px-5 py-4 border-t border-stone-100 shrink-0 bg-white z-10 flex gap-2 md:gap-3">
-              <button onClick={() => setIsCreateModalOpen(false)} className="flex-1 p-3 md:p-4 rounded-xl bg-stone-100 text-stone-600 text-[11px] font-black uppercase tracking-widest hover:bg-stone-200 transition-colors">Annulla</button>
-              <button onClick={handleCreateCourse} className="flex-1 p-3 md:p-4 rounded-xl bg-rose-600 text-white text-[11px] font-black uppercase tracking-widest hover:bg-stone-900 transition-colors shadow-md">Pubblica Corso</button>
+              <button onClick={() => setIsCreateModalOpen(false)} disabled={creatingCourse} className="flex-1 p-3 md:p-4 rounded-xl bg-stone-100 text-stone-600 text-[11px] font-black uppercase tracking-widest hover:bg-stone-200 transition-colors disabled:opacity-50">Annulla</button>
+              <button onClick={handleCreateCourse} disabled={creatingCourse} className="flex-1 p-3 md:p-4 rounded-xl bg-rose-600 text-white text-[11px] font-black uppercase tracking-widest hover:bg-stone-900 transition-colors shadow-md disabled:opacity-50">{creatingCourse ? 'Pubblicazione...' : 'Pubblica Corso'}</button>
             </div>
 
           </div>
