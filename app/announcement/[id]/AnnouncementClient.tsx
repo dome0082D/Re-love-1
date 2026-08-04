@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useEffect, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -32,10 +32,22 @@ function AnnouncementContent() {
   const [submittingOffer, setSubmittingOffer] = useState(false)
   const [existingOffer, setExistingOffer] = useState<any>(null)
 
+  // FIX ANDROID: la mappa incorporata cattura i gesti di trascinamento per il
+  // proprio pan/zoom interno. Se è subito interattiva, un utente che prova a
+  // scorrere la pagina passando col dito sopra la mappa la vede "bloccarsi"
+  // lì invece di continuare a scorrere - un fastidio molto comune con le
+  // mappe incorporate su touch. Richiedere un tocco prima di attivarla
+  // risolve il problema senza toccare la mappa in sé.
+  const [mapActive, setMapActive] = useState(false)
+
   // STATI ESCLUSIVI PER LE ASTE TEMPORIZZATE ⏳
   const [timeLeft, setTimeLeft] = useState('')
   const [isAuctionEnded, setIsAuctionEnded] = useState(false)
   const [currentBid, setCurrentBid] = useState(0)
+  // Tiene traccia dell'ultima offerta senza dover mettere currentBid tra le
+  // dipendenze dell'effect qui sotto (vedi commento nell'effect stesso).
+  const currentBidRef = useRef(0)
+  useEffect(() => { currentBidRef.current = currentBid }, [currentBid])
 
   useEffect(() => {
     async function fetchData() {
@@ -96,7 +108,9 @@ function AnnouncementContent() {
          if (payload.new.current_bid) {
            setCurrentBid(payload.new.current_bid)
            // Se non è l'utente attuale a rilanciare, mostriamo un avviso!
-           if (payload.new.current_bid > currentBid) {
+           // FIX ANDROID: confrontiamo con il ref (sempre aggiornato) invece
+           // che con "currentBid" preso dalla dependency array - vedi sotto.
+           if (payload.new.current_bid > currentBidRef.current) {
              toast("⚠️ Qualcuno ha appena rilanciato!", { style: { background: '#f43f5e', color: 'white', border: 'none' } })
            }
          }
@@ -106,7 +120,16 @@ function AnnouncementContent() {
       clearInterval(interval); 
       supabase.removeChannel(channel); 
     }
-  }, [ann, currentBid])
+    // FIX ANDROID: prima "currentBid" era tra le dipendenze, ma viene anche
+    // aggiornato DENTRO questo stesso effect (da ogni rilancio ricevuto in
+    // realtime). Risultato: ogni singolo rilancio faceva chiudere e riaprire
+    // da zero l'intero canale WebSocket e riavviava il timer - su rete
+    // mobile Android (più soggetta a instabilità di connessione) questo
+    // significava continue disconnessioni/riconnessioni proprio durante il
+    // momento più delicato di un'asta attiva. Usando un ref per il confronto
+    // (sopra), l'effect ora si aggancia una sola volta per annuncio e resta
+    // stabile per tutta la durata dell'asta.
+  }, [ann])
 
 
   async function fetchSellerProfile(sellerId: string) {
@@ -142,7 +165,7 @@ function AnnouncementContent() {
       .eq('announcement_id', annId)
       .order('created_at', { ascending: false })
       .limit(1)
-      .single()
+      .maybeSingle()
     if (data) setExistingOffer(data)
   }
 
@@ -172,12 +195,21 @@ function AnnouncementContent() {
     } else {
       const startChat = async () => {
         setActionLoading(true);
-        await supabase.from('messages').insert([{
+        const { error } = await supabase.from('messages').insert([{
           content: `Ciao! Sono interessato al tuo annuncio in ${ann.condition}: "${ann.title}".`,
           sender_id: user.id,
           receiver_id: ann.user_id
         }]);
         setActionLoading(false);
+        // FIX ANDROID: prima l'esito dell'insert non veniva controllato, quindi
+        // su una connessione che cade a metà richiesta (comune passando tra
+        // WiFi e dati mobili) l'utente veniva comunque mandato in chat anche
+        // se il messaggio non era mai stato salvato, credendo di aver scritto
+        // al venditore mentre in realtà non era partito nulla.
+        if (error) {
+          toast.error("Errore nell'invio del messaggio. Riprova.");
+          return;
+        }
         router.push('/chat');
       };
       startChat();
@@ -189,36 +221,52 @@ function AnnouncementContent() {
     if (user.id === ann.user_id) { toast.error("Non puoi acquistare un tuo stesso oggetto."); return; }
     setActionLoading(true)
 
-    const { data: sellerProfile } = await supabase.from('profiles').select('stripe_account_id').eq('id', ann.user_id).single()
+    // FIX ANDROID: l'intero flusso di checkout non era protetto da try/catch.
+    // Se la richiesta cadeva a metà - scenario comune su dati mobili quando
+    // si passa da un ripetitore all'altro, o si perde campo per un istante
+    // durante un pagamento - la funzione andava in eccezione non gestita
+    // PRIMA di raggiungere uno qualsiasi dei setActionLoading(false): il
+    // pulsante "Acquista Ora" restava disabilitato per sempre, e l'unico modo
+    // per sbloccarlo era ricaricare l'intera pagina.
+    try {
+      const { data: sellerProfile } = await supabase.from('profiles').select('stripe_account_id').eq('id', ann.user_id).single()
 
-    if (!sellerProfile || !sellerProfile.stripe_account_id) {
-      toast.error("Il venditore non ha ancora configurato il suo conto per ricevere pagamenti.");
-      setActionLoading(false);
-      return;
-    }
+      if (!sellerProfile || !sellerProfile.stripe_account_id) {
+        toast.error("Il venditore non ha ancora configurato il suo conto per ricevere pagamenti.");
+        setActionLoading(false);
+        return;
+      }
 
-    const finalPrice = (existingOffer && existingOffer.status === 'Accettata') 
-      ? existingOffer.offer_price 
-      : ann.price;
+      const finalPrice = (existingOffer && existingOffer.status === 'Accettata') 
+        ? existingOffer.offer_price 
+        : ann.price;
 
-    const res = await fetch('/api/stripe/checkout', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        items: [{
-            id: ann.id,
-            title: ann.title,
-            price: finalPrice, 
-            quantity: selectedQuantity,
-            image_url: ann.image_url
-        }],
-        buyerId: user.id,
-        usePickup: usePickup
+      const res = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: [{
+              id: ann.id,
+              title: ann.title,
+              price: finalPrice, 
+              quantity: selectedQuantity,
+              image_url: ann.image_url
+          }],
+          buyerId: user.id,
+          usePickup: usePickup
+        })
       })
-    })
-    const data = await res.json()
-    if (data.error) { toast.error(data.error); setActionLoading(false); return; }
-    if (data.url) window.location.href = data.url
+      const data = await res.json()
+      if (data.error) { toast.error(data.error); setActionLoading(false); return; }
+      if (data.url) {
+        window.location.href = data.url
+        // actionLoading resta volutamente "true": la pagina sta per navigare via
+      }
+    } catch (err) {
+      console.error('Checkout error:', err)
+      toast.error("Errore di connessione. Controlla la rete e riprova.")
+      setActionLoading(false)
+    }
   }
 
   // --- LOGICA PROPOSTA NORMALE ---
@@ -352,8 +400,26 @@ function AnnouncementContent() {
             <h3 className="text-xs font-black uppercase text-stone-900 tracking-widest mb-4 flex items-center gap-2">
               <span className="w-2 h-2 bg-rose-500 rounded-full animate-pulse"></span> Posizione
             </h3>
-            <div className="w-full h-64 rounded-3xl overflow-hidden border border-white/20 shadow-inner">
-              <iframe width="100%" height="100%" frameBorder="0" scrolling="no" src={mapUrl}></iframe>
+            <div className="w-full h-64 rounded-3xl overflow-hidden border border-white/20 shadow-inner relative">
+              <iframe 
+                width="100%" 
+                height="100%" 
+                frameBorder="0" 
+                scrolling="no" 
+                src={mapUrl}
+                className={mapActive ? '' : 'pointer-events-none'}
+              ></iframe>
+              {!mapActive && (
+                <button
+                  type="button"
+                  onClick={() => setMapActive(true)}
+                  className="absolute inset-0 w-full h-full flex items-center justify-center bg-stone-900/5"
+                >
+                  <span className="bg-stone-900/80 text-white text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-full shadow-lg">
+                    Tocca per interagire con la mappa
+                  </span>
+                </button>
+              )}
             </div>
             <p className="mt-3 text-xs font-black text-stone-900 uppercase italic">Località: {ann.city || 'Non specificata'}</p>
           </div>

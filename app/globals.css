@@ -1,1 +1,97 @@
 @import "tailwindcss";
+
+/*
+  FIX ANDROID: "bordo fantasma" / sliver ai angoli arrotondati.
+  Su Chrome Android (motore di rendering Skia) gli elementi che combinano
+  border-radius + overflow:hidden + box-shadow mostrano spesso una sottile
+  linea chiara/grigia ai bordi arrotondati, perché il livello di clipping
+  e quello dell'ombra vengono composti su layer GPU separati con
+  arrotondamento subpixel leggermente diverso.
+  Promuovendo l'elemento al proprio layer di compositing con una
+  trasformazione GPU (translateZ) e forzando il ricalcolo della maschera
+  del bordo, il gap sparisce su Android senza alcun impatto visivo su
+  desktop/iOS. Non tocca nessuna classe esistente, si applica in automatico
+  a tutti gli elementi con questi border-radius già usati nel progetto.
+*/
+.rounded-\[2rem\],
+.rounded-\[2\.5rem\],
+.rounded-\[1\.5rem\],
+.rounded-\[3rem\],
+.rounded-3xl,
+.rounded-2xl {
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+/* -webkit-mask-image isolata in un blocco @supports: Firefox non la
+   riconosce e la ignorava comunque (nessun cambio di comportamento), ma
+   così lo dichiariamo esplicitamente invece di lasciarlo implicito. */
+@supports (-webkit-mask-image: -webkit-radial-gradient(white, black)) {
+  .rounded-\[2rem\],
+  .rounded-\[2\.5rem\],
+  .rounded-\[1\.5rem\],
+  .rounded-\[3rem\],
+  .rounded-3xl,
+  .rounded-2xl {
+    -webkit-mask-image: -webkit-radial-gradient(white, black);
+  }
+}
+
+/* Evita lo sfarfallio (flicker) durante le transizioni hover/active su Android
+   quando un elemento con ombra/bordo viene animato in scala (es. pulsanti preferiti,
+   card cliccabili). Isola il repaint al solo elemento invece che ridisegnare l'area attorno. */
+.hover\:scale-105:hover,
+.hover\:scale-110:hover,
+.active\:scale-95:active {
+  will-change: transform;
+}
+
+/* Evita il "salto" di layout/scroll causato dalla tastiera virtuale Android
+   quando si aprono input di testo dentro contenitori con altezza fissa (es. chat). */
+html {
+  height: 100%;
+}
+
+/*
+  FIX ANDROID: min-h-screen di Tailwind usa "100vh", che su Chrome Android
+  include lo spazio della barra degli indirizzi anche quando questa è visibile.
+  Quando la barra si nasconde/mostra durante lo scroll, il valore di 100vh
+  cambia bruscamente e il layout "salta" (contenuto che si sposta, bordi
+  inferiori che sembrano tagliati o sballati). dvh (dynamic viewport height)
+  risolve il problema seguendo l'altezza reale visibile in tempo reale.
+  Il fallback vh resta per i browser che non supportano dvh (invariato).
+*/
+@supports (height: 100dvh) {
+  .min-h-screen {
+    min-height: 100dvh;
+  }
+}
+
+/*
+  Hero scorrevole SOLO ANDROID (vedi useIsAndroid in app/page.tsx).
+  - touch-action: pan-x dichiara esplicitamente "qui si scorre solo in
+    orizzontale", cosi il gesto verticale continua a scrollare la pagina
+    senza restare "intrappolato" nel riquadro hero.
+  - Scrollbar nascosta ma lo scroll resta pienamente funzionante, con
+    inerzia (momentum) sul tocco.
+*/
+.android-hero-scroll {
+  touch-action: pan-x;
+}
+
+@supports (-webkit-overflow-scrolling: touch) {
+  .android-hero-scroll {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@supports (scrollbar-width: none) {
+  .android-hero-scroll {
+    scrollbar-width: none; /* Firefox, Chrome 121+ */
+  }
+}
+
+.android-hero-scroll::-webkit-scrollbar {
+  display: none; /* Chrome/WebView Android e Safari più vecchi */
+}

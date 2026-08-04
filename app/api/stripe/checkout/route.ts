@@ -23,12 +23,20 @@ export async function POST(req: Request) {
     // Recupero dell'annuncio dal DB per prendere costi di spedizione e sicurezza
     const { data: announcement } = await supabase
       .from('announcements')
-      .select('user_id, price, shipping_cost, condition')
+      .select('user_id, price, shipping_cost, condition, quantity')
       .eq('id', firstItemId)
       .single();
 
     if (!announcement) {
       return NextResponse.json({ error: "Annuncio non trovato nel database" }, { status: 404 });
+    }
+
+    // FIX: la quantità arrivava solo dal client e non veniva mai confrontata
+    // con la disponibilità reale in database - bastava modificare la
+    // richiesta per "acquistare" più pezzi di quanti il venditore ne avesse.
+    const availableQty = announcement.quantity ?? 1;
+    if (quantity > availableQty) {
+      return NextResponse.json({ error: `Disponibili solo ${availableQty} pezzi.` }, { status: 400 });
     }
 
     // 🛑 SICUREZZA: Blocchiamo chi cerca di pagare per Baratto o Regalo (sono gratis!)

@@ -1,7 +1,7 @@
 'use client'
 export const dynamic = 'force-dynamic'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { User } from '@supabase/supabase-js'
@@ -60,6 +60,23 @@ function AddAnnouncementForm() {
   const [imageUrls, setImageUrls] = useState<string[]>([])
   const [uploading, setUploading] = useState(false)
 
+  // FIX ANDROID: le URL create con URL.createObjectURL() tengono la foto
+  // caricata in memoria finché non vengono esplicitamente revocate (o la
+  // pagina non si ricarica). Su Android la RAM disponibile per una singola
+  // scheda del browser è molto più limitata che su desktop: bastano un paio
+  // di rientri nella schermata di scelta categoria dopo aver selezionato
+  // foto pesanti (scatti fotocamera da alcuni MB l'una) per accumulare
+  // diversi blob non più referenziati e arrivare a un riavvio della scheda
+  // per esaurimento memoria. Questo ref tiene traccia sempre aggiornata
+  // delle URL correnti, da revocare allo smontaggio del componente.
+  const imageUrlsRef = useRef<string[]>([])
+  useEffect(() => { imageUrlsRef.current = imageUrls }, [imageUrls])
+  useEffect(() => {
+    return () => {
+      imageUrlsRef.current.forEach(url => URL.revokeObjectURL(url))
+    }
+  }, [])
+
   // Controllo utente
   useEffect(() => {
     async function checkUser() {
@@ -86,7 +103,12 @@ function AddAnnouncementForm() {
       setShippingCost('0')
       setQuantity('1')
       setImages([])
-      setImageUrls([])
+      // FIX ANDROID: revoca le blob URL prima di svuotare l'array, altrimenti
+      // le foto restano allocate in memoria anche se non più visibili in UI
+      setImageUrls(prev => {
+        prev.forEach(url => URL.revokeObjectURL(url))
+        return []
+      })
       setExchangeItem('')
       setAcceptsReturns(false)
       setIsAuction(false)
@@ -122,6 +144,24 @@ function AddAnnouncementForm() {
     URL.revokeObjectURL(newUrls[index])
     newUrls.splice(index, 1)
     setImageUrls(newUrls)
+  }
+
+  // FIX ANDROID: un singolo tentativo di upload che fallisce per un blip di
+  // rete (tipico passando da WiFi a dati mobili, o in un'area con copertura
+  // debole) mandava in errore l'intera pubblicazione, obbligando l'utente a
+  // riselezionare tutte le foto da capo. Un breve retry automatico assorbe
+  // la stragrande maggioranza di questi fallimenti transitori.
+  const uploadWithRetry = async (file: File, filePath: string, attempts = 2) => {
+    let lastError: any = null
+    for (let i = 0; i < attempts; i++) {
+      const { error } = await supabase.storage.from('announcements').upload(filePath, file)
+      if (!error) return
+      lastError = error
+      if (i < attempts - 1) {
+        await new Promise(resolve => setTimeout(resolve, 800))
+      }
+    }
+    throw lastError
   }
 
   // --- LOGICA REALE GENERAZIONE IA ---
@@ -173,8 +213,7 @@ function AddAnnouncementForm() {
         const fileName = `${Math.random()}.${fileExt}`
         const filePath = `${user.id}/${fileName}`
 
-        const { error: uploadError } = await supabase.storage.from('announcements').upload(filePath, file)
-        if (uploadError) throw uploadError
+        await uploadWithRetry(file, filePath)
 
         const { data } = supabase.storage.from('announcements').getPublicUrl(filePath)
         uploadedImageUrls.push(data.publicUrl)

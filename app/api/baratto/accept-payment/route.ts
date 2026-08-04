@@ -11,6 +11,13 @@ export async function POST(req: Request) {
 
     const { baratto_id, user_b_id } = await req.json();
 
+    // FIX: prima si creava un vero PaymentIntent su Stripe anche con questi
+    // dati mancanti - un addebito reale (seppur destinato a fallire dopo)
+    // per una richiesta che non aveva senso fin dall'inizio.
+    if (!baratto_id || !user_b_id) {
+      return NextResponse.json({ error: 'Dati mancanti (baratto_id o user_b_id)' }, { status: 400 });
+    }
+
     // Crea un pagamento NORMALE per l'Utente B
     const paymentIntent = await stripe.paymentIntents.create({
       amount: 250,

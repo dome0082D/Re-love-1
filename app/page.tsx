@@ -10,6 +10,22 @@ import { Mic, MicOff, Search, MapPin, Heart, Crown, Mail, Plus, Send, Trash2, Ed
 import { toast } from 'sonner'
 import GalacticOutpost from './components/minigame/GalacticOutpost'
 
+// --- RILEVAMENTO ANDROID (solo lato client, per adattare l'hero) ---
+// Non esiste un modo via CSS per distinguere Android da altri touch device,
+// quindi il controllo si fa sullo user agent. Parte da `false` (stesso valore
+// che vede il server) e si aggiorna dopo il mount in un useEffect: così
+// l'HTML del primo render lato client combacia sempre con quello del server
+// e non genera un errore di hydration mismatch.
+function useIsAndroid() {
+  const [isAndroid, setIsAndroid] = useState(false)
+  useEffect(() => {
+    if (typeof navigator !== 'undefined') {
+      setIsAndroid(/android/i.test(navigator.userAgent))
+    }
+  }, [])
+  return isAndroid
+}
+
 interface Announcement {
   id: string;
   title: string;
@@ -49,6 +65,7 @@ function HomePageContent() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [favorites, setFavorites] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
+  const isAndroid = useIsAndroid()
   
   // STATI PER LA RICERCA AVANZATA (FILTRI GRANULARI) E VOCALE 🎙️
   const [mainSearch, setMainSearch] = useState('') 
@@ -89,6 +106,7 @@ function HomePageContent() {
   const [editingMsgId, setEditingMsgId] = useState<string | null>(null)
   const [editMsgContent, setEditMsgContent] = useState('')
   const chatContainerRef = useRef<HTMLDivElement>(null)
+  const recognitionRef = useRef<any>(null)
   
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -107,7 +125,14 @@ function HomePageContent() {
       })
       .subscribe()
       
-    return () => { supabase.removeChannel(chatChannel) }
+    return () => {
+      supabase.removeChannel(chatChannel)
+      // Ferma il riconoscimento vocale se ancora attivo quando si lascia la pagina
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop() } catch { /* già fermo */ }
+        recognitionRef.current = null
+      }
+    }
   }, [])
 
   // Auto-scroll della chat verso il basso
@@ -297,60 +322,109 @@ function HomePageContent() {
   }
 
   // --- MOTORE DI RICERCA VOCALE REALE 🎙️ ---
+  // NOTE: su Android il supporto a SpeechRecognition è incostante (spesso assente in
+  // WebView/browser non-Chrome, e recognition.start() può lanciare un errore sincrono
+  // se chiamato mentre un'istanza precedente è ancora attiva). Aggiunta protezione
+  // completa con try/catch, cleanup all'unmount e blocco doppio-tap.
   const handleVoiceSearch = () => {
-    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+    if (typeof window === 'undefined' || (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window))) {
       toast.error("Il tuo browser non supporta la ricerca vocale.");
       return;
     }
 
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
-    
-    recognition.lang = 'it-IT';
-    recognition.continuous = false;
-    recognition.interimResults = false;
+    // Evita doppio avvio (tap ripetuto veloce su Android causa InvalidStateError)
+    if (isListening) return;
 
-    recognition.onstart = () => {
-      setIsListening(true);
-      toast("🎙️ In ascolto... Parla ora", { duration: 3000 });
-    };
+    try {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      const recognition = new SpeechRecognition();
+      recognitionRef.current = recognition
 
-    recognition.onresult = (event: any) => {
-      const current = event.resultIndex;
-      const transcript = event.results[current][0].transcript;
-      setMainSearch(transcript);
-      toast.success(`Hai cercato: "${transcript}"`);
-    };
+      recognition.lang = 'it-IT';
+      recognition.continuous = false;
+      recognition.interimResults = false;
 
-    recognition.onerror = (event: any) => {
-      toast.error("Non ho capito, riprova.");
+      recognition.onstart = () => {
+        setIsListening(true);
+        toast("🎙️ In ascolto... Parla ora", { duration: 3000 });
+      };
+
+      recognition.onresult = (event: any) => {
+        const current = event.resultIndex;
+        const transcript = event.results[current][0].transcript;
+        setMainSearch(transcript);
+        toast.success(`Hai cercato: "${transcript}"`);
+      };
+
+      recognition.onerror = (event: any) => {
+        // "no-speech" e "aborted" sono normali (utente non ha parlato o ha chiuso il permesso su Android)
+        if (event?.error !== 'no-speech' && event?.error !== 'aborted') {
+          toast.error("Non ho capito, riprova.");
+        }
+        setIsListening(false);
+        recognitionRef.current = null
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+        recognitionRef.current = null
+      };
+
+      recognition.start();
+    } catch (err) {
+      // Cattura InvalidStateError e simili, frequenti su Chrome Android quando
+      // il microfono è già in uso o il permesso è stato negato
+      console.error('Voice search error:', err)
+      toast.error("Ricerca vocale non disponibile su questo dispositivo.");
       setIsListening(false);
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-    };
-
-    recognition.start();
+      recognitionRef.current = null
+    }
   }
 
   const handleNearbySearch = () => {
     if (distance > 0) { 
       setDistance(0)
       fetchInitialData() 
-    } else {
-      navigator.geolocation.getCurrentPosition(async (pos) => {
-        setDistance(20) 
-        const { data, error } = await supabase.rpc('get_nearby_announcements', {
-          user_lat: pos.coords.latitude, 
-          user_lon: pos.coords.longitude, 
-          radius_meters: 20000
-        })
-        if (!error && data) {
-          setAnnouncements(data as Announcement[])
-        }
-      })
+      return
     }
+
+    if (typeof window === 'undefined' || !('geolocation' in navigator)) {
+      toast.error("Geolocalizzazione non disponibile su questo dispositivo.");
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        setDistance(20) 
+        try {
+          const { data, error } = await supabase.rpc('get_nearby_announcements', {
+            user_lat: pos.coords.latitude, 
+            user_lon: pos.coords.longitude, 
+            radius_meters: 20000
+          })
+          if (!error && data) {
+            setAnnouncements(data as Announcement[])
+          } else if (error) {
+            toast.error("Errore nella ricerca per zona.")
+            setDistance(0)
+          }
+        } catch (err) {
+          console.error('Nearby search error:', err)
+          toast.error("Errore nella ricerca per zona.")
+          setDistance(0)
+        }
+      },
+      (geoError) => {
+        // Su Android, permesso negato o GPS/localizzazione disattivata finiscono qui:
+        // senza questo handler la richiesta falliva in silenzio e il pulsante restava bloccato
+        if (geoError.code === geoError.PERMISSION_DENIED) {
+          toast.error("Permesso di localizzazione negato. Abilitalo nelle impostazioni del browser.")
+        } else {
+          toast.error("Impossibile ottenere la posizione. Riprova.")
+        }
+      },
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+    )
   }
 
   async function handleToggleFavorite(e: React.MouseEvent, announcementId: string) {
@@ -436,16 +510,28 @@ function HomePageContent() {
         </div>
       </div>
 
-      {/* --- HERO SECTION 16/9 CON INQUADRATURA COMPLETA --- */}
-      <div className="relative w-full aspect-[16/9] max-h-[580px] flex flex-col items-center justify-center overflow-hidden bg-transparent mt-2">
-          <div className="absolute inset-0 z-0 w-full h-full">
+      {/* --- HERO SECTION: 16/9 di default; su Android più grande e scorrevole orizzontalmente --- */}
+      {isAndroid ? (
+        <div className="relative w-full overflow-x-auto overflow-y-hidden mt-2 android-hero-scroll">
+          <div className="h-[400px] w-max flex items-center">
             <img 
               src="/hero-2.png" 
               alt="Re-love Hero Completa"
-              className="w-full h-full object-contain object-center scale-100"
+              className="h-full w-auto max-w-none object-contain object-center"
             />
           </div>
-      </div>
+        </div>
+      ) : (
+        <div className="relative w-full aspect-[16/9] max-h-[580px] flex flex-col items-center justify-center overflow-hidden bg-transparent mt-2">
+            <div className="absolute inset-0 z-0 w-full h-full">
+              <img 
+                src="/hero-2.png" 
+                alt="Re-love Hero Completa"
+                className="w-full h-full object-contain object-center scale-100"
+              />
+            </div>
+        </div>
+      )}
 
       {/* --- CONFIGURAZIONE GRIGLIA CON BANNER LATERALI ADATTIVI RIPORTATI A MISURE CORRETTE --- */}
       <div className="w-full max-w-[1750px] mx-auto px-4 md:px-6 mt-6 lg:-mt-12 relative z-20 flex flex-col lg:flex-row gap-6">
@@ -776,7 +862,7 @@ function HomePageContent() {
               <Tooltip text="Metti in vendita un oggetto mai usato ✨" wrapperClass="relative w-full h-full">
                 <Link href="/add?mode=new" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#f5efdf] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
                    <div className="absolute inset-0 w-full h-full overflow-hidden">
-                     <img src="/nuovo.png" className="w-full h-full object-cover" alt="Nuovo" />
+                     <img src="/nuovo.png" className="w-full h-full object-cover" alt="Nuovo" loading="lazy" decoding="async" />
                    </div>
                    <div className="absolute bottom-3 z-10 w-full px-2">
                      <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Vendi Nuovo</span>
@@ -788,7 +874,7 @@ function HomePageContent() {
               <Tooltip text="Dai una seconda vita ai tuoi oggetti ♻️" wrapperClass="relative w-full h-full">
                 <Link href="/add?mode=used" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#f5efdf] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
                    <div className="absolute inset-0 w-full h-full overflow-hidden">
-                     <img src="/usato.png" className="w-full h-full object-cover" alt="Usato" />
+                     <img src="/usato.png" className="w-full h-full object-cover" alt="Usato" loading="lazy" decoding="async" />
                    </div>
                    <div className="absolute bottom-3 z-10 w-full px-2">
                      <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Vendi Usato</span>
@@ -800,7 +886,7 @@ function HomePageContent() {
               <Tooltip text="Regala o trova oggetti gratis in regalo 🎁" wrapperClass="relative w-full h-full">
                 <Link href="/add?mode=gift" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#f5efdf] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
                    <div className="absolute inset-0 w-full h-full overflow-hidden">
-                     <img src="/regalo.png" className="w-full h-full object-cover" alt="Regalo" />
+                     <img src="/regalo.png" className="w-full h-full object-cover" alt="Regalo" loading="lazy" decoding="async" />
                    </div>
                    <div className="absolute bottom-3 z-10 w-full px-2">
                      <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Regalo</span>
@@ -812,7 +898,7 @@ function HomePageContent() {
               <Tooltip text="Scambia i tuoi oggetti senza usare soldi 🤝" wrapperClass="relative w-full h-full">
                 <Link href="/add?mode=barter" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#f5efdf] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
                    <div className="absolute inset-0 w-full h-full overflow-hidden">
-                     <img src="/baratto.png" className="w-full h-full object-cover" alt="Baratto" />
+                     <img src="/baratto.png" className="w-full h-full object-cover" alt="Baratto" loading="lazy" decoding="async" />
                    </div>
                    <div className="absolute bottom-3 z-10 w-full px-2">
                      <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Baratto</span>
@@ -849,7 +935,7 @@ function HomePageContent() {
                     </button>
                     <Link href={`/announcement/${item.id}`}>
                       <div className="aspect-square rounded-2xl overflow-hidden bg-stone-100 mb-4 relative border border-stone-200">
-                        <img src={item.image_url || "/nuovo.png"} className="w-full h-full object-contain" alt={item.title} />
+                        <img src={item.image_url || "/nuovo.png"} className="w-full h-full object-contain" alt={item.title} loading="lazy" decoding="async" />
                       </div>
                       <h4 className="text-[12px] font-black uppercase truncate text-stone-900 mb-1">{item.title}</h4>
                       <p className="text-xl font-black text-rose-600 italic">€ {item.price}</p>
@@ -889,7 +975,7 @@ function HomePageContent() {
                       <button onClick={(e) => handleToggleFavorite(e, item.id)} className="absolute top-2 right-2 z-30 bg-white w-8 h-8 flex items-center justify-center rounded-full shadow-sm hover:scale-110 transition-all">
                         <Heart size={16} className={favorites.includes(item.id) ? "fill-rose-500 text-rose-500" : "text-stone-400"} />
                       </button>
-                      <img src={item.image_url || "/usato.png"} className="w-full h-full object-contain" alt={item.title} />
+                      <img src={item.image_url || "/usato.png"} className="w-full h-full object-contain" alt={item.title} loading="lazy" decoding="async" />
                     </Link>
                     <div className="p-3 flex flex-col justify-between flex-grow">
                       <div>

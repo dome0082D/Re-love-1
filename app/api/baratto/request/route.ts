@@ -18,6 +18,12 @@ export async function POST(req: Request) {
 
     const { userA_id, userB_id, item_id } = await req.json();
 
+    // FIX: stessa protezione di accept-payment - evita di creare un vero
+    // PaymentIntent Stripe per una richiesta con dati mancanti.
+    if (!userA_id || !userB_id || !item_id) {
+      return NextResponse.json({ error: 'Dati mancanti (userA_id, userB_id o item_id)' }, { status: 400 });
+    }
+
     // 1. Crea il PaymentIntent Manuale per Utente A
     const paymentIntent = await stripe.paymentIntents.create({
       amount: 250, // 2.50€ in centesimi

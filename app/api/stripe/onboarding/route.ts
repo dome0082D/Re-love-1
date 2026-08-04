@@ -37,7 +37,9 @@ export async function POST(req: Request) {
     if (dbError) throw new Error("Errore salvataggio database: " + dbError.message);
 
     // 4. Genera link (SCRIVIAMO L'URL DIRETTO PER EVITARE ERRORI HTTPS)
-    const siteUrl = 'https://re-love-rouge.vercel.app';
+    // FIX: stessa correzione di stripe/connect/route.ts - URL fisso
+    // sostituito dalla variabile d'ambiente condivisa.
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://re-love-rouge.vercel.app';
 
     const accountLink = await stripe.accountLinks.create({
       account: account.id,

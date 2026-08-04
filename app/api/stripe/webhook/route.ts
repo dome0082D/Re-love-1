@@ -1,8 +1,22 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, { apiVersion: '2023-10-16' as any });
+
+// FIX: questo file scriveva usando il client con chiave ANONIMA (lo stesso
+// che usa il browser) dentro un webhook - cioè una richiesta server-to-server
+// da Stripe, senza alcuna sessione utente. Se le tabelle 'announcements',
+// 'transactions' o 'unlocked_chats' hanno una Row Level Security tipica
+// (che richiede un utente autenticato), questi scritti fallivano in
+// silenzio: Stripe vedeva comunque "200 OK" e non ritentava mai, ma
+// l'annuncio non risultava mai sponsorizzato, la chat mai sbloccata, la
+// transazione mai salvata. Il client con chiave di servizio bypassa la RLS,
+// com'è corretto per un webhook.
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL as string,
+  process.env.SUPABASE_SERVICE_ROLE_KEY as string
+);
 
 export async function POST(req: Request) {
   const payload = await req.text();
@@ -31,7 +45,7 @@ export async function POST(req: Request) {
       const expiryDate = new Date();
       expiryDate.setDate(expiryDate.getDate() + days);
 
-      await supabase
+      await supabaseAdmin
         .from('announcements')
         .update({ is_sponsored: true, sponsored_until: expiryDate.toISOString() })
         .eq('id', announcementId);
@@ -43,7 +57,7 @@ export async function POST(req: Request) {
     // LOGICA 2: SBLOCCO CHAT (CAFFÈ) - AGGIUNTA!
     // ==========================================
     if (checkoutType === 'chat_unlock' && announcementId && buyerId) {
-      await supabase
+      await supabaseAdmin
         .from('unlocked_chats')
         .insert([{ 
           user_id: buyerId, 
@@ -59,7 +73,7 @@ export async function POST(req: Request) {
     // ==========================================
     if (announcementId && buyerId && checkoutType !== 'chat_unlock' && checkoutType !== 'sponsorship') {
        // Salva la transazione
-       await supabase.from('transactions').insert([{
+       await supabaseAdmin.from('transactions').insert([{
          announcement_id: announcementId,
          buyer_id: buyerId,
          seller_id: sellerId || null,
@@ -69,7 +83,7 @@ export async function POST(req: Request) {
        }]);
 
        // Scala la quantità
-       const { data: ann } = await supabase
+       const { data: ann } = await supabaseAdmin
          .from('announcements')
          .select('quantity')
          .eq('id', announcementId)
@@ -77,7 +91,7 @@ export async function POST(req: Request) {
 
        if (ann) {
          const nuovaQuantita = Math.max(0, (ann.quantity || 1) - 1);
-         await supabase
+         await supabaseAdmin
            .from('announcements')
            .update({ quantity: nuovaQuantita })
            .eq('id', announcementId);

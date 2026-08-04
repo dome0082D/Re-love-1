@@ -35,23 +35,61 @@ export default function ChatPage() {
   }, [])
 
   // SOTTOSCRIZIONE REALTIME
+  // FIX GRAVE: la sottoscrizione qui sotto non aveva alcun "filter", quindi
+  // ogni utente riceveva in tempo reale l'INSERT di OGNI messaggio privato
+  // scritto da chiunque a chiunque su tutta la piattaforma - non solo i
+  // propri. Nella schermata "I Tuoi Messaggi" questi finivano visualizzati
+  // come conversazioni altrui, con tanto di anteprima del testo. Non era un
+  // problema di prestazioni, era una fuga di dati privati tra utenti.
+  // In più, essendo in un useEffect con dipendenze vuote ([]), veniva creata
+  // al mount quando "user" (e quindi IS_STAFF) erano ancora null: anche
+  // volendo condizionare il filtro allo staff, la condizione sarebbe sempre
+  // stata valutata com se l'utente non fosse loggato.
   useEffect(() => {
-    try {
-      const channel = supabase
-        .channel('schema-db-changes')
-        .on('postgres_changes', 
-          { event: 'INSERT', table: 'messages', schema: 'public' }, 
-          (payload) => {
-            setMessages((current) => [...current, payload.new])
-          }
-        )
-        .subscribe()
+    if (!user) return; // Aspetta che l'utente sia caricato prima di iscriversi
 
+    // Evita di aggiungere due volte lo stesso messaggio (può succedere se un
+    // messaggio soddisfa più di un filtro, es. mandato a se stessi)
+    const appendMessageDedup = (incoming: any) => {
+      setMessages((current) => {
+        if (current.some((m) => m.id === incoming.id)) return current
+        return [...current, incoming]
+      })
+    }
+
+    try {
+      let channelBuilder = supabase.channel(`chat-messages-${user.id}`)
+
+      if (IS_STAFF) {
+        // Lo Staff carica già tutti i messaggi nel loading iniziale per la
+        // moderazione: manteniamo lo stesso comportamento anche in realtime.
+        channelBuilder = channelBuilder.on('postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'messages' },
+          (payload) => appendMessageDedup(payload.new)
+        )
+      } else {
+        // Un utente normale deve ricevere in tempo reale sia i messaggi
+        // indirizzati a lui, sia i propri (utile se ha un'altra scheda/
+        // dispositivo aperto). Supabase Realtime non supporta un filtro "OR"
+        // in un'unica sottoscrizione, quindi ne usiamo due, entrambe scoped
+        // al suo id.
+        channelBuilder = channelBuilder
+          .on('postgres_changes',
+            { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${user.id}` },
+            (payload) => appendMessageDedup(payload.new)
+          )
+          .on('postgres_changes',
+            { event: 'INSERT', schema: 'public', table: 'messages', filter: `sender_id=eq.${user.id}` },
+            (payload) => appendMessageDedup(payload.new)
+          )
+      }
+
+      const channel = channelBuilder.subscribe()
       return () => { supabase.removeChannel(channel) }
     } catch (err) {
       console.warn("Realtime non avviato:", err)
     }
-  }, [])
+  }, [user, IS_STAFF])
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -118,30 +156,56 @@ export default function ChatPage() {
     const receiverId = usersInChat.find(u => u !== user.id) || usersInChat[0]
     
     const messageContent = newMessage; // Salvo il testo prima di svuotarlo
-    setNewMessage('')
     setShowEmojis(false) 
 
     try {
       // INSERISCE IL MESSAGGIO NEL DB
-      await supabase.from('messages').insert([{ 
+      // FIX: l'esito dell'insert non veniva controllato - insert() di
+      // Supabase non lancia un'eccezione per un errore lato database (RLS,
+      // vincolo violato), restituisce { error }. Un messaggio poteva quindi
+      // fallire in silenzio: nessun alert, nessun testo nel campo (già
+      // svuotato prima ancora di sapere se l'invio sarebbe riuscito),
+      // messaggio sparito nel nulla senza che l'utente se ne accorgesse.
+      const { error: sendError } = await supabase.from('messages').insert([{ 
           content: messageContent, 
           sender_id: user.id, 
           receiver_id: receiverId 
       }])
+
+      if (sendError) throw sendError
+
+      // FIX: il campo di testo ora si svuota solo DOPO la conferma di invio,
+      // non prima - su una rete Android che cade a metà, prima si perdeva
+      // il messaggio già scritto e bisognava riscriverlo da capo.
+      setNewMessage('')
       
       // INVIA NOTIFICA PUSH AL DESTINATARIO (solo se non sta scrivendo a se stesso)
+      // FIX: spostato in un try/catch separato - un fallimento qui non deve
+      // far credere all'utente che il MESSAGGIO non sia partito, quando in
+      // realtà è solo la notifica push a non essere riuscita.
       if (receiverId !== user.id) {
-        const senderName = profilesMap[user.id]?.first_name || 'Un utente';
-        await supabase.from('notifications').insert([{
-          user_id: receiverId,
-          message: `💬 Nuovo messaggio da ${senderName}: "${messageContent.length > 20 ? messageContent.substring(0, 20) + '...' : messageContent}"`,
-          is_read: false
-        }])
+        try {
+          const senderName = profilesMap[user.id]?.first_name || 'Un utente';
+          await supabase.from('notifications').insert([{
+            user_id: receiverId,
+            message: `💬 Nuovo messaggio da ${senderName}: "${messageContent.length > 20 ? messageContent.substring(0, 20) + '...' : messageContent}"`,
+            is_read: false
+          }])
+        } catch (notifErr) {
+          console.warn("Notifica di nuovo messaggio non inviata:", notifErr)
+        }
       }
 
-    } catch (e) {
+    } catch (e: any) {
       console.error("Errore invio:", e)
-      alert("Si è verificato un errore durante l'invio del messaggio.")
+      // Se è il trigger anti-frode del database a bloccare il messaggio
+      // (il controllo qui sopra è lato client e può essere aggirato), diamo
+      // lo stesso avviso invece di un generico errore di connessione.
+      if (typeof e?.message === 'string' && e.message.includes('MESSAGE_BLOCKED')) {
+        alert("⚠️ RE-LOVE SECURITY:\nPer la tua sicurezza e per rispettare il regolamento della piattaforma, non è consentito scambiare numeri di telefono, email, link esterni o invitare a chattare fuori da Re-love.\n\nTutte le trattative devono concludersi qui.")
+      } else {
+        alert("Messaggio non inviato. Il testo è rimasto nel campo, riprova.")
+      }
     }
   }
 

@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 
 // Costanti del gioco
 const GRID_SIZE = 20; // Griglia 20x20
 const SPEED = 150; // Velocità in millisecondi
+const SWIPE_THRESHOLD = 20; // px minimi di movimento per riconoscere uno swipe su touch Android
 
 export default function SnakeGame() {
     const [snake, setSnake] = useState([{ x: 10, y: 10 }]);
@@ -13,6 +14,9 @@ export default function SnakeGame() {
     const [gameOver, setGameOver] = useState(false);
     const [score, setScore] = useState(0);
     const [isStarted, setIsStarted] = useState(false);
+
+    // Riferimento al punto di inizio del tocco, per calcolare lo swipe su Android/touch
+    const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
     // Genera cibo in una posizione casuale vuota
     const generateFood = useCallback((currentSnake: {x: number, y: number}[]) => {
@@ -30,7 +34,30 @@ export default function SnakeGame() {
         return newFood;
     }, []);
 
-    // Gestione dei comandi da tastiera
+    // Applica una nuova direzione rispettando la stessa regola "non tornare indietro su se stessi"
+    // usata sia dalla tastiera che dai controlli touch/D-pad, così il comportamento resta identico
+    // su desktop e su Android.
+    const applyDirection = useCallback((next: 'up' | 'down' | 'left' | 'right') => {
+        if (!isStarted && !gameOver) {
+            setIsStarted(true);
+        }
+        setDir((prevDir) => {
+            switch (next) {
+                case 'up':
+                    return prevDir.y === 1 ? prevDir : { x: 0, y: -1 };
+                case 'down':
+                    return prevDir.y === -1 ? prevDir : { x: 0, y: 1 };
+                case 'left':
+                    return prevDir.x === 1 ? prevDir : { x: -1, y: 0 };
+                case 'right':
+                    return prevDir.x === -1 ? prevDir : { x: 1, y: 0 };
+                default:
+                    return prevDir;
+            }
+        });
+    }, [isStarted, gameOver]);
+
+    // Gestione dei comandi da tastiera (invariata)
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             // Previene lo scrolling della pagina con le frecce
@@ -38,31 +65,55 @@ export default function SnakeGame() {
                 e.preventDefault();
             }
 
-            if (!isStarted && !gameOver && ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
-                setIsStarted(true);
+            switch (e.key) {
+                case 'ArrowUp':
+                    applyDirection('up');
+                    break;
+                case 'ArrowDown':
+                    applyDirection('down');
+                    break;
+                case 'ArrowLeft':
+                    applyDirection('left');
+                    break;
+                case 'ArrowRight':
+                    applyDirection('right');
+                    break;
+                default:
+                    break;
             }
-
-            setDir((prevDir) => {
-                switch (e.key) {
-                    case 'ArrowUp':
-                        return prevDir.y === 1 ? prevDir : { x: 0, y: -1 };
-                    case 'ArrowDown':
-                        return prevDir.y === -1 ? prevDir : { x: 0, y: 1 };
-                    case 'ArrowLeft':
-                        return prevDir.x === 1 ? prevDir : { x: -1, y: 0 };
-                    case 'ArrowRight':
-                        return prevDir.x === -1 ? prevDir : { x: 1, y: 0 };
-                    default:
-                        return prevDir;
-                }
-            });
         };
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isStarted, gameOver]);
+    }, [applyDirection]);
 
-    // Game Loop principale
+    // --- CONTROLLI TOUCH PER ANDROID / MOBILE ---
+    // Swipe sull'area di gioco: nessuna tastiera fisica su Android, quindi senza
+    // questo il gioco era semplicemente ingiocabile su telefono.
+    const handleTouchStart = (e: React.TouchEvent) => {
+        const t = e.touches[0];
+        touchStartRef.current = { x: t.clientX, y: t.clientY };
+    };
+
+    const handleTouchEnd = (e: React.TouchEvent) => {
+        const start = touchStartRef.current;
+        if (!start) return;
+        const t = e.changedTouches[0];
+        const dx = t.clientX - start.x;
+        const dy = t.clientY - start.y;
+        touchStartRef.current = null;
+
+        // Ignora micro-tocchi/tap accidentali sotto la soglia
+        if (Math.abs(dx) < SWIPE_THRESHOLD && Math.abs(dy) < SWIPE_THRESHOLD) return;
+
+        if (Math.abs(dx) > Math.abs(dy)) {
+            applyDirection(dx > 0 ? 'right' : 'left');
+        } else {
+            applyDirection(dy > 0 ? 'down' : 'up');
+        }
+    };
+
+    // Game Loop principale (invariato)
     useEffect(() => {
         if (gameOver || !isStarted) return;
 
@@ -115,6 +166,26 @@ export default function SnakeGame() {
         setIsStarted(false);
     };
 
+    // Stile condiviso dei pulsanti del D-pad touch
+    const dpadBtnStyle: React.CSSProperties = {
+        width: '48px',
+        height: '48px',
+        borderRadius: '10px',
+        border: '2px solid #f0f0f0',
+        backgroundColor: '#ffffff',
+        color: '#1f2937',
+        fontSize: '1.2rem',
+        fontWeight: 'bold',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
+        // touch-action: manipulation evita il doppio-tap-zoom di Android sui pulsanti
+        touchAction: 'manipulation',
+        userSelect: 'none',
+        cursor: 'pointer'
+    };
+
     return (
         <div style={{
             width: '100%',
@@ -145,20 +216,26 @@ export default function SnakeGame() {
             </div>
 
             {/* Contenitore Griglia di Gioco */}
-            <div style={{
-                position: 'relative',
-                width: '100%',
-                maxWidth: '400px',
-                aspectRatio: '1 / 1', // Mantiene sempre il gioco quadrato
-                backgroundColor: '#ffffff', // Sfondo hero
-                borderRadius: '12px',
-                boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
-                border: '2px solid #f0f0f0',
-                overflow: 'hidden',
-                display: 'grid',
-                gridTemplateColumns: `repeat(${GRID_SIZE}, 1fr)`,
-                gridTemplateRows: `repeat(${GRID_SIZE}, 1fr)`
-            }}>
+            <div
+                onTouchStart={handleTouchStart}
+                onTouchEnd={handleTouchEnd}
+                style={{
+                    position: 'relative',
+                    width: '100%',
+                    maxWidth: '400px',
+                    aspectRatio: '1 / 1', // Mantiene sempre il gioco quadrato
+                    backgroundColor: '#ffffff', // Sfondo hero
+                    borderRadius: '12px',
+                    boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+                    border: '2px solid #f0f0f0',
+                    overflow: 'hidden',
+                    display: 'grid',
+                    gridTemplateColumns: `repeat(${GRID_SIZE}, 1fr)`,
+                    gridTemplateRows: `repeat(${GRID_SIZE}, 1fr)`,
+                    // Impedisce lo scroll/pinch-zoom della pagina mentre si fa swipe
+                    // sul riquadro di gioco su Android (senza, ogni swipe scrollava la home)
+                    touchAction: 'none'
+                }}>
                 
                 {/* Rendering Cibo */}
                 <div style={{
@@ -209,19 +286,55 @@ export default function SnakeGame() {
                                         fontSize: '1rem',
                                         fontWeight: 'bold',
                                         cursor: 'pointer',
-                                        boxShadow: '0 4px 6px rgba(255, 107, 74, 0.3)'
+                                        boxShadow: '0 4px 6px rgba(255, 107, 74, 0.3)',
+                                        touchAction: 'manipulation'
                                     }}
                                 >
                                     Riprova
                                 </button>
                             </>
                         ) : (
-                            <p style={{ color: '#4b5563', fontSize: '1.1rem', fontWeight: '500' }}>
-                                Usa le <strong>Frecce Direzionali</strong> per iniziare
+                            <p style={{ color: '#4b5563', fontSize: '1.1rem', fontWeight: '500', textAlign: 'center', padding: '0 20px' }}>
+                                Usa le <strong>Frecce Direzionali</strong> (o scorri col dito / usa i tasti qui sotto su mobile)
                             </p>
                         )}
                     </div>
                 )}
+            </div>
+
+            {/* D-PAD TOUCH: alternativa esplicita allo swipe per Android, sempre visibile
+                sotto la griglia. Utile perché su schermi piccoli lo swipe può risultare
+                impreciso; i pulsanti garantiscono che il gioco sia sempre giocabile. */}
+            <div style={{
+                marginTop: '16px',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, 48px)',
+                gridTemplateRows: 'repeat(2, 48px)',
+                gap: '6px',
+                justifyContent: 'center'
+            }}>
+                <div />
+                <button
+                    style={dpadBtnStyle}
+                    onClick={() => applyDirection('up')}
+                    aria-label="Su"
+                >▲</button>
+                <div />
+                <button
+                    style={dpadBtnStyle}
+                    onClick={() => applyDirection('left')}
+                    aria-label="Sinistra"
+                >◀</button>
+                <button
+                    style={dpadBtnStyle}
+                    onClick={() => applyDirection('down')}
+                    aria-label="Giù"
+                >▼</button>
+                <button
+                    style={dpadBtnStyle}
+                    onClick={() => applyDirection('right')}
+                    aria-label="Destra"
+                >▶</button>
             </div>
             
             <p style={{ marginTop: '15px', color: '#888', fontSize: '0.85rem', fontFamily: 'system-ui, -apple-system, sans-serif' }}>

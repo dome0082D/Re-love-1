@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
@@ -47,6 +47,7 @@ export default function Navbar() {
   
   // STATI PER IL RADAR
   const [isRadarScanning, setIsRadarScanning] = useState(false)
+  const radarTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   
   const router = useRouter()
   const { items, isCartOpen, openCart, closeCart, removeItem, updateQuantity } = useCartStore()
@@ -70,10 +71,24 @@ export default function Navbar() {
             icon: '/usato.png' 
           });
         } else {
-          new Notification('🔔 Re-love', { body: message });
+          // FIX ANDROID: su Chrome Android (e su Android in generale) il costruttore
+          // `new Notification()` non è supportato ed è previsto che lanci un errore -
+          // l'unico modo per mostrare notifiche è ServiceWorkerRegistration.showNotification(),
+          // usato nel ramo sopra. Senza questo try/catch, ogni volta che il service worker
+          // non risultava ancora pronto (es. primo avvio dell'app), qui si generava
+          // un'eccezione non gestita su ogni telefono Android.
+          try {
+            new Notification('🔔 Re-love', { body: message });
+          } catch {
+            console.warn('Notifica nativa non disponibile su questo dispositivo.');
+          }
         }
       }).catch(() => {
-        new Notification('🔔 Re-love', { body: message });
+        try {
+          new Notification('🔔 Re-love', { body: message });
+        } catch {
+          console.warn('Notifica nativa non disponibile su questo dispositivo.');
+        }
       });
     }
   }
@@ -97,7 +112,7 @@ export default function Navbar() {
   }, [darkMode])
 
   useEffect(() => {
-    let myChannel: any = null;
+    let notificationHandler: ((e: Event) => void) | null = null;
 
     const getData = async () => {
       try {
@@ -117,16 +132,22 @@ export default function Navbar() {
 
         if (currentUser) {
           await fetchNotifications(currentUser.id)
-          
-          try {
-            myChannel = supabase.channel('realtime-notifications')
-              .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${currentUser.id}` }, (payload) => {
-                fetchNotifications(currentUser.id)
-                triggerNativePush(payload.new.message)
-              }).subscribe()
-          } catch (channelErr) {
-            console.warn("Canale notifiche non avviato")
+
+          // FIX: prima qui si apriva un SECONDO canale Supabase (Realtime,
+          // quindi una connessione WebSocket dedicata) per gli stessi
+          // identici INSERT su "notifications" già ascoltati da
+          // RealtimeNotifications.tsx - due connessioni per lo stesso
+          // evento, che su rete mobile Android significa doppio consumo di
+          // banda/batteria e doppio rischio di riconnessioni sballate.
+          // Ora ci limitiamo ad ascoltare l'evento che quel componente
+          // inoltra al browser quando riceve una nuova notifica, invece di
+          // aprire una nostra sottoscrizione parallela.
+          notificationHandler = (e: Event) => {
+            const detail = (e as CustomEvent).detail
+            fetchNotifications(currentUser.id)
+            if (detail?.message) triggerNativePush(detail.message)
           }
+          window.addEventListener('relove:new-notification', notificationHandler)
         }
       } catch (mainErr) {}
     }
@@ -138,8 +159,8 @@ export default function Navbar() {
     })
     
     return () => {
-      if (myChannel) {
-        supabase.removeChannel(myChannel);
+      if (notificationHandler) {
+        window.removeEventListener('relove:new-notification', notificationHandler)
       }
       if (authListener?.subscription) {
         authListener.subscription.unsubscribe()
@@ -234,14 +255,29 @@ export default function Navbar() {
   };
 
   const handleRadar = () => {
+    // Evita di accumulare più timer se l'utente tocca "Radar" più volte di fila
+    // (facile su touchscreen Android con tap ravvicinati)
+    if (radarTimeoutRef.current) {
+      clearTimeout(radarTimeoutRef.current)
+    }
+
     setIsSidebarOpen(false);
     setIsRadarScanning(true);
     
-    setTimeout(() => {
+    radarTimeoutRef.current = setTimeout(() => {
       setIsRadarScanning(false);
       setShowMapModal(true);
+      radarTimeoutRef.current = null
     }, 3000);
   }
+
+  // Ferma il timer del radar se il componente si smonta prima che scada
+  // (protezione difensiva contro "setState su componente smontato")
+  useEffect(() => {
+    return () => {
+      if (radarTimeoutRef.current) clearTimeout(radarTimeoutRef.current)
+    }
+  }, [])
 
   const handleAiValuation = () => {
     if (!aiItemName) return;
@@ -399,7 +435,7 @@ export default function Navbar() {
       )}
 
       {/* -------------------- SIDEBAR (MENU ☰) PIÙ GRANDE -------------------- */}
-      <div className={`fixed top-0 left-0 h-full w-[95%] max-w-[380px] bg-white z-[9999] shadow-2xl transition-transform duration-300 ease-in-out transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <div className={`fixed top-0 left-0 h-dvh w-[95%] max-w-[380px] bg-white z-[9999] shadow-2xl transition-transform duration-300 ease-in-out transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex flex-col h-full">
           <div className="p-8 bg-gradient-to-br from-rose-500 to-orange-500 text-white relative">
             <button onClick={() => setIsSidebarOpen(false)} className="absolute top-6 right-6 text-white/80 hover:text-white transition-colors">
@@ -491,7 +527,7 @@ export default function Navbar() {
       </div>
 
       {/* -------------------- CARRELLO PIÙ GRANDE -------------------- */}
-      <div className={`fixed top-0 right-0 h-full w-[95%] max-w-[420px] bg-white z-[9999] shadow-2xl transition-transform duration-300 ease-in-out transform ${isCartOpen ? 'translate-x-0' : 'translate-x-full'} flex flex-col`}>
+      <div className={`fixed top-0 right-0 h-dvh w-[95%] max-w-[420px] bg-white z-[9999] shadow-2xl transition-transform duration-300 ease-in-out transform ${isCartOpen ? 'translate-x-0' : 'translate-x-full'} flex flex-col`}>
         <div className="p-6 flex justify-between items-center border-b border-stone-100 bg-stone-50">
           <h2 className="text-2xl font-bold uppercase italic tracking-tighter text-rose-500 flex items-center gap-3">
             <ShoppingCart size={28} strokeWidth={2.5} /> Carrello

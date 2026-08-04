@@ -60,6 +60,11 @@ export async function POST(req: Request) {
       });
     }
 
+    // FIX: senza questo ramo, un valore di "action" diverso da accept/reject
+    // faceva uscire la funzione senza alcuna risposta - Next.js risponde con
+    // un errore generico invece di un messaggio chiaro sul problema reale.
+    return NextResponse.json({ error: 'Azione non valida' }, { status: 400 });
+
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

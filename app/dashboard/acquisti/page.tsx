@@ -108,14 +108,34 @@ export default function DashboardOrdini() {
     if (!confirm("Confermi di aver ricevuto l'oggetto in buone condizioni? I fondi verranno sbloccati al venditore.")) return
 
     setActionLoading(true)
-    const { error } = await supabase
-      .from('transactions')
-      .update({ status: 'Ricevuto' })
-      .eq('id', transactionId)
 
-    if (!error) {
+    // FIX: prima questa funzione scriveva "status: 'Ricevuto'" direttamente
+    // su Supabase dal browser, senza mai chiamare Stripe - i messaggi "i
+    // fondi sono stati sbloccati" erano falsi, nessun euro si spostava mai
+    // verso il venditore. Ora passa dalla route server /api/orders/action,
+    // che verifica l'ordine, controlla eventuali contestazioni aperte ed
+    // esegue davvero il trasferimento Stripe prima di aggiornare lo stato.
+    try {
+      const res = await fetch('/api/orders/action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transactionId,
+          action: 'confirm_receipt',
+          userId: user.id,
+          userRole: 'buyer',
+        }),
+      })
+      const data = await res.json()
+
+      if (!res.ok || data.error) {
+        toast.error(data.error || "Errore durante la conferma.")
+        setActionLoading(false)
+        return
+      }
+
       toast.success("Ottimo! Transazione conclusa con successo. I fondi sono stati sbloccati.")
-      
+
       const tx = purchases.find(p => p.id === transactionId);
       const sellerId = tx?.announcements?.user_id;
       if (sellerId) {
@@ -125,11 +145,13 @@ export default function DashboardOrdini() {
           is_read: false
         }]);
       }
-      fetchOrders() 
-    } else {
-      toast.error("Errore durante l'aggiornamento.")
+      fetchOrders()
+    } catch (err) {
+      console.error('Errore conferma ricezione:', err)
+      toast.error("Errore di connessione. Riprova.")
+    } finally {
+      setActionLoading(false)
     }
-    setActionLoading(false)
   }
 
   // --- LOGICA SEGNALAZIONE PROBLEMA (CONTROVERSIA) ---

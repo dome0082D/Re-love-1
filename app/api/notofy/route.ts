@@ -12,7 +12,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Dati mancanti per l'invio dell'email" }, { status: 400 });
     }
 
-    const data = await resend.emails.send({
+    const { data, error } = await resend.emails.send({
       from: 'Re-love Notifiche <onboarding@resend.dev>', // Email di test fornita da Resend
       to: [to],
       subject: subject,
@@ -33,6 +33,14 @@ export async function POST(req: Request) {
         </div>
       `
     });
+
+    // FIX: Resend non lancia un'eccezione per un invio fallito (indirizzo non
+    // valido, rate limit, dominio non verificato) - restituisce { data, error }.
+    // Senza questo controllo, un invio fallito rispondeva comunque "success: true".
+    if (error) {
+      console.error("Errore Resend:", error);
+      return NextResponse.json({ error: "Invio email fallito: " + error.message }, { status: 500 });
+    }
 
     return NextResponse.json({ success: true, data });
   } catch (error) {

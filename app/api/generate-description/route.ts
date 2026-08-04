@@ -41,7 +41,22 @@ export async function POST(req: Request) {
       throw new Error(data.error.message);
     }
 
-    const generatedText = data.candidates[0].content.parts[0].text;
+    // FIX: Gemini può rispondere con zero candidates (es. prompt bloccato dai
+    // filtri di sicurezza su un titolo particolare) invece che con un errore
+    // esplicito. Senza questo controllo, l'indicizzazione diretta lanciava
+    // un'eccezione generica che finiva nel messaggio d'errore fisso qui sotto,
+    // nascondendo la vera causa nei log e dando all'utente un "riprova" senza
+    // che riprovare cambiasse nulla.
+    const generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!generatedText) {
+      const blockReason = data.promptFeedback?.blockReason;
+      console.error('Gemini: nessun testo generato', { blockReason, data });
+      return NextResponse.json(
+        { error: blockReason ? 'Descrizione non generabile per questo annuncio, prova a riformulare il titolo.' : 'Errore durante la generazione della descrizione.' },
+        { status: 502 }
+      );
+    }
 
     return NextResponse.json({ description: generatedText });
 

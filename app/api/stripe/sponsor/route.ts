@@ -17,6 +17,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Dati mancanti" }, { status: 400 });
     }
 
+    // FIX: prima l'URL di ritorno dipendeva da NEXT_PUBLIC_BASE_URL - una
+    // variabile diversa da quella impostata per il resto del sito
+    // (NEXT_PUBLIC_SITE_URL). Se non configurata su Vercel, il fallback era
+    // "http://localhost:3000": dopo un pagamento riuscito l'utente veniva
+    // rimandato a un indirizzo che sul suo telefono semplicemente non esiste.
+    // Usiamo l'origin della richiesta stessa (stesso approccio già corretto
+    // in stripe/coffee/route.ts): funziona sempre, senza dipendere da
+    // nessuna variabile d'ambiente.
+    const origin = req.headers.get('origin') || 'https://re-love-rouge.vercel.app';
+
     // Creiamo la sessione di pagamento su Stripe
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
@@ -41,8 +51,8 @@ export async function POST(req: Request) {
         userId: userId,
       },
       // Se il pagamento va a buon fine, torna alla bacheca
-      success_url: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/dashboard/annunci?success=true&ad_id=${announcementId}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/dashboard/annunci?canceled=true`,
+      success_url: `${origin}/dashboard/annunci?success=true&ad_id=${announcementId}`,
+      cancel_url: `${origin}/dashboard/annunci?canceled=true`,
     });
 
     // Rispondiamo al sito con il link alla pagina di pagamento sicura di Stripe in formato JSON

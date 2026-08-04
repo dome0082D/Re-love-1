@@ -5,7 +5,27 @@ import Script from 'next/script'
 import RealtimeNotifications from '@/components/RealtimeNotifications'
 import { Toaster } from 'sonner' // <-- ECCO L'IMPORTAZIONE DEI TOAST ELEGANTI!
 
+// FIX: senza metadataBase, Next.js risolve gli URL relativi nelle immagini
+// di Open Graph (es. openGraph.images: ['/usato.png'] nelle pagine annuncio)
+// usando "http://localhost:3000" come base ANCHE IN PRODUZIONE - le anteprime
+// dei link condivisi su WhatsApp, Instagram, Telegram risultavano quindi
+// rotte per chiunque non avesse un'immagine caricata. Il try/catch evita che
+// una NEXT_PUBLIC_SITE_URL impostata male (es. senza "https://") mandi in
+// crash l'intera app al build.
+// IMPORTANTE: imposta la variabile d'ambiente NEXT_PUBLIC_SITE_URL su Vercel
+// con il tuo dominio reale (es. https://re-love.it) - quello qui sotto è
+// solo un valore di fallback segnaposto.
+function getSiteUrl(): URL {
+  const raw = process.env.NEXT_PUBLIC_SITE_URL || 'https://re-love.vercel.app'
+  try {
+    return new URL(raw)
+  } catch {
+    return new URL('https://re-love.vercel.app')
+  }
+}
+
 export const metadata: Metadata = {
+  metadataBase: getSiteUrl(),
   title: 'Re-love - Dai nuova vita all\'usato',
   description: 'Il marketplace sostenibile per vendere e comprare.',
   manifest: '/manifest.json',
@@ -13,6 +33,14 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: '#f43f5e',
+  // FIX ANDROID: senza questo, quando si apre la tastiera virtuale su Chrome
+  // Android, gli elementi "fixed" (come la barra di invio messaggi nella
+  // chat) restano ancorati all'altezza originale della pagina invece di
+  // spostarsi sopra la tastiera - il campo di testo finisce nascosto
+  // proprio dove serve di più, mentre si sta scrivendo. "resizes-content"
+  // dice al browser di ridimensionare davvero il viewport quando la
+  // tastiera compare, così il layout si adatta correttamente.
+  interactiveWidget: 'resizes-content',
 }
 
 export default function RootLayout({
@@ -27,7 +55,13 @@ export default function RootLayout({
           {`
             if ('serviceWorker' in navigator) {
               window.addEventListener('load', function() {
-                navigator.serviceWorker.register('/sw.js');
+                navigator.serviceWorker.register('/sw.js').catch(function(err) {
+                  // Su Android, in modalità privata/incognito o con storage limitato,
+                  // la registrazione può fallire silenziosamente: senza il .catch()
+                  // l'errore risultava una unhandledrejection non gestita che alcuni
+                  // WebView Android trattano come crash del contesto JS della pagina.
+                  console.warn('Service worker non registrato:', err);
+                });
               });
             }
           `}

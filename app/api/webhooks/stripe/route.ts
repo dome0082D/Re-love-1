@@ -42,6 +42,48 @@ export async function POST(req: Request) {
       const checkoutType = session.metadata?.type; // Es: 'nuovo', 'regalo', 'baratto_accetta'
 
       if (announcementId && buyerId) {
+        // ==========================================
+        // LOGICA 0: SPONSORIZZAZIONE VETRINA (AGGIUNTA)
+        // ==========================================
+        // FIX: mancava del tutto questo ramo. Un pagamento da 2,99€ per
+        // sponsorizzare un annuncio (metadata.type === 'sponsorship', creato
+        // da stripe/sponsor/route.ts) finiva altrimenti nel ramo generico
+        // qui sotto: veniva registrato come se il venditore avesse comprato
+        // il proprio stesso annuncio, e - se Nuovo/Usato - la quantità
+        // disponibile veniva scalata per un pagamento che non aveva
+        // comprato nulla. L'annuncio inoltre non risultava mai sponsorizzato.
+        if (checkoutType === 'sponsorship') {
+          const days = 7;
+          const expiryDate = new Date();
+          expiryDate.setDate(expiryDate.getDate() + days);
+
+          await supabaseAdmin
+            .from('announcements')
+            .update({ is_sponsored: true, sponsored_until: expiryDate.toISOString() })
+            .eq('id', announcementId);
+
+          return NextResponse.json({ received: true, sponsorship: true });
+        }
+
+        // ==========================================
+        // LOGICA 0-BIS: SBLOCCO CHAT / "CAFFÈ" (AGGIUNTA)
+        // ==========================================
+        // FIX: stesso problema del ramo sopra, ma per i 2,50€ di
+        // stripe/coffee/route.ts (metadata.type === 'chat_unlock'). Senza
+        // questo ramo, anche questi pagamenti finivano trattati come un
+        // "acquisto" fasullo dell'annuncio.
+        if (checkoutType === 'chat_unlock') {
+          await supabaseAdmin
+            .from('unlocked_chats')
+            .insert([{ 
+              user_id: buyerId, 
+              announcement_id: announcementId 
+            }]);
+
+          console.log(`🔓 Chat sbloccata per l'utente ${buyerId}`);
+          return NextResponse.json({ received: true, chat_unlocked: true });
+        }
+
         // 1. Cerchiamo chi è il venditore
         const { data: ann } = await supabaseAdmin.from('announcements').select('user_id, condition').eq('id', announcementId).single();
         
