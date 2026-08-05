@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
-import { supabaseAdmin } from '@/lib/supabase-admin'
+import { createClient } from '@supabase/supabase-js'
 
-// NOTA: l'import qui sopra assume che il client Supabase con chiave di
-// servizio sia esportato da "@/lib/supabase-admin" come nelle altre route
-// già corrette in questo progetto (orders/action, webhooks/stripe). Se nel
-// tuo progetto il percorso è diverso, aggiusta solo questa riga.
+// FIX: "@/lib/supabase-admin" non esiste in questo progetto (sotto lib/ ci
+// sono solo mail.ts e supabase.ts) - era un'assunzione mia, segnalata come
+// tale, che si è rivelata sbagliata e ha fatto fallire la build. Il resto
+// del progetto (vedi app/api/webhooks/stripe/route.ts) crea il client con
+// permessi di servizio così, direttamente nel file che ne ha bisogno,
+// invece di importarlo da un modulo condiviso - ci allineiamo a quello.
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL as string,
+  process.env.SUPABASE_SERVICE_ROLE_KEY as string
+)
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
 
