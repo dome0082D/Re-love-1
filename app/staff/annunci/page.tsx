@@ -2,20 +2,46 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useRouter } from 'next/navigation'
 
 export default function StaffAnnunciPage() {
   const [announcements, setAnnouncements] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
+  const router = useRouter()
+  const ADMIN_EMAIL = 'dome0082@gmail.com'
 
   useEffect(() => {
-    fetchAnnouncements()
+    checkAdminAndFetch()
   }, [])
+
+  // FIX: mancava del tutto la verifica che chi apre questa pagina sia
+  // davvero dello staff - a differenza di app/staff/page.tsx, che invece la
+  // fa correttamente. Chiunque conoscesse l'indirizzo vedeva l'intero
+  // pannello di moderazione, pulsante "Elimina" compreso, su ogni annuncio
+  // della piattaforma - anche se poi il vero eliminare falliva per le
+  // regole del database, la pagina non doveva comunque essere visibile.
+  async function checkAdminAndFetch() {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user || user.email !== ADMIN_EMAIL) {
+      router.push('/')
+      return
+    }
+    fetchAnnouncements()
+  }
 
   async function fetchAnnouncements() {
     setLoading(true)
+    setLoadError(false)
     // Recupera tutti gli annunci ignorando i filtri normali
     const { data, error } = await supabase.from('announcements').select('*').order('created_at', { ascending: false })
-    if (!error && data) {
+    // FIX: prima un errore di caricamento veniva ignorato in silenzio - la
+    // tabella mostrava "Nessun annuncio trovato", identico a come appare
+    // quando davvero non ce ne sono, inducendo in errore chi la guarda.
+    if (error) {
+      console.error('Errore caricamento annunci:', error)
+      setLoadError(true)
+    } else if (data) {
       setAnnouncements(data)
     }
     setLoading(false)
@@ -41,6 +67,14 @@ export default function StaffAnnunciPage() {
         
         {loading ? (
           <p className="text-stone-400 font-bold uppercase">Caricamento annunci...</p>
+        ) : loadError ? (
+          <div className="bg-white rounded-3xl border border-red-200 p-10 text-center">
+            <p className="text-sm font-black uppercase text-red-500 mb-2">Errore di caricamento</p>
+            <p className="text-[10px] font-bold text-stone-500 uppercase mb-6">Controlla la connessione e riprova.</p>
+            <button onClick={fetchAnnouncements} className="bg-stone-900 text-white text-[10px] font-black uppercase tracking-widest px-5 py-3 rounded-xl hover:bg-rose-600 transition-all">
+              Riprova
+            </button>
+          </div>
         ) : (
           <div className="bg-white rounded-3xl shadow-sm border border-stone-200 overflow-hidden">
             <div className="overflow-x-auto">

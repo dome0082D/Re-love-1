@@ -39,12 +39,19 @@ export async function POST(req: Request) {
     // ==========================================
     // AZIONE 1: CONFERMA RICEZIONE (SBLOCCO FONDI VENDITA)
     // ==========================================
-    if (action === 'confirm_receipt' && userRole === 'buyer') {
+    // FIX: aggiunto userRole === 'staff' come percorso alternativo - serve
+    // alla dashboard /staff per sbloccare manualmente i fondi in caso di
+    // intervento diretto (es. dopo una contestazione risolta a favore del
+    // venditore). Prima quella pagina scriveva lo stato "Ricevuto" a mano
+    // via Supabase, senza mai chiamare questa route: diceva "fondi
+    // sbloccati" al venditore ma non trasferiva mai un euro davvero.
+    if (action === 'confirm_receipt' && (userRole === 'buyer' || userRole === 'staff')) {
 
       // FIX: prima non veniva verificato che chi chiama sia davvero il
       // compratore di QUESTA transazione - chiunque conoscesse un
       // transactionId poteva forzare lo sblocco fondi di un ordine altrui.
-      if (transaction.buyer_id !== userId) {
+      // Lo staff è l'unica eccezione consentita a questo controllo.
+      if (userRole === 'buyer' && transaction.buyer_id !== userId) {
         return NextResponse.json({ error: "Non sei l'acquirente di questo ordine." }, { status: 403 });
       }
 

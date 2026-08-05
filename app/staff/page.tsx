@@ -147,7 +147,49 @@ export default function AdminDashboard() {
 
   const forceStatus = async (txId: string, newStatus: string) => {
     if (!confirm(`Vuoi forzare lo stato a: ${newStatus}?`)) return
-    await supabase.from('transactions').update({ status: newStatus }).eq('id', txId)
+
+    // FIX: "Ricevuto" qui scriveva solo l'etichetta di stato senza mai
+    // sbloccare i fondi veri al venditore - la dashboard diceva "sbloccato"
+    // ma nessun euro si spostava. Ora, solo per questo stato specifico,
+    // passiamo dalla route /api/orders/action che esegue il vero
+    // trasferimento Stripe (la stessa già usata dalla pagina ordini normale,
+    // qui con un permesso speciale per lo staff).
+    if (newStatus === 'Ricevuto') {
+      setActionLoading(true)
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        const res = await fetch('/api/orders/action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ transactionId: txId, action: 'confirm_receipt', userId: user?.id, userRole: 'staff' }),
+        })
+        const data = await res.json()
+        if (!res.ok || data.error) {
+          alert("Errore nello sblocco fondi: " + (data.error || 'errore sconosciuto'))
+          return
+        }
+        alert("Fondi trasferiti al venditore.")
+        checkAdminAndFetchData()
+      } catch (err: any) {
+        alert("Errore di connessione: " + err.message)
+      } finally {
+        setActionLoading(false)
+      }
+      return
+    }
+
+    // ATTENZIONE - NON RISOLTO: "Rimborsato" invece scrive solo l'etichetta
+    // di stato, come prima - nessun rimborso Stripe reale parte da qui.
+    // Non ho aggiunto io la chiamata a stripe.refunds.create(...): quanto
+    // rimborsare (intero? trattenendo la commissione già presa?) e se va
+    // gestito diversamente in caso i fondi al venditore siano già stati
+    // sbloccati sono scelte che spettano a te, non qualcosa che dovrei
+    // decidere al posto tuo.
+    const { error } = await supabase.from('transactions').update({ status: newStatus }).eq('id', txId)
+    if (error) {
+      alert("Errore durante l'aggiornamento: " + error.message)
+      return
+    }
     checkAdminAndFetchData()
   }
 
@@ -174,7 +216,13 @@ export default function AdminDashboard() {
 
   const deleteReview = async (id: string) => {
     if (!confirm("Eliminare definitivamente questa recensione?")) return
-    await supabase.from('reviews').delete().eq('id', id)
+    // FIX: prima l'esito non veniva controllato - la recensione poteva
+    // restare visibile pur avendo premuto "elimina", senza alcun avviso.
+    const { error } = await supabase.from('reviews').delete().eq('id', id)
+    if (error) {
+      alert("Errore durante l'eliminazione: " + error.message)
+      return
+    }
     checkAdminAndFetchData()
   }
 
@@ -240,13 +288,43 @@ export default function AdminDashboard() {
   }
 
   // --- LOGICA DEL TRIBUNALE ---
-  const resolveDispute = async (disputeId: string, resolution: 'Rimborso Acquirente' | 'Fondi al Venditore', buyerId: string, sellerId: string) => {
+  const resolveDispute = async (disputeId: string, resolution: 'Rimborso Acquirente' | 'Fondi al Venditore', buyerId: string, sellerId: string, transactionId?: string) => {
     const confirmMessage = resolution === 'Rimborso Acquirente' 
       ? "⚠️ Sicuro di voler RIMBORSARE il compratore? L'azione è irreversibile." 
       : "⚠️ Sicuro di voler sbloccare i fondi e PAGARE il venditore?";
 
     if (!confirm(confirmMessage)) return;
     setActionLoading(true)
+
+    // FIX: "Fondi al Venditore" chiudeva la contestazione e notificava "i
+    // fondi sono stati sbloccati" senza mai trasferire un euro davvero.
+    // Ora, per questa risoluzione specifica, tentiamo prima il vero
+    // trasferimento Stripe (stessa route usata sopra per "Sblocca") - se
+    // fallisce, la contestazione NON viene chiusa, così non risulta
+    // "risolta" una pratica dove i soldi non si sono davvero mossi.
+    if (resolution === 'Fondi al Venditore' && transactionId) {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        const res = await fetch('/api/orders/action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ transactionId, action: 'confirm_receipt', userId: user?.id, userRole: 'staff' }),
+        })
+        const data = await res.json()
+        if (!res.ok || data.error) {
+          alert("Errore nel trasferimento fondi: " + (data.error || 'errore sconosciuto') + "\nLa contestazione resta aperta.")
+          setActionLoading(false)
+          return
+        }
+      } catch (err: any) {
+        alert("Errore di connessione durante il trasferimento: " + err.message + "\nLa contestazione resta aperta.")
+        setActionLoading(false)
+        return
+      }
+    }
+    // ATTENZIONE - NON RISOLTO: "Rimborso Acquirente" chiude comunque solo
+    // la pratica, senza un vero stripe.refunds.create(...) - stessa nota di
+    // forceStatus qui sopra: decidere la policy di rimborso spetta a te.
 
     const { error } = await supabase.from('disputes').update({ status: `Risolta (${resolution})` }).eq('id', disputeId)
 
@@ -369,10 +447,10 @@ export default function AdminDashboard() {
                           </button>
                         ) : (
                           <>
-                            <button onClick={() => resolveDispute(dispute.id, 'Rimborso Acquirente', dispute.buyer_id, dispute.seller_id)} disabled={actionLoading} className="bg-rose-600 text-white py-3 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-500 transition-all shadow-lg">
+                            <button onClick={() => resolveDispute(dispute.id, 'Rimborso Acquirente', dispute.buyer_id, dispute.seller_id, dispute.transaction_id)} disabled={actionLoading} className="bg-rose-600 text-white py-3 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-500 transition-all shadow-lg">
                               💸 Rimborsa Acquirente
                             </button>
-                            <button onClick={() => resolveDispute(dispute.id, 'Fondi al Venditore', dispute.buyer_id, dispute.seller_id)} disabled={actionLoading} className="bg-emerald-600 text-white py-3 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500 transition-all shadow-lg">
+                            <button onClick={() => resolveDispute(dispute.id, 'Fondi al Venditore', dispute.buyer_id, dispute.seller_id, dispute.transaction_id)} disabled={actionLoading} className="bg-emerald-600 text-white py-3 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500 transition-all shadow-lg">
                               ✅ Paga Venditore
                             </button>
                           </>
@@ -446,8 +524,8 @@ export default function AdminDashboard() {
                     </td>
                     <td className="px-8 py-6 text-right align-top">
                       <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => forceStatus(tx.id, 'Ricevuto')} className="bg-emerald-500 text-white px-3 py-2 rounded-lg text-[9px] font-black uppercase">Sblocca</button>
-                        <button onClick={() => forceStatus(tx.id, 'Rimborsato')} className="bg-rose-500 text-white px-3 py-2 rounded-lg text-[9px] font-black uppercase">Refund</button>
+                        <button onClick={() => forceStatus(tx.id, 'Ricevuto')} disabled={actionLoading} className="bg-emerald-500 text-white px-3 py-2 rounded-lg text-[9px] font-black uppercase disabled:opacity-50">Sblocca</button>
+                        <button onClick={() => forceStatus(tx.id, 'Rimborsato')} disabled={actionLoading} className="bg-rose-500 text-white px-3 py-2 rounded-lg text-[9px] font-black uppercase disabled:opacity-50">Refund</button>
                       </div>
                     </td>
                   </tr>
