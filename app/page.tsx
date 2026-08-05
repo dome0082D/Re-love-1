@@ -482,10 +482,14 @@ function HomePageContent() {
   )
 
   return (
-    <div className="min-h-screen bg-stone-50 font-sans text-stone-900 pb-20 relative">
+    <div className={`min-h-screen bg-stone-50 font-sans text-stone-900 relative ${isAndroid ? 'pb-24' : 'pb-20'}`}>
+      {/* FIX: pb-24 solo su Android (invece del solito pb-20) - spazio extra in
+          fondo alla pagina perché l'ultimo contenuto (il gioco Galactic Outpost)
+          non resti nascosto dietro la barra fissa dei 5 pulsanti, che compare
+          solo su Android. Su tutte le altre piattaforme resta pb-20 come prima. */}
       
       {IS_STAFF && (
-        <Link href="/staff" className="fixed bottom-8 right-8 z-[99] bg-stone-900 text-rose-400 w-16 h-16 rounded-full shadow-lg font-bold flex items-center justify-center border-2 border-rose-400 hover:scale-105 active:scale-95 transition-all text-2xl">
+        <Link href="/staff" className={`fixed right-8 z-[99] bg-stone-900 text-rose-400 w-16 h-16 rounded-full shadow-lg font-bold flex items-center justify-center border-2 border-rose-400 hover:scale-105 active:scale-95 transition-all text-2xl ${isAndroid ? 'bottom-24' : 'bottom-8'}`}>
           <Crown size={28} />
         </Link>
       )}
@@ -514,16 +518,19 @@ function HomePageContent() {
       </div>
 
       {/* 5 PULSANTI RAPIDI ACCOUNT: Profilo, Inserisci Corso, Inserisci Annuncio, Messaggi, Impostazioni.
+          FIX: barra fissa in fondo allo schermo (come una bottom bar da app nativa),
+          sempre visibile durante lo scroll, SOLO su Android - su desktop e sugli
+          altri dispositivi non compare affatto, la pagina resta quella di sempre.
           "Inserisci Corso" riusa la stessa logica del pulsante "+ Crea" più in basso (apre il modale,
           chiede il login se serve) perché non esiste una pagina a sé per creare un corso - è un modale.
           "Impostazioni" porta a /profile: è la stessa destinazione di "Profilo" perché nel resto
           dell'app (Navbar) "Impostazioni" punta già lì - non esiste ancora una pagina impostazioni
           separata. Se un giorno ne crei una dedicata, basta cambiare questo singolo link. */}
-      <div className="w-full max-w-[1300px] mx-auto px-4 mt-4">
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-          <Link href="/profile" className="flex flex-col items-center justify-center gap-2 bg-white border border-stone-200 rounded-2xl py-4 px-2 shadow-sm hover:shadow-md hover:border-rose-200 transition-all text-center">
-            <UserIcon size={22} className="text-rose-500" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-stone-800">Profilo</span>
+      {isAndroid && (
+        <div className="fixed bottom-0 left-0 w-full z-[100] bg-white border-t border-stone-200 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] flex items-stretch">
+          <Link href="/profile" className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 active:bg-rose-50 transition-colors text-center">
+            <UserIcon size={19} className="text-rose-500" />
+            <span className="text-[8px] font-black uppercase tracking-wider text-stone-800">Profilo</span>
           </Link>
           <button
             onClick={() => {
@@ -533,25 +540,25 @@ function HomePageContent() {
                 setIsCreateModalOpen(true)
               }
             }}
-            className="flex flex-col items-center justify-center gap-2 bg-white border border-stone-200 rounded-2xl py-4 px-2 shadow-sm hover:shadow-md hover:border-rose-200 transition-all text-center"
+            className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 active:bg-rose-50 transition-colors text-center"
           >
-            <BookOpen size={22} className="text-rose-500" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-stone-800">Inserisci Corso</span>
+            <BookOpen size={19} className="text-rose-500" />
+            <span className="text-[8px] font-black uppercase tracking-wider text-stone-800 leading-tight">Ins. Corso</span>
           </button>
-          <Link href="/add" className="flex flex-col items-center justify-center gap-2 bg-white border border-stone-200 rounded-2xl py-4 px-2 shadow-sm hover:shadow-md hover:border-rose-200 transition-all text-center">
-            <Plus size={22} className="text-rose-500" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-stone-800">Inserisci Annuncio</span>
+          <Link href="/add" className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 active:bg-rose-50 transition-colors text-center">
+            <Plus size={19} className="text-rose-500" />
+            <span className="text-[8px] font-black uppercase tracking-wider text-stone-800 leading-tight">Ins. Annuncio</span>
           </Link>
-          <Link href="/chat" className="flex flex-col items-center justify-center gap-2 bg-white border border-stone-200 rounded-2xl py-4 px-2 shadow-sm hover:shadow-md hover:border-rose-200 transition-all text-center">
-            <MessageCircle size={22} className="text-rose-500" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-stone-800">Messaggi</span>
+          <Link href="/chat" className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 active:bg-rose-50 transition-colors text-center">
+            <MessageCircle size={19} className="text-rose-500" />
+            <span className="text-[8px] font-black uppercase tracking-wider text-stone-800">Messaggi</span>
           </Link>
-          <Link href="/profile" className="flex flex-col items-center justify-center gap-2 bg-white border border-stone-200 rounded-2xl py-4 px-2 shadow-sm hover:shadow-md hover:border-rose-200 transition-all text-center">
-            <Settings size={22} className="text-rose-500" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-stone-800">Impostazioni</span>
+          <Link href="/profile" className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 active:bg-rose-50 transition-colors text-center">
+            <Settings size={19} className="text-rose-500" />
+            <span className="text-[8px] font-black uppercase tracking-wider text-stone-800">Impostazioni</span>
           </Link>
         </div>
-      </div>
+      )}
 
       {isAndroid ? (
         <div className="relative w-full overflow-x-auto overflow-y-hidden mt-2 android-hero-scroll">
@@ -1079,7 +1086,7 @@ function HomePageContent() {
               </button>
             </div>
 
-            <div className="p-5 overflow-y-auto flex-1 bg-stone-50/30">
+            <div className="p-5 overflow-y-auto overscroll-contain flex-1 bg-stone-50/30">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
                 <div className="md:col-span-2">
                   <label className="text-[10px] font-black uppercase text-stone-500 tracking-widest ml-2 block mb-1">Titolo del Corso</label>
