@@ -33,6 +33,13 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: '#f43f5e',
+  // FIX ANDROID: senza "cover", il browser calcola sempre a 0 le variabili
+  // CSS "env(safe-area-inset-*)" - quelle che servono a sapere quanto spazio
+  // occupano le barre di sistema del telefono (qui, la barra di navigazione
+  // Android in basso: indietro/home/recenti). Con "cover" il sito può
+  // disegnare fin sotto quelle barre, ma sa anche di quanto spazio si tratta
+  // per spostare sopra i contenuti importanti (come i 5 pulsanti fissi).
+  viewportFit: 'cover',
   // FIX ANDROID: senza questo, quando si apre la tastiera virtuale su Chrome
   // Android, gli elementi "fixed" (come la barra di invio messaggi nella
   // chat) restano ancorati all'altezza originale della pagina invece di

@@ -482,14 +482,14 @@ function HomePageContent() {
   )
 
   return (
-    <div className={`min-h-screen bg-stone-50 font-sans text-stone-900 relative ${isAndroid ? 'pb-24' : 'pb-20'}`}>
+    <div className={`min-h-screen bg-stone-50 font-sans text-stone-900 relative ${isAndroid ? 'page-bottom-clearance' : 'pb-20'}`}>
       {/* FIX: pb-24 solo su Android (invece del solito pb-20) - spazio extra in
           fondo alla pagina perché l'ultimo contenuto (il gioco Galactic Outpost)
           non resti nascosto dietro la barra fissa dei 5 pulsanti, che compare
           solo su Android. Su tutte le altre piattaforme resta pb-20 come prima. */}
       
       {IS_STAFF && (
-        <Link href="/staff" className={`fixed right-8 z-[99] bg-stone-900 text-rose-400 w-16 h-16 rounded-full shadow-lg font-bold flex items-center justify-center border-2 border-rose-400 hover:scale-105 active:scale-95 transition-all text-2xl ${isAndroid ? 'bottom-24' : 'bottom-8'}`}>
+        <Link href="/staff" className="fixed right-8 z-[99] bg-stone-900 text-rose-400 w-16 h-16 rounded-full shadow-lg font-bold flex items-center justify-center border-2 border-rose-400 hover:scale-105 active:scale-95 transition-all text-2xl" style={isAndroid ? { bottom: 'calc(6rem + env(safe-area-inset-bottom, 0px))' } : { bottom: '2rem' }}>
           <Crown size={28} />
         </Link>
       )}
@@ -527,7 +527,7 @@ function HomePageContent() {
           dell'app (Navbar) "Impostazioni" punta già lì - non esiste ancora una pagina impostazioni
           separata. Se un giorno ne crei una dedicata, basta cambiare questo singolo link. */}
       {isAndroid && (
-        <div className="fixed bottom-0 left-0 w-full z-[100] bg-white border-t border-stone-200 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] flex items-stretch">
+        <div className="fixed bottom-0 left-0 w-full z-[100] bg-white border-t border-stone-200 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] flex items-stretch pb-safe-bottom">
           <Link href="/profile" className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 active:bg-rose-50 transition-colors text-center">
             <UserIcon size={19} className="text-rose-500" />
             <span className="text-[8px] font-black uppercase tracking-wider text-stone-800">Profilo</span>

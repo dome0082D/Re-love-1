@@ -101,14 +101,46 @@ body {
 */
 .android-hero-scroll {
   touch-action: pan-x;
-  /* FIX: questa è la causa più probabile di "tutta la pagina si muove" -
-     senza questa proprietà, arrivare al limite dello scroll orizzontale
-     dell'hero durante uno swipe fa "rimbalzare" anche la pagina intera
-     insieme ad essa (comportamento di overscroll che si propaga al
-     genitore). "contain" dice al browser: quando lo scroll orizzontale
-     qui dentro arriva al limite, fermati - non lasciare che l'effetto
-     continui sul resto della pagina. */
-  overscroll-behavior-x: contain;
+  /* FIX: allargato da overscroll-behavior-x a overscroll-behavior (entrambi
+     gli assi) per una protezione più solida - qui non si scorre mai in
+     verticale (c'è overflow-y-hidden), quindi non cambia nulla per l'uso
+     normale, ma copre anche eventuali casi limite che il solo asse
+     orizzontale non intercettava. */
+  overscroll-behavior: contain;
+}
+
+/*
+  FIX ANDROID: questa classe è usata in tantissimi punti dell'app (lista
+  laboratori, chat, gallerie immagini, dashboard) ma non era MAI stata
+  definita - non faceva assolutamente nulla. Ogni contenitore che la usa è
+  un'area che scorre al proprio interno (lista laboratori, messaggi chat,
+  ecc.): senza "overscroll-behavior: contain", arrivare al limite dello
+  scroll DENTRO uno di questi riquadri durante uno swipe poteva far
+  "rimbalzare" anche la pagina intera insieme ad esso - lo stesso
+  identico problema già risolto per l'hero, ma che si presentava ogni
+  volta che si toccava uno di QUESTI riquadri, non solo l'hero. In più,
+  visto che il nome della classe lo suggerisce, le do anche un aspetto
+  di scrollbar più curato invece di lasciarla completamente invisibile.
+*/
+.custom-scrollbar {
+  overscroll-behavior: contain;
+}
+@supports (scrollbar-width: thin) {
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(120, 113, 108, 0.4) transparent;
+  }
+}
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(120, 113, 108, 0.4);
+  border-radius: 999px;
 }
 
 @supports (-webkit-overflow-scrolling: touch) {
@@ -125,4 +157,25 @@ body {
 
 .android-hero-scroll::-webkit-scrollbar {
   display: none; /* Chrome/WebView Android e Safari più vecchi */
+}
+
+/*
+  FIX ANDROID: la barra dei 5 pulsanti fissi in basso finiva nascosta sotto
+  la barra di navigazione di sistema del telefono (indietro/home/recenti).
+  env(safe-area-inset-bottom) è lo spazio esatto che quella barra occupa su
+  QUEL telefono specifico (varia da modello a modello) - aggiungendolo come
+  padding, il contenuto della barra viene spinto sopra la zona coperta dal
+  sistema, invece di finirci sotto. Il ", 0px" è il valore di riserva per i
+  browser che non supportano questa proprietà: in quel caso si comporta
+  come prima, senza spazio extra.
+*/
+.pb-safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Stessa idea applicata allo spazio in fondo alla pagina, così l'ultimo
+   contenuto della Home (il gioco) non resta comunque coperto dalla barra
+   ora più alta su telefoni con una barra di sistema più ingombrante. */
+.page-bottom-clearance {
+  padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0px));
 }
