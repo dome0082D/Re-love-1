@@ -73,10 +73,10 @@ export default function SupportoPage() {
   // FIX: prima, mentre si controllava se l'utente è loggato (o appena
   // prima del rimando al login), la pagina mostrava una schermata bianca
   // vuota invece di un messaggio di caricamento.
-  if (!user) return <div className="min-h-screen bg-white flex items-center justify-center font-black uppercase text-xs tracking-widest text-stone-400">Caricamento...</div>
+  if (!user) return <div className="min-h-screen flex items-center justify-center font-black uppercase text-xs tracking-widest text-stone-400">Caricamento...</div>
 
   return (
-    <div className="min-h-screen bg-white font-sans text-stone-900 pb-32">
+    <div className="min-h-screen font-sans text-stone-900 pb-32">
       <div className="w-full py-16 bg-stone-50 border-b border-stone-100 flex items-center justify-center relative overflow-hidden">
          <div className="absolute top-0 right-0 p-8 opacity-10 text-8xl">💬</div>
          <div className="text-center max-w-2xl px-6 relative z-10">

@@ -180,7 +180,7 @@ function DashboardContent() {
 
 export default function DashboardAnnunci() {
   return (
-    <div className="min-h-screen bg-stone-50 p-6 md:p-10 pt-10">
+    <div className="min-h-screen p-6 md:p-10 pt-10">
       <Suspense fallback={<p className="text-center p-10 font-bold uppercase text-[10px] tracking-widest text-stone-400">Caricamento dashboard...</p>}>
         <DashboardContent />
       </Suspense>

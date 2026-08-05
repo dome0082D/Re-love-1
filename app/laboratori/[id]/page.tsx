@@ -118,7 +118,7 @@ export default function DettaglioLaboratorio() {
     }
   }
 
-  if (loading) return <div className="min-h-screen bg-stone-50 flex items-center justify-center font-black uppercase tracking-widest text-[10px] text-stone-400">Caricamento Dettagli...</div>
+  if (loading) return <div className="min-h-screen flex items-center justify-center font-black uppercase tracking-widest text-[10px] text-stone-400">Caricamento Dettagli...</div>
   if (!course) return null
 
   // Estrae le vere iniziali dall'email per i tondini
@@ -128,7 +128,7 @@ export default function DettaglioLaboratorio() {
   const allParticipants = [{ user_email: course.creator_email, isCreator: true }, ...members]
 
   return (
-    <div className="min-h-screen bg-stone-50 font-sans text-stone-900 pb-20">
+    <div className="min-h-screen font-sans text-stone-900 pb-20">
       
       {/* HEADER REALE */}
       <header className="w-full bg-[#f5efdf] border-b border-stone-200 pt-10 pb-12 px-4 md:px-6">

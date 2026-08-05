@@ -1,146 +1,99 @@
 'use client'
-export const dynamic = 'force-dynamic'
 
-import { useState } from 'react'
-import { supabase } from '@/lib/supabase'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
-export default function LoginPage() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [isSignUp, setIsSignUp] = useState(false)
-  
-  // Gestione messaggi e caricamento
-  const [errorMsg, setErrorMsg] = useState('')
-  const [successMsg, setSuccessMsg] = useState('')
-  const [loading, setLoading] = useState(false)
-  
-  const router = useRouter()
-
-  const handleAuth = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setErrorMsg('')
-    setSuccessMsg('')
-
-    // FIX: l'intero corpo della funzione non aveva alcuna protezione da
-    // eccezioni. Su una connessione Android che cade a metà richiesta - il
-    // caso più frequente in tutta questa revisione - la funzione si fermava
-    // prima di raggiungere "setLoading(false)": il pulsante "Accedi" restava
-    // bloccato su "Attendi..." per sempre, disabilitato, senza nessun modo
-    // di riprovare senza ricaricare tutta la pagina. Proprio sulla pagina di
-    // login, che è l'ingresso a tutto il resto.
-    try {
-      if (isSignUp) {
-        const { data, error } = await supabase.auth.signUp({ 
-          email, 
-          password 
-        })
-        if (error) {
-          setErrorMsg(error.message)
-        } else if (data?.user && data.user.identities && data.user.identities.length === 0) {
-          // FIX: per motivi di sicurezza (evitare che si possa scoprire quali
-          // email sono già registrate), Supabase risponde SENZA errore anche
-          // quando l'email esiste già - la differenza si vede solo qui,
-          // nell'array "identities" vuoto. Senza questo controllo, chi
-          // proseguiva a registrarsi con un'email già usata vedeva "Controlla
-          // la tua email per confermare" e aspettava per sempre un'email di
-          // conferma che non sarebbe mai arrivata.
-          setErrorMsg('Questo indirizzo email è già registrato. Prova ad accedere invece.')
-        } else {
-          setSuccessMsg('🎉 Registrazione completata! Controlla la tua casella email (anche nello Spam) per confermare il tuo account.')
-          // Svuotiamo i campi per sicurezza
-          setEmail('')
-          setPassword('')
-        }
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({ 
-          email, 
-          password 
-        })
-        if (error) {
-          setErrorMsg(error.message === 'Invalid login credentials' ? 'Email o password errate.' : error.message)
-        } else {
-          router.push('/')
-        }
-      }
-    } catch (err: any) {
-      console.error('Errore autenticazione:', err)
-      setErrorMsg('Errore di connessione. Controlla la rete e riprova.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
+export default function HowItWorks() {
   return (
-    <div className="min-h-screen bg-stone-50 flex items-center justify-center p-4 font-sans pb-20">
-      <div className="bg-white w-full max-w-md rounded-[2.5rem] p-8 md:p-10 border border-stone-200 shadow-xl text-center">
+    <div className="min-h-screen p-6 md:p-20 font-sans text-stone-900">
+      <div className="max-w-4xl mx-auto">
         
-        <h2 className="text-4xl font-black uppercase italic mb-2 text-rose-500 tracking-tighter">Re-love</h2>
-        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-stone-400 mb-8">
-          {isSignUp ? 'Crea il tuo profilo' : 'Bentornato a bordo'}
-        </p>
-
-        <form onSubmit={handleAuth} className="space-y-4">
-          <input 
-            required 
-            type="email" 
-            placeholder="Indirizzo Email" 
-            value={email}
-            autoComplete="email"
-            className="w-full p-4 bg-stone-50 border border-stone-100 rounded-2xl text-sm font-bold outline-none focus:border-rose-400 focus:bg-white transition-all" 
-            onChange={e => setEmail(e.target.value)} 
-          />
-          <input 
-            required 
-            type="password" 
-            placeholder="Password (min 6 caratteri)" 
-            value={password}
-            minLength={6}
-            autoComplete={isSignUp ? 'new-password' : 'current-password'}
-            className="w-full p-4 bg-stone-50 border border-stone-100 rounded-2xl text-sm font-bold outline-none focus:border-rose-400 focus:bg-white transition-all" 
-            onChange={e => setPassword(e.target.value)} 
-          />
-          
-          <button 
-            type="submit" 
-            disabled={loading}
-            className="w-full bg-stone-900 text-white p-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-rose-500 transition-all shadow-md disabled:opacity-50"
-          >
-            {loading ? 'Attendi...' : (isSignUp ? 'Registrati' : 'Accedi')}
-          </button>
-        </form>
-
-        {/* MESSAGGI DI ERRORE O SUCCESSO */}
-        {errorMsg && (
-          <div className="mt-6 bg-red-50 p-4 rounded-xl border border-red-100">
-            <p className="text-[10px] font-black text-red-500 uppercase tracking-widest leading-relaxed">{errorMsg}</p>
-          </div>
-        )}
-        {successMsg && (
-          <div className="mt-6 bg-emerald-50 p-4 rounded-xl border border-emerald-100">
-            <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest leading-relaxed">{successMsg}</p>
-          </div>
-        )}
-
-        <div className="mt-8 pt-6 border-t border-stone-100 flex flex-col gap-4">
-          <button 
-            type="button"
-            onClick={() => {
-              setIsSignUp(!isSignUp);
-              setErrorMsg('');
-              setSuccessMsg('');
-            }} 
-            className="text-xs font-black uppercase text-stone-400 hover:text-stone-900 tracking-widest transition-colors"
-          >
-            {isSignUp ? 'Hai già un account? Accedi' : 'Nuovo utente? Registrati'}
-          </button>
-          
-          <Link href="/" className="inline-block text-[10px] font-bold uppercase text-stone-300 hover:text-stone-500 tracking-widest transition-colors">
-            ← Torna al sito
-          </Link>
+        {/* HEADER */}
+        <div className="text-center mb-16">
+          <span className="bg-rose-500 text-white px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest mb-6 inline-block shadow-lg shadow-rose-200">
+            Re-love Manifesto
+          </span>
+          <h1 className="text-5xl md:text-7xl font-black uppercase italic tracking-tighter leading-none mb-6">
+            Come <span className="text-rose-500 font-black">Funziona</span>
+          </h1>
+          <p className="text-sm md:text-base font-medium text-stone-500 italic max-w-2xl mx-auto leading-relaxed">
+            Non è solo un marketplace, è un nuovo modo di vivere gli oggetti. 
+            Su Re-love puoi vendere, regalare o scambiare ciò che ami con persone che lo ameranno quanto te.
+          </p>
         </div>
+
+        {/* LE 3 QUALITÀ CHIAVE */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-20">
+          
+          {/* VENDI & REGALA */}
+          <div className="bg-white p-8 rounded-[3rem] border border-stone-200 shadow-sm hover:shadow-xl transition-all group">
+            <div className="text-4xl mb-6 group-hover:scale-110 transition-transform inline-block">✨</div>
+            <h3 className="text-lg font-black uppercase italic mb-3">Second-hand Pro</h3>
+            <p className="text-xs text-stone-500 font-medium leading-relaxed">
+              Carica i tuoi capi d'abbigliamento, accessori o oggetti di design in meno di 60 secondi. Scegli se vendere al miglior prezzo o regalare per fare spazio al nuovo.
+            </p>
+          </div>
+
+          {/* SCAMBIA / BARATTO */}
+          <div className="bg-stone-900 p-8 rounded-[3rem] shadow-2xl text-white transform md:-translate-y-4">
+            <div className="text-4xl mb-6 animate-pulse">🔄</div>
+            <h3 className="text-lg font-black uppercase italic mb-3 text-rose-500">Baratto Etico</h3>
+            <p className="text-xs text-stone-300 font-medium leading-relaxed">
+              Il cuore di Re-love. Non serve denaro per avere stile: proponi uno scambio alla pari e trova tesori incredibili senza svuotare il portafoglio.
+            </p>
+          </div>
+
+          {/* SICUREZZA */}
+          <div className="bg-white p-8 rounded-[3rem] border border-stone-200 shadow-sm hover:shadow-xl transition-all group">
+            <div className="text-4xl mb-6 group-hover:scale-110 transition-transform inline-block">🛡️</div>
+            <h3 className="text-lg font-black uppercase italic mb-3">Zero Rischi</h3>
+            <p className="text-xs text-stone-500 font-medium leading-relaxed">
+              Pagamenti protetti con Stripe, chat criptata per gli accordi e spedizioni tracciabili. Su Re-love la tua fiducia è la nostra priorità numero uno.
+            </p>
+          </div>
+        </div>
+
+        {/* STEP-BY-STEP */}
+        <div className="bg-white rounded-[4rem] p-10 md:p-16 border border-stone-100 shadow-2xl overflow-hidden relative">
+          <div className="absolute top-0 right-0 p-10 opacity-5 text-8xl font-black italic">RE-LOVE</div>
+          
+          <h2 className="text-2xl font-black uppercase italic mb-10 border-b border-stone-100 pb-6">La tua guida rapida</h2>
+          
+          <div className="space-y-12">
+            {[
+              { n: "01", t: "Trova il colpo di fulmine", d: "Sfoglia la Home o usa i filtri per scovare oggetti unici e sostenibili." },
+              { n: "02", t: "Chatta e Accordati", d: "Usa la nostra chat sicura per chiedere info o proporre uno scambio." },
+              { n: "03", t: "Concludi l'affare", d: "Paga in sicurezza o conferma lo scambio. Al resto pensiamo noi." }
+            ].map((step, i) => (
+              <div key={i} className="flex gap-6 items-start">
+                <span className="text-4xl font-black text-rose-500 italic opacity-40">{step.n}</span>
+                <div>
+                  <h4 className="text-base font-black uppercase italic">{step.t}</h4>
+                  <p className="text-xs text-stone-500 font-medium mt-1">{step.d}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-16 flex flex-col md:flex-row gap-4">
+            <Link href="/" className="flex-1 bg-stone-900 text-white text-center py-5 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-rose-500 transition-all shadow-xl">
+              Torna alla Home
+            </Link>
+            {/* FIX: puntava a "/upload", un indirizzo che non esiste da
+                nessuna parte in questa app - dappertutto altrove (Navbar,
+                Home, i 5 pulsanti fissi) la pagina per creare un annuncio è
+                sempre "/add". Chi cliccava qui, dalla pagina pensata apposta
+                per convincere i nuovi utenti a iniziare, finiva su un errore
+                404 invece che sul modulo di pubblicazione. */}
+            <Link href="/add" className="flex-1 border-2 border-stone-900 text-stone-900 text-center py-5 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-stone-900 hover:text-white transition-all">
+              Inizia a vendere
+            </Link>
+          </div>
+        </div>
+
+        {/* FOOTER MESSAGGIO */}
+        <p className="text-center mt-12 text-[10px] font-black uppercase text-stone-400 tracking-[0.3em]">
+          Re-love © 2024 • Sostenibilità con Stile
+        </p>
 
       </div>
     </div>

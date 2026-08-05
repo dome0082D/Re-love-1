@@ -1,109 +1,252 @@
 'use client'
 export const dynamic = 'force-dynamic'
+
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
-export default function FavoritesPage() {
-  const [favorites, setFavorites] = useState<any[]>([])
+export default function ControversiePage() {
+  const [disputes, setDisputes] = useState<any[]>([])
+  const [purchases, setPurchases] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
+  const [user, setUser] = useState<any>(null)
   const router = useRouter()
 
-  useEffect(() => { loadFavorites() }, [])
+  // STATI PER IL MODULO NUOVA SEGNALAZIONE
+  const [showModal, setShowModal] = useState(false)
+  const [selectedTx, setSelectedTx] = useState('')
+  const [reason, setReason] = useState('Oggetto non ricevuto')
+  const [description, setDescription] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
-  async function loadFavorites() {
+  const ADMIN_EMAIL = 'dome0082@gmail.com'
+
+  useEffect(() => {
+    fetchData()
+  }, [])
+
+  async function fetchData() {
     setLoading(true)
     setLoadError(false)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { router.push('/login'); return; }
+    const { data: { user: currentUser } } = await supabase.auth.getUser()
+    // FIX: prima, chi non era loggato vedeva la pagina restare bloccata per
+    // sempre su "Caricamento pratiche..." - il "return" qui usciva dalla
+    // funzione PRIMA di raggiungere il setLoading(false) finale. In più
+    // mancava il reindirizzamento al login, presente in tutte le altre
+    // pagine dell'area riservata.
+    if (!currentUser) {
+      router.push('/login')
+      return
+    }
+    setUser(currentUser)
 
-    // Unisce i preferiti con i dati della tabella annunci
-    const { data, error } = await supabase
-      .from('favorites')
+    const { data: dispData, error: dispError } = await supabase
+      .from('disputes')
+      .select('*, transaction:transactions(*, announcements(*))')
+      .or(`buyer_id.eq.${currentUser.id},seller_id.eq.${currentUser.id}`)
+      .order('created_at', { ascending: false })
+
+    const { data: purchData, error: purchError } = await supabase
+      .from('transactions')
       .select('*, announcements(*)')
-      .eq('user_id', user.id)
+      .eq('buyer_id', currentUser.id)
       .order('created_at', { ascending: false })
 
     // FIX: prima un errore di caricamento veniva ignorato in silenzio - la
-    // pagina mostrava "Non hai ancora salvato nessun annuncio", identico a
-    // come appare quando i preferiti sono davvero vuoti.
-    if (error) {
-      console.error('Errore caricamento preferiti:', error)
+    // pagina mostrava "Tutto tranquillo, nessuna controversia aperta",
+    // identico a come appare quando davvero non ce ne sono - fuorviante
+    // proprio su una pagina che si visita perché preoccupati per un ordine.
+    if (dispError || purchError) {
+      console.error('Errore caricamento controversie/acquisti:', dispError || purchError)
       setLoadError(true)
-    } else if (data) {
-        // Estrai solo gli annunci validi (non eliminati)
-        const validAds = data.map(f => f.announcements).filter(a => a !== null)
-        setFavorites(validAds)
+      setLoading(false)
+      return
     }
+
+    if (dispData) setDisputes(dispData)
+
+    if (purchData) {
+      setPurchases(purchData)
+      if (purchData.length > 0) setSelectedTx(purchData[0].id)
+    }
+
     setLoading(false)
   }
 
-  async function removeFavorite(e: any, annId: string) {
-    e.preventDefault();
-    e.stopPropagation();
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-
-    // FIX: prima l'annuncio spariva dai preferiti SUBITO, senza aspettare
-    // conferma dal database - se la cancellazione falliva davvero (rete
-    // instabile, regole di sicurezza), il cuoricino spariva qui ma la riga
-    // restava nel database: tornando su questa pagina l'annuncio sarebbe
-    // ricomparso, e nel frattempo altre parti del sito (es. il cuoricino
-    // sulle card degli annunci) avrebbero continuato a mostrarlo come
-    // salvato, disallineate rispetto a questa pagina.
-    const { error } = await supabase.from('favorites').delete().eq('user_id', user.id).eq('announcement_id', annId);
-    if (error) {
-      console.error('Errore rimozione preferito:', error)
+  const handleSubmit = async () => {
+    if (!description.trim()) {
+      alert("Descrivi il problema per favore.")
       return
     }
-    setFavorites(favorites.filter(a => a.id !== annId));
+    setSubmitting(true)
+
+    // FIX: aggiunto try/catch - senza, un fallimento di rete (Android
+    // instabile) durante l'invio lasciava il pulsante bloccato su "Invio in
+    // corso..." per sempre.
+    try {
+      const tx = purchases.find(p => p.id === selectedTx)
+      const sellerId = tx?.announcements?.user_id || null
+
+      const { error } = await supabase.from('disputes').insert([{
+        transaction_id: selectedTx || null,
+        buyer_id: user.id,
+        seller_id: sellerId,
+        reason: reason,
+        description: description,
+        status: 'Aperta'
+      }])
+
+      if (error) {
+        alert("Errore nell'invio: " + error.message)
+        return
+      }
+
+      alert("Segnalazione inviata allo Staff con successo! I fondi sono stati congelati.")
+
+      // 1. Notifica al Venditore
+      if (sellerId) {
+        await supabase.from('notifications').insert([{
+          user_id: sellerId,
+          message: `⚠️ L'acquirente ha aperto una controversia. Lo Staff interverrà a breve.`,
+          is_read: false
+        }])
+      }
+
+      // 2. NOTIFICA ALL'ADMIN!
+      const { data: adminData } = await supabase.from('profiles').select('id').eq('email', ADMIN_EMAIL).single()
+      if (adminData) {
+        await supabase.from('notifications').insert([{
+          user_id: adminData.id,
+          message: `🚨 TRIBUNALE: Nuova controversia aperta da ${user.email}.`,
+          is_read: false
+        }])
+      }
+
+      setShowModal(false)
+      setDescription('')
+      fetchData()
+    } catch (err: any) {
+      console.error('Errore invio segnalazione:', err)
+      alert("Errore di connessione. Riprova.")
+    } finally {
+      setSubmitting(false)
+    }
   }
 
-  if (loading) return <div className="p-10 font-black uppercase text-xs text-center">Caricamento preferiti...</div>
-
   return (
-    <div className="min-h-screen bg-stone-50 font-sans text-stone-900 p-6">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-8 border-b border-stone-200 pb-4">
-            <h1 className="text-2xl font-black uppercase italic text-stone-900">I Miei Preferiti</h1>
-            <Link href="/" className="text-[10px] font-black uppercase text-stone-400 hover:text-stone-900">← Torna alla Home</Link>
+    <div className="min-h-screen font-sans text-stone-900 pb-32">
+      <div className="w-full py-16 bg-rose-50 border-b border-rose-100 flex items-center justify-center relative overflow-hidden">
+         <div className="absolute top-0 right-0 p-8 opacity-10 text-8xl">⚖️</div>
+         <div className="text-center max-w-2xl px-6 relative z-10">
+            <h1 className="text-4xl font-black uppercase italic text-stone-900 tracking-tighter mb-2">Tribunale Re-love</h1>
+            <p className="text-rose-500 font-bold text-[10px] uppercase tracking-[0.3em]">Centro Risoluzione Controversie</p>
+         </div>
+      </div>
+
+      <div className="max-w-5xl mx-auto px-4 mt-12">
+        <div className="flex flex-col md:flex-row justify-between items-center mb-8 border-b border-stone-100 pb-4 gap-4">
+          <h2 className="text-sm font-black uppercase text-stone-400 tracking-widest">Le tue pratiche attive</h2>
+          <button onClick={() => setShowModal(true)} className="bg-stone-900 text-white px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-rose-500 transition-all shadow-md">
+            + Apri Segnalazione
+          </button>
         </div>
 
-        {loadError ? (
-            <div className="bg-white border border-red-200 rounded-2xl p-10 text-center mt-8">
-              <p className="text-sm font-black uppercase text-red-500 mb-2">Errore di caricamento</p>
-              <p className="text-xs font-bold text-stone-400 uppercase tracking-widest mb-6">Controlla la connessione e riprova.</p>
-              <button onClick={loadFavorites} className="bg-stone-900 text-white text-[10px] font-black uppercase tracking-widest px-6 py-3 rounded-xl hover:bg-rose-600 transition-all">
-                Riprova
-              </button>
-            </div>
-        ) : favorites.length === 0 ? (
-            <p className="text-sm font-bold text-stone-400 uppercase text-center mt-20">Non hai ancora salvato nessun annuncio.</p>
+        {loading ? (
+          <p className="text-center text-stone-400 font-bold text-xs uppercase tracking-widest mt-12">Caricamento pratiche...</p>
+        ) : loadError ? (
+          <div className="bg-white border border-red-200 rounded-[3rem] p-16 text-center">
+            <p className="text-sm font-black uppercase text-red-500 mb-2">Errore di caricamento</p>
+            <p className="text-xs font-bold text-stone-400 uppercase tracking-widest mb-6">Controlla la connessione e riprova.</p>
+            <button onClick={fetchData} className="bg-stone-900 text-white text-[10px] font-black uppercase tracking-widest px-6 py-3 rounded-xl hover:bg-rose-600 transition-all">
+              Riprova
+            </button>
+          </div>
+        ) : disputes.length === 0 ? (
+          <div className="bg-stone-50 border-2 border-dashed border-stone-200 rounded-[3rem] p-16 text-center">
+            <span className="text-6xl block mb-4">🕊️</span>
+            <h3 className="text-xl font-black uppercase text-stone-900 mb-2">Tutto tranquillo</h3>
+            <p className="text-xs font-bold text-stone-400 uppercase tracking-widest mb-6">Non ci sono controversie aperte. Le tue vendite vanno a gonfie vele!</p>
+            <Link href="/dashboard/analitiche" className="text-[10px] font-black uppercase text-rose-500 hover:text-stone-900 tracking-widest underline">
+              ← Torna al Seller Hub
+            </Link>
+          </div>
         ) : (
-            <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-              {favorites.map(ann => (
-                <Link href={`/announcement/${ann.id}`} key={ann.id} className="bg-white rounded-xl overflow-hidden border border-stone-200 shadow-sm flex flex-col group hover:border-stone-400 transition-all relative">
-                  <button onClick={(e) => removeFavorite(e, ann.id)} className="absolute top-2 left-2 z-20 bg-white/80 backdrop-blur rounded-full p-1.5 hover:scale-110 transition-transform text-xs">
-                    ❤️
-                  </button>
-                  <div className="h-32 bg-stone-50 relative border-b border-stone-100">
-                    <img src={ann.image_url || "/usato.png"} className="w-full h-full object-cover" />
-                    {ann.type === 'offered' && <span className="absolute top-2 right-2 bg-emerald-500 text-white text-[8px] font-black px-2 py-1 rounded uppercase shadow-sm">Regalo</span>}
-                  </div>
-                  <div className="p-3 flex flex-col flex-grow justify-between">
-                      <div>
-                        <h4 className="text-[11px] font-bold uppercase truncate text-stone-800">{ann.title}</h4>
-                        <p className="text-[13px] font-black mt-1 text-stone-900">{ann.type === 'offered' ? 'GRATIS' : `€ ${ann.price}`}</p>
-                      </div>
-                    <button className="mt-3 w-full bg-stone-50 text-stone-800 text-[9px] font-black uppercase py-2 rounded-lg group-hover:bg-stone-900 group-hover:text-white transition-colors">Vedi Dettagli</button>
-                  </div>
-                </Link>
-              ))}
-            </div>
+          <div className="grid gap-4">
+            {disputes.map(dispute => (
+              <div key={dispute.id} className="p-6 bg-white border border-stone-200 rounded-3xl shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                  <span className={`px-3 py-1 rounded-md text-[9px] font-black uppercase tracking-widest ${dispute.status === 'Aperta' ? 'bg-orange-100 text-orange-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                    {dispute.status}
+                  </span>
+                  <h4 className="text-sm font-black text-stone-900 mt-2 uppercase">{dispute.reason}</h4>
+                  <p className="text-[10px] font-bold text-stone-500 mt-1 uppercase tracking-widest">
+                    Ordine: {dispute.transaction?.announcements?.title || 'Segnalazione Generica'}
+                  </p>
+                </div>
+                <div className="bg-stone-50 px-4 py-3 rounded-xl border border-stone-100 text-[10px] font-bold text-stone-400 uppercase tracking-widest">
+                  In attesa dello Staff
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
+
+      {showModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-stone-900/80 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full relative animate-in zoom-in duration-200">
+            <button onClick={() => setShowModal(false)} className="absolute top-4 right-4 text-stone-400 hover:text-stone-800 text-xl font-bold">✕</button>
+            <div className="text-center mb-6">
+              <span className="text-6xl block mb-2">📝</span>
+              <h2 className="text-2xl font-black uppercase italic text-stone-900">Nuova Segnalazione</h2>
+              <p className="text-[10px] uppercase font-bold text-stone-400 tracking-widest mt-1">Invia il modulo allo Staff</p>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="text-[10px] font-black uppercase text-stone-400 tracking-widest ml-2">Quale ordine ha un problema?</label>
+                <select value={selectedTx} onChange={(e) => setSelectedTx(e.target.value)} className="w-full p-4 bg-stone-50 border border-stone-200 rounded-xl font-bold text-sm outline-none mt-1 focus:border-rose-400">
+                  {purchases.length === 0 ? (
+                    <option value="">Nessun ordine (Segnalazione Generica)</option>
+                  ) : (
+                    purchases.map(p => (
+                      <option key={p.id} value={p.id}>{p.announcements?.title} (€{p.amount})</option>
+                    ))
+                  )}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase text-stone-400 tracking-widest ml-2">Motivo della segnalazione</label>
+                <select value={reason} onChange={(e) => setReason(e.target.value)} className="w-full p-4 bg-stone-50 border border-stone-200 rounded-xl font-bold text-sm outline-none mt-1 focus:border-rose-400">
+                  <option>Oggetto non ricevuto</option>
+                  <option>Oggetto danneggiato / Diverso</option>
+                  <option>Sospetto Oggetto Falso</option>
+                  <option>Venditore non risponde</option>
+                  <option>Altro problema generico</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase text-stone-400 tracking-widest ml-2">Spiega la situazione allo Staff</label>
+                <textarea 
+                  rows={4} 
+                  placeholder="Scrivi qui i dettagli per aiutarci a giudicare..." 
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="w-full p-4 bg-stone-50 border border-stone-200 rounded-xl font-medium text-sm outline-none mt-1 resize-none focus:border-rose-400"
+                />
+              </div>
+
+              <button onClick={handleSubmit} disabled={submitting} className="w-full bg-rose-600 text-white py-4 rounded-xl font-black uppercase tracking-widest text-xs hover:bg-stone-900 transition-all disabled:opacity-50 mt-4 shadow-md">
+                {submitting ? 'Invio in corso...' : 'Invia allo Staff'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

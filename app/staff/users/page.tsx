@@ -86,7 +86,7 @@ export default function StaffUsersPage() {
   if (loading) return <div className="p-10 text-center font-black uppercase text-xs">Caricamento Profili...</div>
 
   return (
-    <div className="min-h-screen bg-stone-50 p-6 font-sans">
+    <div className="min-h-screen p-6 font-sans">
       <div className="max-w-4xl mx-auto">
         <div className="bg-white rounded-3xl p-8 border border-stone-200 shadow-sm flex justify-between items-center mb-8">
           <h1 className="text-2xl font-black uppercase italic text-stone-900">Gestione Profili</h1>

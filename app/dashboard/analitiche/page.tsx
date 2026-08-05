@@ -89,10 +89,10 @@ export default function AnalyticsDashboard() {
     }
   }
 
-  if (loading) return <div className="min-h-screen bg-white flex items-center justify-center font-black uppercase tracking-widest text-xs text-stone-400">Elaborazione Dati...</div>
+  if (loading) return <div className="min-h-screen flex items-center justify-center font-black uppercase tracking-widest text-xs text-stone-400">Elaborazione Dati...</div>
 
   return (
-    <div className="min-h-screen bg-white font-sans text-stone-900 pb-32">
+    <div className="min-h-screen font-sans text-stone-900 pb-32">
       
       <div className="w-full py-16 bg-stone-50 border-b border-stone-100 flex items-center justify-center">
          <div className="text-center max-w-2xl px-6">

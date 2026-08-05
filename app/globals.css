@@ -94,15 +94,28 @@ body {
 }
 
 /*
-  Hero scorrevole SOLO ANDROID (vedi useIsAndroid in app/page.tsx).
-  - touch-action: pan-x dichiara esplicitamente "qui si scorre solo in
-    orizzontale", cosi il gesto verticale continua a scrollare la pagina
-    senza restare "intrappolato" nel riquadro hero.
-  - Scrollbar nascosta ma lo scroll resta pienamente funzionante, con
-    inerzia (momentum) sul tocco.
+  Hero scorrevole SOLO ANDROID (vedi useIsAndroid e i gestori touch dedicati
+  in app/page.tsx).
+  - touch-action: pan-y (FIX: prima era pan-x) dichiara che il gesto
+    verticale lo gestisce nativamente il browser (fa scorrere la pagina),
+    mentre quello orizzontale genera eventi che gestiamo noi via JS - vedi
+    sotto il perché.
+  - Scrollbar nascosta ma lo scroll resta pienamente funzionante.
 */
 .android-hero-scroll {
-  touch-action: pan-x;
+  /* FIX: prima era "pan-x" - sembra corretto sulla carta ("qui si scorre
+     solo in orizzontale, il verticale passa alla pagina"), ma è un
+     comportamento noto per essere impreciso su Chrome Android: se il dito
+     parte anche solo leggermente in diagonale (un tocco umano non è mai
+     perfettamente dritto), il browser "blocca" l'intero gesto come
+     orizzontale e non lo lascia più passare alla pagina - dovevi toccare
+     fuori dall'hero per scrollare giù. È un problema documentato, capitato
+     a librerie di carousel molto diffuse (Flickity, Slick), non specifico
+     di questo progetto. La soluzione robusta: "pan-y" dice al browser di
+     gestire SEMPRE nativamente il gesto verticale (mai bloccato), mentre
+     quello orizzontale lo intercettiamo e gestiamo noi via JavaScript in
+     app/page.tsx, con un controllo diretto sulla direzione del dito. */
+  touch-action: pan-y;
   /* FIX: allargato da overscroll-behavior-x a overscroll-behavior (entrambi
      gli assi) per una protezione più solida - qui non si scorre mai in
      verticale (c'è overflow-y-hidden), quindi non cambia nulla per l'uso
@@ -181,3 +194,66 @@ body {
 .page-bottom-clearance {
   padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0px));
 }
+
+/*
+  SFONDO FISSO DEL SITO. "position: fixed" lo ancora al VIEWPORT (lo schermo),
+  non al documento - resta fermo mentre tutto il resto scorre sopra di lui,
+  esattamente come richiesto ("l'app si muove sull'immagine, non viceversa").
+  - z-index molto negativo: resta sempre dietro a qualunque altro contenuto,
+    anche se quel contenuto non dichiara esplicitamente il proprio z-index.
+  - background-size: contain (non "cover") per non tagliare mai nessuna
+    parte dell'illustrazione - "non sfumata" e "ben leggibile" richiedono che
+    resti visibile per intero, comprese le scritte, non ritagliata ai bordi.
+  - background-color di riserva: il colore del cielo dell'illustrazione,
+    così dove "contain" lascia dello spazio vuoto (sopra/sotto su schermi
+    larghi, ai lati su schermi stretti) non compare un bordo bianco brusco.
+  - pointer-events: none - un elemento "fixed" a schermo intero altrimenti
+    intercetterebbe i tocchi/click destinati al contenuto vero sopra di lui.
+*/
+.site-fixed-background {
+  position: fixed;
+  inset: 0;
+  z-index: -10;
+  background-image: url('/relove-background.png');
+  background-size: contain;
+  background-position: center center;
+  background-repeat: no-repeat;
+  background-color: #dce8ee;
+  pointer-events: none;
+}
+
+/*
+  BORDI MENO SMUSSATI (richiesta: "più appuntiti, non troppo").
+  Invece di modificare a mano ogni singolo riquadro in decine di file,
+  ridefiniamo qui i valori delle classi di arrotondamento usate in tutta
+  l'app: la modifica si applica automaticamente OVUNQUE - card, pulsanti,
+  bolle della chat, riquadri annunci, modali - comprese eventuali pagine
+  aggiunte in futuro.
+  Valori più o meno dimezzati rispetto agli originali: restano leggermente
+  arrotondati (non spigoli vivi), ma molto più netti e squadrati.
+  NOTA: "rounded-full" NON è toccato di proposito - serve agli elementi che
+  devono restare perfettamente circolari (avatar, pallini di stato,
+  pulsanti tondi come la corona dello staff) e squadrarli li rovinerebbe.
+  Se li vuoi ancora più appuntiti, abbassa questi numeri; per tornare
+  indietro, basta cancellare questo blocco.
+*/
+.rounded-\[4rem\]  { border-radius: 1.25rem; }
+.rounded-\[3rem\]  { border-radius: 1.125rem; }
+.rounded-\[2\.5rem\] { border-radius: 1rem; }
+.rounded-\[2rem\]  { border-radius: 0.875rem; }
+.rounded-\[1\.5rem\] { border-radius: 0.75rem; }
+.rounded-3xl { border-radius: 0.75rem; }
+.rounded-2xl { border-radius: 0.625rem; }
+.rounded-xl  { border-radius: 0.5rem; }
+.rounded-lg  { border-radius: 0.375rem; }
+
+/* Varianti su un solo angolo, usate nelle bolle della chat e nei badge
+   "TOP" ad angolo sulle card - ridotte in proporzione per restare coerenti. */
+.rounded-br-2xl { border-bottom-right-radius: 0.625rem; }
+.rounded-bl-xl  { border-bottom-left-radius: 0.5rem; }
+.rounded-br-xl  { border-bottom-right-radius: 0.5rem; }
+.rounded-tr-none { border-top-right-radius: 0; }
+.rounded-tl-none { border-top-left-radius: 0; }
+.rounded-br-sm { border-bottom-right-radius: 0.125rem; }
+.rounded-bl-sm { border-bottom-left-radius: 0.125rem; }
+

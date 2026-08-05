@@ -164,6 +164,64 @@ function HomePageContent() {
     }
   }, [isAndroid])
 
+  // FIX: prima lo scroll orizzontale dell'hero era gestito dal solo CSS
+  // (touch-action: pan-x), che in teoria lascia passare i gesti verticali
+  // alla pagina ma su Chrome Android si è rivelato impreciso: bastava un
+  // dito che partiva anche solo leggermente in diagonale (quasi sempre, un
+  // tocco umano non è mai perfettamente dritto) perché il gesto venisse
+  // "bloccato" come orizzontale, impedendo di scrollare la pagina toccando
+  // l'hero. Ora calcoliamo noi la direzione del dito nei primi pixel di
+  // movimento: se è verticale, non facciamo NULLA (niente preventDefault,
+  // l'evento passa alla pagina come se l'hero non ci fosse); se è
+  // orizzontale, muoviamo noi stessi lo scroll dell'hero via JavaScript.
+  useEffect(() => {
+    if (!isAndroid) return
+    const el = heroScrollRef.current
+    if (!el) return
+
+    let startX = 0
+    let startY = 0
+    let startScrollLeft = 0
+    let lockedAxis: 'x' | 'y' | null = null
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return
+      startX = e.touches[0].clientX
+      startY = e.touches[0].clientY
+      startScrollLeft = el.scrollLeft
+      lockedAxis = null
+    }
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return
+      const dx = e.touches[0].clientX - startX
+      const dy = e.touches[0].clientY - startY
+
+      if (lockedAxis === null) {
+        if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return
+        lockedAxis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y'
+      }
+
+      if (lockedAxis === 'x') {
+        e.preventDefault()
+        el.scrollLeft = startScrollLeft - dx
+      }
+      // Se lockedAxis è 'y', non facciamo nulla di proposito: l'evento
+      // continua il suo corso normale e la pagina scorre come sempre.
+    }
+
+    el.addEventListener('touchstart', handleTouchStart, { passive: true })
+    // "passive: false" qui è necessario - possiamo chiamare preventDefault()
+    // solo su un listener non passivo, e ci serve per bloccare SOLO il
+    // trascinamento orizzontale senza che il browser provi a scrollare la
+    // pagina in orizzontale per conto suo.
+    el.addEventListener('touchmove', handleTouchMove, { passive: false })
+    return () => {
+      el.removeEventListener('touchstart', handleTouchStart)
+      el.removeEventListener('touchmove', handleTouchMove)
+    }
+  }, [isAndroid])
+
   // Quando l'utente smette di scorrere l'hero (dito sollevato E inerzia
   // dello scroll esaurita), la riporta dolcemente al centro dopo una breve
   // pausa, così ha comunque il tempo di vedere cosa ha scorso prima che torni.
@@ -574,11 +632,14 @@ function HomePageContent() {
   )
 
   return (
-    <div className={`min-h-screen bg-stone-50 font-sans text-stone-900 relative ${isAndroid ? 'page-bottom-clearance' : 'pb-20'}`}>
+    <div className={`min-h-screen font-sans text-stone-900 relative ${isAndroid ? 'page-bottom-clearance' : 'pb-20'}`}>
       {/* FIX: pb-24 solo su Android (invece del solito pb-20) - spazio extra in
           fondo alla pagina perché l'ultimo contenuto (il gioco Galactic Outpost)
           non resti nascosto dietro la barra fissa dei 5 pulsanti, che compare
-          solo su Android. Su tutte le altre piattaforme resta pb-20 come prima. */}
+          solo su Android. Su tutte le altre piattaforme resta pb-20 come prima.
+          FIX SFONDO: tolto "bg-stone-50" da qui - ora lo sfondo fisso del sito
+          (vedi layout.tsx) si vede nei vuoti tra i riquadri della Home, tranne
+          dietro l'hero, che resta opaca tramite l'involucro qui sotto. */}
       
       {IS_STAFF && showStaffButton && (
         <Link href="/staff" className="fixed right-8 z-[99] bg-stone-900 text-rose-400 w-16 h-16 rounded-full shadow-lg font-bold flex items-center justify-center border-2 border-rose-400 hover:scale-105 active:scale-95 transition-all text-2xl animate-in fade-in duration-300" style={isAndroid ? { bottom: 'calc(6rem + env(safe-area-inset-bottom, 0px))' } : { bottom: '2rem' }}>
@@ -586,28 +647,14 @@ function HomePageContent() {
         </Link>
       )}
 
-      <div className="w-full max-w-7xl mx-auto px-4 pt-4 flex justify-center sticky top-0 z-[100] bg-stone-50">
-        <div className="relative w-full max-w-2xl shadow-md rounded-[2rem] bg-white border border-stone-200">
-          <div className="absolute inset-y-0 left-6 flex items-center pointer-events-none">
-            <Search className="text-stone-400" size={24} strokeWidth={2.5} />
-          </div>
-          <input 
-            type="text" 
-            value={mainSearch}
-            placeholder="Cerca vestiti, elettronica, arredamento..." 
-            className="w-full py-4 pl-16 pr-20 rounded-[2rem] bg-white border-none outline-none text-base md:text-lg font-black text-stone-900 focus:ring-4 focus:ring-rose-100 transition-all placeholder:text-stone-400" 
-            onChange={(e) => setMainSearch(e.target.value)} 
-          />
-          <Tooltip text={isListening ? "In ascolto..." : "Ricerca con la voce! 🎙️"} wrapperClass="absolute inset-y-2 right-2">
-            <button 
-             onClick={handleVoiceSearch}
-             className={`w-11 h-11 md:w-12 md:h-12 rounded-[1.5rem] flex items-center justify-center transition-all ${isListening ? 'bg-rose-600 text-white' : 'bg-stone-100 text-rose-500 hover:bg-stone-200 shadow-sm'}`}
-            >
-             {isListening ? <Mic size={22} /> : <MicOff size={22} />}
-            </button>
-          </Tooltip>
-        </div>
-      </div>
+      {/* FIX: rimossa su richiesta la barra di ricerca centrale sopra
+          l'hero. NOTA: "mainSearch" e la ricerca vocale restano nel codice
+          ma ora nessuno le imposta più - in particolare, il riquadro
+          "ExternalResultsFallback" (i risultati Amazon/eBay/AliExpress
+          quando la ricerca interna è vuota) più giù nella pagina non
+          comparirà più mai, perché dipende da "mainSearch" per attivarsi.
+          Non ho tolto quel codice: se un giorno reintroduci un modo di
+          cercare, torna a funzionare da solo. */}
 
       {/* 5 PULSANTI RAPIDI ACCOUNT: Profilo, Inserisci Corso, Inserisci Annuncio, Vetrina, Messaggi.
           FIX: barra fissa in fondo allo schermo (come una bottom bar da app nativa),
@@ -651,29 +698,38 @@ function HomePageContent() {
         </div>
       )}
 
-      {isAndroid ? (
-        <div ref={heroScrollRef} className="relative w-full overflow-x-auto overflow-y-hidden mt-2 android-hero-scroll">
-          <div className="h-[400px] w-max flex items-center">
-            <img 
-              ref={heroImgRef}
-              src="/hero-2.png" 
-              alt="Re-love Hero Completa"
-              className="h-full w-auto max-w-none object-contain object-center"
-              onLoad={() => centerHeroScroll(false)}
-            />
-          </div>
-        </div>
-      ) : (
-        <div className="relative w-full aspect-[16/9] max-h-[580px] flex flex-col items-center justify-center overflow-hidden bg-transparent mt-2">
-            <div className="absolute inset-0 z-0 w-full h-full">
+      {/* FIX SFONDO: involucro opaco (bg-stone-50, il colore normale della
+          pagina) attorno a tutto ciò che sta dalla cima della Home fino alla
+          fine dell'hero - qui sotto, esclusivamente in questa zona, lo
+          sfondo fisso del sito non deve vedersi. È un div normale, non
+          posizionato: la sua altezza segue automaticamente il suo contenuto
+          (l'hero, in entrambe le varianti Android/desktop), senza bisogno
+          di calcolare o indovinare un'altezza fissa. */}
+      <div className="relative z-[1] bg-stone-50">
+        {isAndroid ? (
+          <div ref={heroScrollRef} className="relative w-full overflow-x-auto overflow-y-hidden mt-2 android-hero-scroll">
+            <div className="h-[400px] w-max flex items-center">
               <img 
+                ref={heroImgRef}
                 src="/hero-2.png" 
                 alt="Re-love Hero Completa"
-                className="w-full h-full object-contain object-center scale-100"
+                className="h-full w-auto max-w-none object-contain object-center"
+                onLoad={() => centerHeroScroll(false)}
               />
             </div>
-        </div>
-      )}
+          </div>
+        ) : (
+          <div className="relative w-full aspect-[16/9] max-h-[580px] flex flex-col items-center justify-center overflow-hidden bg-transparent mt-2">
+              <div className="absolute inset-0 z-0 w-full h-full">
+                <img 
+                  src="/hero-2.png" 
+                  alt="Re-love Hero Completa"
+                  className="w-full h-full object-contain object-center scale-100"
+                />
+              </div>
+          </div>
+        )}
+      </div>
 
       <div className="w-full max-w-[1750px] mx-auto px-4 md:px-6 mt-6 lg:-mt-12 relative z-20 flex flex-col lg:flex-row gap-6">
         
@@ -1250,7 +1306,7 @@ function HomePageContent() {
 
 export default function HomePage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-stone-50 flex items-center justify-center font-bold uppercase tracking-widest text-stone-400 text-xs">Caricamento Vetrina...</div>}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center font-bold uppercase tracking-widest text-stone-400 text-xs">Caricamento Vetrina...</div>}>
       <HomePageContent />
     </Suspense>
   )

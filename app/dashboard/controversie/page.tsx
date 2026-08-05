@@ -136,7 +136,7 @@ export default function ControversiePage() {
   }
 
   return (
-    <div className="min-h-screen bg-white font-sans text-stone-900 pb-32">
+    <div className="min-h-screen font-sans text-stone-900 pb-32">
       <div className="w-full py-16 bg-rose-50 border-b border-rose-100 flex items-center justify-center relative overflow-hidden">
          <div className="absolute top-0 right-0 p-8 opacity-10 text-8xl">⚖️</div>
          <div className="text-center max-w-2xl px-6 relative z-10">

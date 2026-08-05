@@ -60,7 +60,7 @@ export default function StaffAnnunciPage() {
   }
 
   return (
-    <div className="min-h-screen bg-stone-50 p-6 md:p-10 pt-20">
+    <div className="min-h-screen p-6 md:p-10 pt-20">
       <div className="max-w-6xl mx-auto">
         <h1 className="text-3xl font-black uppercase italic text-stone-900 mb-2">Moderazione Annunci</h1>
         <p className="text-stone-500 font-bold uppercase tracking-widest text-[10px] mb-8">Pannello di controllo Staff</p>

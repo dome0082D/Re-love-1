@@ -60,7 +60,7 @@ export default function LaboratoriPage() {
   }
 
   return (
-    <div className="min-h-screen bg-stone-50 font-sans text-stone-900 pb-20">
+    <div className="min-h-screen font-sans text-stone-900 pb-20">
       
       {/* HEADER DELLA BACHECA */}
       <header className="w-full bg-[#f5efdf] border-b border-stone-200 pt-12 pb-16 px-4 md:px-6">

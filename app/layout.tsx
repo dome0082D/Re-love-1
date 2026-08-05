@@ -74,14 +74,24 @@ export default function RootLayout({
           `}
         </Script>
       </head>
-      {/* Torniamo allo sfondo bianco solido (bg-white) */}
-      <body className="bg-white text-stone-900 font-sans antialiased min-h-screen flex flex-col relative">
+      {/* FIX: "bg-white" tolto da qui - uno sfondo solido sul body avrebbe
+          coperto per intero il nuovo sfondo fisso qui sotto, rendendolo
+          invisibile ovunque. Il colore di base per le pagine che NON
+          personalizzano ancora il proprio sfondo è ora quello dietro
+          l'immagine (vedi .site-fixed-background in globals.css). */}
+      <body className="text-stone-900 font-sans antialiased min-h-screen flex flex-col relative">
+        {/* SFONDO FISSO DEL SITO (vedi globals.css per i dettagli):
+            resta fermo mentre la pagina scorre sopra di lui, su tutte le
+            pagine. Nella Home, page.tsx aggiunge un pannello opaco che lo
+            copre esclusivamente dietro l'hero, così lì non si vede. */}
+        <div className="site-fixed-background" aria-hidden="true" />
+
         <Navbar />
         
         {/* IL NOSTRO MAGICO POPUP IN TEMPO REALE */}
         <RealtimeNotifications />
         
-        <main className="flex-grow bg-white">
+        <main className="flex-grow relative z-[1]">
           {children}
         </main>
 

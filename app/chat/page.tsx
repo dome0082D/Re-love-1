@@ -5,8 +5,8 @@ import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { Trash2 } from 'lucide-react'
 
-// Lista delle emoticon più popolari da mostrare nel menu
 const POPULAR_EMOJIS = [
   '😀', '😂', '🥰', '😎', '🤔', '😢', '😡', '😱',
   '👍', '👎', '❤️', '🔥', '🎉', '✨', '👀', '🙌',
@@ -21,8 +21,7 @@ export default function ChatPage() {
   const [newMessage, setNewMessage] = useState('')
   const [loading, setLoading] = useState(true)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
-  
-  // Stato per gestire l'apertura del menu delle emoticon
+  const [hiddenPairs, setHiddenPairs] = useState<Set<string>>(new Set())
   const [showEmojis, setShowEmojis] = useState(false)
   
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -34,45 +33,33 @@ export default function ChatPage() {
     loadInitialData() 
   }, [])
 
-  // SOTTOSCRIZIONE REALTIME
-  // FIX GRAVE: la sottoscrizione qui sotto non aveva alcun "filter", quindi
-  // ogni utente riceveva in tempo reale l'INSERT di OGNI messaggio privato
-  // scritto da chiunque a chiunque su tutta la piattaforma - non solo i
-  // propri. Nella schermata "I Tuoi Messaggi" questi finivano visualizzati
-  // come conversazioni altrui, con tanto di anteprima del testo. Non era un
-  // problema di prestazioni, era una fuga di dati privati tra utenti.
-  // In più, essendo in un useEffect con dipendenze vuote ([]), veniva creata
-  // al mount quando "user" (e quindi IS_STAFF) erano ancora null: anche
-  // volendo condizionare il filtro allo staff, la condizione sarebbe sempre
-  // stata valutata com se l'utente non fosse loggato.
   useEffect(() => {
-    if (!user) return; // Aspetta che l'utente sia caricato prima di iscriversi
+    if (!user) return;
 
-    // Evita di aggiungere due volte lo stesso messaggio (può succedere se un
-    // messaggio soddisfa più di un filtro, es. mandato a se stessi)
     const appendMessageDedup = (incoming: any) => {
       setMessages((current) => {
         if (current.some((m) => m.id === incoming.id)) return current
         return [...current, incoming]
       })
+      if (!IS_STAFF && incoming.sender_id && incoming.sender_id !== user.id) {
+        setHiddenPairs((prev) => {
+          if (!prev.has(incoming.sender_id)) return prev
+          const next = new Set(prev)
+          next.delete(incoming.sender_id)
+          return next
+        })
+      }
     }
 
     try {
       let channelBuilder = supabase.channel(`chat-messages-${user.id}`)
 
       if (IS_STAFF) {
-        // Lo Staff carica già tutti i messaggi nel loading iniziale per la
-        // moderazione: manteniamo lo stesso comportamento anche in realtime.
         channelBuilder = channelBuilder.on('postgres_changes',
           { event: 'INSERT', schema: 'public', table: 'messages' },
           (payload) => appendMessageDedup(payload.new)
         )
       } else {
-        // Un utente normale deve ricevere in tempo reale sia i messaggi
-        // indirizzati a lui, sia i propri (utile se ha un'altra scheda/
-        // dispositivo aperto). Supabase Realtime non supporta un filtro "OR"
-        // in un'unica sottoscrizione, quindi ne usiamo due, entrambe scoped
-        // al suo id.
         channelBuilder = channelBuilder
           .on('postgres_changes',
             { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${user.id}` },
@@ -102,15 +89,14 @@ export default function ChatPage() {
       if (!currentUser) { router.push('/login'); return }
       setUser(currentUser)
 
-      // Caricamento Profili protetto
       const { data: profs, error: profsError } = await supabase.from('profiles').select('id, first_name, user_serial_id, email')
       const pMap: Record<string, any> = {}
       if (profs) profs.forEach(p => pMap[p.id] = p)
       setProfilesMap(pMap)
 
-      // Caricamento Messaggi protetto
+      const isStaffUser = currentUser.email === 'dome0082@gmail.com'
       let query = supabase.from('messages').select('*').order('created_at', { ascending: true })
-      if (currentUser.email !== 'dome0082@gmail.com') {
+      if (!isStaffUser) {
          query = query.or(`sender_id.eq.${currentUser.id},receiver_id.eq.${currentUser.id}`)
       }
       
@@ -118,6 +104,16 @@ export default function ChatPage() {
       
       if (msgsError) throw msgsError
       if (msgs) setMessages(msgs)
+
+      if (!isStaffUser) {
+        const { data: hidden, error: hiddenError } = await supabase
+          .from('hidden_conversations')
+          .select('other_user_id')
+          .eq('user_id', currentUser.id)
+        if (!hiddenError && hidden) {
+          setHiddenPairs(new Set(hidden.map((h: any) => h.other_user_id)))
+        }
+      }
 
     } catch (error: any) {
       console.error("Errore caricamento chat:", error)
@@ -130,42 +126,25 @@ export default function ChatPage() {
   async function sendMessage() {
     if (!newMessage.trim() || !activeChatPair) return
     
-    // --- FILTRO DI SICUREZZA ANTI-FRODE ---
     const textToCheck = newMessage.toLowerCase();
-
-    // 1. Controllo Numeri di Telefono (cerca sequenze di numeri, anche con spazi o trattini)
     const phoneRegex = /(?:\+?\d{1,3}[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)?\d{3}[-.\s]?\d{4,}/;
-    
-    // 2. Controllo Email
     const emailRegex = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i;
-
-    // 3. Controllo Link esterni (WhatsApp, Telegram, Instagram, ecc.)
     const linkRegex = /(https?:\/\/[^\s]+)|(www\.[^\s]+)|(wa\.me\/\d+)|(t\.me\/[a-z0-9_]+)/i;
-    
-    // 4. Parole chiave "sospette" scritte furbescamente
     const suspiciousWords = ['numero', 'cell', 'cellulare', 'chiamami', 'scrivimi su', 'whatsapp', 'watsapp', 'telegram', 'insta', 'instagram', 'mail', 'chiocciola'];
     const containsSuspiciousWord = suspiciousWords.some(word => textToCheck.includes(word));
 
     if (phoneRegex.test(textToCheck) || emailRegex.test(textToCheck) || linkRegex.test(textToCheck) || containsSuspiciousWord) {
        alert("⚠️ RE-LOVE SECURITY:\nPer la tua sicurezza e per rispettare il regolamento della piattaforma, non è consentito scambiare numeri di telefono, email, link esterni o invitare a chattare fuori da Re-love.\n\nTutte le trattative devono concludersi qui.");
-       return; // Blocca l'esecuzione e non salva il messaggio su Supabase
+       return;
     }
-    // --- FINE FILTRO ---
 
     const usersInChat = activeChatPair.split('_')
     const receiverId = usersInChat.find(u => u !== user.id) || usersInChat[0]
     
-    const messageContent = newMessage; // Salvo il testo prima di svuotarlo
+    const messageContent = newMessage;
     setShowEmojis(false) 
 
     try {
-      // INSERISCE IL MESSAGGIO NEL DB
-      // FIX: l'esito dell'insert non veniva controllato - insert() di
-      // Supabase non lancia un'eccezione per un errore lato database (RLS,
-      // vincolo violato), restituisce { error }. Un messaggio poteva quindi
-      // fallire in silenzio: nessun alert, nessun testo nel campo (già
-      // svuotato prima ancora di sapere se l'invio sarebbe riuscito),
-      // messaggio sparito nel nulla senza che l'utente se ne accorgesse.
       const { error: sendError } = await supabase.from('messages').insert([{ 
           content: messageContent, 
           sender_id: user.id, 
@@ -174,15 +153,8 @@ export default function ChatPage() {
 
       if (sendError) throw sendError
 
-      // FIX: il campo di testo ora si svuota solo DOPO la conferma di invio,
-      // non prima - su una rete Android che cade a metà, prima si perdeva
-      // il messaggio già scritto e bisognava riscriverlo da capo.
       setNewMessage('')
       
-      // INVIA NOTIFICA PUSH AL DESTINATARIO (solo se non sta scrivendo a se stesso)
-      // FIX: spostato in un try/catch separato - un fallimento qui non deve
-      // far credere all'utente che il MESSAGGIO non sia partito, quando in
-      // realtà è solo la notifica push a non essere riuscita.
       if (receiverId !== user.id) {
         try {
           const senderName = profilesMap[user.id]?.first_name || 'Un utente';
@@ -198,9 +170,6 @@ export default function ChatPage() {
 
     } catch (e: any) {
       console.error("Errore invio:", e)
-      // Se è il trigger anti-frode del database a bloccare il messaggio
-      // (il controllo qui sopra è lato client e può essere aggirato), diamo
-      // lo stesso avviso invece di un generico errore di connessione.
       if (typeof e?.message === 'string' && e.message.includes('MESSAGE_BLOCKED')) {
         alert("⚠️ RE-LOVE SECURITY:\nPer la tua sicurezza e per rispettare il regolamento della piattaforma, non è consentito scambiare numeri di telefono, email, link esterni o invitare a chattare fuori da Re-love.\n\nTutte le trattative devono concludersi qui.")
       } else {
@@ -213,6 +182,52 @@ export default function ChatPage() {
     setNewMessage(prev => prev + emoji)
   }
 
+  async function handleDeleteMessage(messageId: string) {
+    if (!confirm("Eliminare definitivamente questo messaggio? L'azione è irreversibile.")) return
+    try {
+      const { error } = await supabase.from('messages').delete().eq('id', messageId)
+      if (error) throw error
+      setMessages(prev => prev.filter(m => m.id !== messageId))
+    } catch (err: any) {
+      console.error('Errore eliminazione messaggio:', err)
+      alert("Errore durante l'eliminazione. Riprova.")
+    }
+  }
+
+  async function handleDeleteConversation(pairKey: string) {
+    const [u1, u2] = pairKey.split('_')
+    const otherUserId = u1 === user?.id ? u2 : u1
+
+    if (IS_STAFF) {
+      if (!confirm("ATTENZIONE STAFF: stai per eliminare DEFINITIVAMENTE tutti i messaggi di questa conversazione, per entrambi gli utenti. L'azione è irreversibile e toglie anche la prova utile per eventuali controversie. Continuare?")) return
+      try {
+        const { error } = await supabase.from('messages').delete()
+          .or(`and(sender_id.eq.${u1},receiver_id.eq.${u2}),and(sender_id.eq.${u2},receiver_id.eq.${u1})`)
+        if (error) throw error
+        setMessages(prev => prev.filter(m => {
+          const p = [m.sender_id, m.receiver_id].sort().join('_')
+          return p !== pairKey
+        }))
+        setActiveChatPair(null)
+      } catch (err: any) {
+        console.error('Errore eliminazione conversazione:', err)
+        alert("Errore durante l'eliminazione. Riprova.")
+      }
+    } else {
+      if (!confirm("Vuoi eliminare questa conversazione? Sparirà solo dalla tua vista - se questa persona ti scrive di nuovo, ricomparirà.")) return
+      try {
+        const { error } = await supabase.from('hidden_conversations')
+          .upsert([{ user_id: user.id, other_user_id: otherUserId }], { onConflict: 'user_id,other_user_id' })
+        if (error) throw error
+        setHiddenPairs(prev => new Set(prev).add(otherUserId))
+        setActiveChatPair(null)
+      } catch (err: any) {
+        console.error('Errore nascondimento conversazione:', err)
+        alert("Errore durante l'eliminazione. Riprova.")
+      }
+    }
+  }
+
   const conversations: Record<string, any[]> = {}
   messages.forEach(m => {
      if (!m.sender_id || !m.receiver_id) return
@@ -221,15 +236,27 @@ export default function ChatPage() {
      conversations[pair].push(m)
   })
 
+  const visibleConversationEntries = Object.entries(conversations).filter(([pairKey]) => {
+    if (IS_STAFF) return true
+    const [u1, u2] = pairKey.split('_')
+    const otherUserId = u1 === user?.id ? u2 : u1
+    return !hiddenPairs.has(otherUserId)
+  })
+
   return (
-    <div className="min-h-screen bg-stone-50 flex flex-col font-sans pb-24">
+    <div className="min-h-screen flex flex-col font-sans pb-24">
       <div className="bg-white p-6 border-b border-stone-200 flex justify-between items-center shadow-sm z-10 sticky top-0">
         <h1 className="text-xl md:text-2xl font-black uppercase italic text-transparent bg-clip-text bg-gradient-to-r from-rose-500 to-orange-400">
            {activeChatPair ? 'Conversazione' : 'I Tuoi Messaggi'}
         </h1>
         <div className="flex gap-4 items-center">
           {activeChatPair ? (
-             <button onClick={() => {setActiveChatPair(null); setShowEmojis(false);}} className="text-[10px] font-black uppercase text-stone-400 hover:text-rose-500 transition-colors">← Indietro</button>
+            <>
+              <button onClick={() => handleDeleteConversation(activeChatPair)} className="text-[10px] font-black uppercase text-stone-400 hover:text-red-500 transition-colors flex items-center gap-1">
+                <Trash2 size={12} /> {IS_STAFF ? 'Elimina Chat (Staff)' : 'Elimina Chat'}
+              </button>
+              <button onClick={() => {setActiveChatPair(null); setShowEmojis(false);}} className="text-[10px] font-black uppercase text-stone-400 hover:text-rose-500 transition-colors">← Indietro</button>
+            </>
           ) : (
              <Link href="/" className="text-[10px] font-black uppercase text-stone-400 hover:text-rose-500 transition-colors">← Home</Link>
           )}
@@ -246,7 +273,7 @@ export default function ChatPage() {
             <p className="text-red-500 font-bold uppercase text-[10px] tracking-widest mb-2">Impossibile caricare i messaggi</p>
             <p className="text-xs text-red-400">{errorMsg}</p>
           </div>
-        ) : !activeChatPair && Object.keys(conversations).length === 0 ? (
+        ) : !activeChatPair && visibleConversationEntries.length === 0 ? (
           <div className="text-center py-24 bg-white rounded-3xl border border-stone-100 shadow-sm">
             <span className="text-6xl block mb-4">📭</span>
             <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-stone-400">Nessuna Chat Attiva</p>
@@ -254,7 +281,7 @@ export default function ChatPage() {
           </div>
         ) : !activeChatPair && (
           <div className="space-y-3">
-             {Object.entries(conversations).map(([pairKey, msgs]) => {
+             {visibleConversationEntries.map(([pairKey, msgs]) => {
                 const u1 = pairKey.split('_')[0]; const u2 = pairKey.split('_')[1];
                 const otherUserId = u1 === user?.id ? u2 : u1;
                 const otherName = profilesMap[otherUserId]?.first_name || 'Utente';
@@ -281,8 +308,20 @@ export default function ChatPage() {
               const isMe = m.sender_id === user?.id
               return (
                 <div key={m.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-                  <div className={`max-w-[80%] p-4 rounded-2xl text-xs font-bold shadow-sm ${isMe ? 'bg-gradient-to-r from-rose-500 to-orange-400 text-white rounded-tr-none' : 'bg-white border border-stone-200 text-stone-800 rounded-tl-none'}`}>
-                    {m.content}
+                  <div className="relative max-w-[80%] flex items-center gap-2">
+                    {IS_STAFF && isMe && (
+                      <button onClick={() => handleDeleteMessage(m.id)} title="Elimina messaggio (Staff)" className="order-first text-stone-300 hover:text-red-500 transition-colors shrink-0">
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                    <div className={`p-4 rounded-2xl text-xs font-bold shadow-sm ${isMe ? 'bg-gradient-to-r from-rose-500 to-orange-400 text-white rounded-tr-none' : 'bg-white border border-stone-200 text-stone-800 rounded-tl-none'}`}>
+                      {m.content}
+                    </div>
+                    {IS_STAFF && !isMe && (
+                      <button onClick={() => handleDeleteMessage(m.id)} title="Elimina messaggio (Staff)" className="text-stone-300 hover:text-red-500 transition-colors shrink-0">
+                        <Trash2 size={14} />
+                      </button>
+                    )}
                   </div>
                 </div>
               )
@@ -296,7 +335,6 @@ export default function ChatPage() {
         <div className="p-4 bg-white border-t border-stone-200 fixed bottom-0 w-full left-0 z-20 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
           <div className="max-w-3xl mx-auto relative">
             
-            {/* PANNELLO EMOTICON */}
             {showEmojis && (
               <div className="absolute bottom-[calc(100%+10px)] left-0 bg-white border border-stone-200 shadow-xl rounded-2xl p-4 z-30 animate-in slide-in-from-bottom-2 fade-in">
                 <div className="grid grid-cols-6 sm:grid-cols-8 gap-3">
@@ -315,7 +353,6 @@ export default function ChatPage() {
             )}
 
             <div className="flex gap-3 items-center">
-              {/* TASTO PER APRIRE LE EMOTICON */}
               <button 
                 type="button" 
                 onClick={() => setShowEmojis(!showEmojis)} 

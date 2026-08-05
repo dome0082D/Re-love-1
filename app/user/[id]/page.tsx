@@ -113,7 +113,7 @@ export default function PublicProfilePage() {
   if (!profile) return <div className="p-10 font-black uppercase text-xs text-center text-red-500">Utente non trovato.</div>
 
   return (
-    <div className="min-h-screen bg-stone-50 font-sans text-stone-900 p-6">
+    <div className="min-h-screen font-sans text-stone-900 p-6">
       <div className="max-w-5xl mx-auto">
         
         {/* INTESTAZIONE PROFILO PUBBLICO */}

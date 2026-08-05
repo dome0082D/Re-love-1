@@ -289,12 +289,12 @@ export default function DashboardOrdini() {
     }
   }
 
-  if (loading) return <div className="min-h-screen bg-stone-50 p-10 text-center font-bold uppercase text-[10px] tracking-widest text-stone-400 flex items-center justify-center">Caricamento ordini...</div>
+  if (loading) return <div className="min-h-screen p-10 text-center font-bold uppercase text-[10px] tracking-widest text-stone-400 flex items-center justify-center">Caricamento ordini...</div>
 
   const displayedItems = activeTab === 'acquisti' ? purchases : sales
 
   return (
-    <div className="min-h-screen bg-stone-50 p-4 md:p-10 pt-10 pb-32">
+    <div className="min-h-screen p-4 md:p-10 pt-10 pb-32">
       <div className="max-w-5xl mx-auto">
         
         <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">

@@ -4,7 +4,7 @@ import Link from 'next/link'
 
 export default function HowItWorks() {
   return (
-    <div className="min-h-screen bg-stone-50 p-6 md:p-20 font-sans text-stone-900">
+    <div className="min-h-screen p-6 md:p-20 font-sans text-stone-900">
       <div className="max-w-4xl mx-auto">
         
         {/* HEADER */}

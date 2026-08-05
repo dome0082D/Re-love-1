@@ -266,12 +266,12 @@ function AddAnnouncementForm() {
     }
   }
 
-  if (loadingUser) return <div className="min-h-screen bg-white flex items-center justify-center font-black uppercase text-stone-400 tracking-widest text-xs animate-pulse">Accesso in corso...</div>
+  if (loadingUser) return <div className="min-h-screen flex items-center justify-center font-black uppercase text-stone-400 tracking-widest text-xs animate-pulse">Accesso in corso...</div>
 
   // --- SCHERMATA INTERMEDIA ---
   if (!modeParam) {
     return (
-      <div className="min-h-screen bg-white flex flex-col items-center justify-center py-20 px-4 pb-32">
+      <div className="min-h-screen flex flex-col items-center justify-center py-20 px-4 pb-32">
         <h1 className="text-4xl md:text-5xl font-black uppercase italic text-stone-900 mb-4 text-center tracking-tighter">Cosa vuoi proporre?</h1>
         <p className="text-stone-400 font-bold text-xs uppercase tracking-widest mb-12 text-center">Scegli la tipologia del tuo annuncio</p>
         
@@ -303,7 +303,7 @@ function AddAnnouncementForm() {
 
   // --- MODULO DI INSERIMENTO ANNUNCIO ---
   return (
-    <div className="min-h-screen bg-white font-sans text-stone-900 pb-32">
+    <div className="min-h-screen font-sans text-stone-900 pb-32">
       <div className="relative z-10">
         <div className="w-full py-16 md:py-24 flex items-center justify-center border-b border-stone-100 bg-stone-50/50">
            <div className="text-center max-w-2xl px-6">
@@ -519,7 +519,7 @@ function AddAnnouncementForm() {
 
 export default function AddPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-white"></div>}>
+    <Suspense fallback={<div className="min-h-screen"></div>}>
       <AddAnnouncementForm />
     </Suspense>
   )

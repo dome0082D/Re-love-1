@@ -44,7 +44,7 @@ export default function AgendaPage() {
   }
 
   return (
-    <div className="min-h-screen bg-stone-50 font-sans text-stone-900 pb-20">
+    <div className="min-h-screen font-sans text-stone-900 pb-20">
       <header className="w-full bg-[#f5efdf] border-b border-stone-200 pt-10 pb-12 px-4 md:px-6">
         <div className="max-w-4xl mx-auto">
           <Link href="/laboratori" className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-stone-500 hover:text-stone-900 mb-6 transition-colors">
