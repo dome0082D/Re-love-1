@@ -8,22 +8,31 @@ import { useRouter } from 'next/navigation'
 export default function FavoritesPage() {
   const [favorites, setFavorites] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const router = useRouter()
 
   useEffect(() => { loadFavorites() }, [])
 
   async function loadFavorites() {
+    setLoading(true)
+    setLoadError(false)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/login'); return; }
 
     // Unisce i preferiti con i dati della tabella annunci
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('favorites')
       .select('*, announcements(*)')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
 
-    if (data) {
+    // FIX: prima un errore di caricamento veniva ignorato in silenzio - la
+    // pagina mostrava "Non hai ancora salvato nessun annuncio", identico a
+    // come appare quando i preferiti sono davvero vuoti.
+    if (error) {
+      console.error('Errore caricamento preferiti:', error)
+      setLoadError(true)
+    } else if (data) {
         // Estrai solo gli annunci validi (non eliminati)
         const validAds = data.map(f => f.announcements).filter(a => a !== null)
         setFavorites(validAds)
@@ -35,10 +44,21 @@ export default function FavoritesPage() {
     e.preventDefault();
     e.stopPropagation();
     const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-        await supabase.from('favorites').delete().eq('user_id', user.id).eq('announcement_id', annId);
-        setFavorites(favorites.filter(a => a.id !== annId));
+    if (!user) return
+
+    // FIX: prima l'annuncio spariva dai preferiti SUBITO, senza aspettare
+    // conferma dal database - se la cancellazione falliva davvero (rete
+    // instabile, regole di sicurezza), il cuoricino spariva qui ma la riga
+    // restava nel database: tornando su questa pagina l'annuncio sarebbe
+    // ricomparso, e nel frattempo altre parti del sito (es. il cuoricino
+    // sulle card degli annunci) avrebbero continuato a mostrarlo come
+    // salvato, disallineate rispetto a questa pagina.
+    const { error } = await supabase.from('favorites').delete().eq('user_id', user.id).eq('announcement_id', annId);
+    if (error) {
+      console.error('Errore rimozione preferito:', error)
+      return
     }
+    setFavorites(favorites.filter(a => a.id !== annId));
   }
 
   if (loading) return <div className="p-10 font-black uppercase text-xs text-center">Caricamento preferiti...</div>
@@ -51,7 +71,15 @@ export default function FavoritesPage() {
             <Link href="/" className="text-[10px] font-black uppercase text-stone-400 hover:text-stone-900">← Torna alla Home</Link>
         </div>
 
-        {favorites.length === 0 ? (
+        {loadError ? (
+            <div className="bg-white border border-red-200 rounded-2xl p-10 text-center mt-8">
+              <p className="text-sm font-black uppercase text-red-500 mb-2">Errore di caricamento</p>
+              <p className="text-xs font-bold text-stone-400 uppercase tracking-widest mb-6">Controlla la connessione e riprova.</p>
+              <button onClick={loadFavorites} className="bg-stone-900 text-white text-[10px] font-black uppercase tracking-widest px-6 py-3 rounded-xl hover:bg-rose-600 transition-all">
+                Riprova
+              </button>
+            </div>
+        ) : favorites.length === 0 ? (
             <p className="text-sm font-bold text-stone-400 uppercase text-center mt-20">Non hai ancora salvato nessun annuncio.</p>
         ) : (
             <div className="grid grid-cols-2 md:grid-cols-6 gap-3">

@@ -17,7 +17,7 @@ export default function EditAnnouncementPage() {
     title: '',
     price: 0,
     quantity: 1,
-    category: 'Altro',
+    category: 'Altro / Varie',
     condition: 'Usato',
     notes: '',
     brand: ''
@@ -40,7 +40,17 @@ export default function EditAnnouncementPage() {
         .eq('id', id)
         .single()
 
-      if (error || !data) {
+      // FIX: prima un errore di RETE e un annuncio DAVVERO inesistente
+      // mostravano lo stesso identico messaggio "Annuncio non trovato" e
+      // rimandavano subito al profilo - un semplice calo di connessione
+      // (Android instabile) ti buttava fuori dalla modifica come se
+      // l'annuncio non esistesse più, anche se esiste benissimo.
+      if (error) {
+        alert("Errore di connessione nel caricare l'annuncio. Riprova.")
+        router.push('/profile')
+        return
+      }
+      if (!data) {
         alert("Annuncio non trovato.")
         router.push('/profile')
         return
@@ -58,7 +68,7 @@ export default function EditAnnouncementPage() {
         title: data.title || '',
         price: data.price || 0,
         quantity: data.quantity !== undefined ? data.quantity : 1,
-        category: data.category || 'Altro',
+        category: data.category || 'Altro / Varie',
         condition: data.condition || 'Usato',
         notes: data.notes || '',
         brand: data.brand || ''
@@ -74,27 +84,38 @@ export default function EditAnnouncementPage() {
     e.preventDefault()
     setSaving(true)
 
-    // 5. Salva i nuovi dati sovrascrivendo i vecchi
-    const { error } = await supabase
-      .from('announcements')
-      .update({
-        title: formData.title,
-        price: formData.price,
-        quantity: formData.quantity,
-        category: formData.category,
-        condition: formData.condition,
-        notes: formData.notes,
-        brand: formData.brand
-      })
-      .eq('id', id)
-      .eq('user_id', user.id) // Doppia sicurezza
+    // FIX: aggiunto try/catch - senza, un fallimento di rete durante il
+    // salvataggio (non solo un errore restituito da Supabase, ma
+    // un'eccezione vera e propria) lasciava "Salva Modifiche" bloccato su
+    // "Salvataggio..." per sempre.
+    try {
+      // 5. Salva i nuovi dati sovrascrivendo i vecchi
+      const { error } = await supabase
+        .from('announcements')
+        .update({
+          title: formData.title,
+          price: formData.price,
+          quantity: formData.quantity,
+          category: formData.category,
+          condition: formData.condition,
+          notes: formData.notes,
+          brand: formData.brand
+        })
+        .eq('id', id)
+        .eq('user_id', user.id) // Doppia sicurezza
 
-    if (error) {
-      alert("Errore durante il salvataggio: " + error.message)
-      setSaving(false)
-    } else {
+      if (error) {
+        alert("Errore durante il salvataggio: " + error.message)
+        return
+      }
+
       alert("Annuncio aggiornato con successo!")
       router.push('/profile') // Torna al profilo
+    } catch (err: any) {
+      console.error('Errore salvataggio annuncio:', err)
+      alert("Errore di connessione. Riprova.")
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -130,20 +151,37 @@ export default function EditAnnouncementPage() {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
+              {/* FIX: queste voci non corrispondevano alle categorie usate nel
+                  resto del sito (i filtri della Home) - un annuncio con una
+                  categoria "vera" (es. "Elettronica e Informatica") non
+                  trovava corrispondenza qui, il menu ricadeva sulla prima
+                  voce senza avviso, e salvando la categoria veniva
+                  silenziosamente cambiata. Allineate alla lista reale. */}
               <label className="block text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">Categoria</label>
               <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} className="w-full p-4 border border-stone-200 rounded-xl text-sm font-bold outline-none focus:border-emerald-500 cursor-pointer">
-                <option value="Casa">Casa</option>
-                <option value="Elettronica">Elettronica</option>
-                <option value="Libri">Libri</option>
-                <option value="Sport">Sport</option>
-                <option value="Altro">Altro</option>
+                <option value="Abbigliamento e Accessori">👕 Abbigliamento e Accessori</option>
+                <option value="Elettronica e Informatica">💻 Elettronica e Informatica</option>
+                <option value="Casa, Arredamento e Giardino">🛋️ Casa, Arredo, Giardino</option>
+                <option value="Alimentari e Bevande">🍎 Alimentari e Bevande</option>
+                <option value="Libri, Film e Musica">📚 Libri, Film e Musica</option>
+                <option value="Salute e Bellezza">💄 Salute e Bellezza</option>
+                <option value="Sport e Tempo Libero">⚽ Sport e Tempo Libero</option>
+                <option value="Motori e Veicoli">🚗 Motori e Veicoli</option>
+                <option value="Altro / Varie">📦 Altro / Varie</option>
               </select>
             </div>
             <div>
+              {/* FIX: mancavano "Regalo" e "Baratto" - modificare un annuncio
+                  con una di queste due condizioni lo avrebbe silenziosamente
+                  trasformato in "Nuovo" al salvataggio, con tutto quello che
+                  ne consegue (un regalo che improvvisamente mostra un prezzo
+                  invece di "Gratis" nel resto del sito). */}
               <label className="block text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">Condizione</label>
               <select value={formData.condition} onChange={e => setFormData({...formData, condition: e.target.value})} className="w-full p-4 border border-stone-200 rounded-xl text-sm font-bold outline-none focus:border-emerald-500 cursor-pointer">
-                <option value="Nuovo">Nuovo</option>
-                <option value="Usato">Usato</option>
+                <option value="Nuovo">✨ Nuovo</option>
+                <option value="Usato">♻️ Usato</option>
+                <option value="Regalo">🎁 In Regalo</option>
+                <option value="Baratto">🤝 Baratto</option>
               </select>
             </div>
           </div>

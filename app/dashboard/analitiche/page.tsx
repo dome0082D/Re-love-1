@@ -4,9 +4,11 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 
 export default function AnalyticsDashboard() {
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [stats, setStats] = useState({
     activeListings: 0,
     totalValue: 0,
@@ -18,18 +20,35 @@ export default function AnalyticsDashboard() {
   const router = useRouter()
 
   useEffect(() => {
-    async function fetchStats() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        router.push('/login')
-        return
-      }
+    fetchStats()
+  }, [router])
 
+  async function fetchStats() {
+    setLoading(true)
+    setLoadError(false)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      router.push('/login')
+      return
+    }
+
+    // FIX: aggiunto try/catch attorno a tutto - senza, un fallimento di rete
+    // (Android instabile) durante una qualsiasi delle due chiamate lasciava
+    // la pagina bloccata per sempre su "Elaborazione Dati...", perché
+    // l'eccezione non gestita impediva di raggiungere il setLoading(false)
+    // finale. In più, né la lettura degli annunci né quella delle
+    // visualizzazioni controllavano l'errore: un caricamento fallito
+    // mostrava "0 Annunci Attivi, €0.00", identico a come appare per un
+    // venditore che genuinamente non ha ancora pubblicato nulla - ora c'è
+    // uno stato d'errore distinto dai dati vuoti.
+    try {
       // 1. Recuperiamo tutti gli annunci dell'utente
-      const { data: ads } = await supabase
+      const { data: ads, error: adsError } = await supabase
         .from('announcements')
         .select('id, price, quantity, condition')
         .eq('user_id', user.id)
+
+      if (adsError) throw adsError
 
       if (ads && ads.length > 0) {
         let value = 0;
@@ -46,10 +65,12 @@ export default function AnalyticsDashboard() {
         });
 
         // 2. Recuperiamo il numero totale di visualizzazioni (Traffico)
-        const { count: viewCount } = await supabase
+        const { count: viewCount, error: viewsError } = await supabase
           .from('page_views')
           .select('*', { count: 'exact', head: true })
           .in('announcement_id', adIds);
+
+        if (viewsError) throw viewsError
 
         setStats({
           activeListings: ads.length,
@@ -60,11 +81,13 @@ export default function AnalyticsDashboard() {
           totalViews: viewCount || 0
         });
       }
+    } catch (err) {
+      console.error('Errore caricamento statistiche:', err)
+      setLoadError(true)
+    } finally {
       setLoading(false)
     }
-
-    fetchStats()
-  }, [router])
+  }
 
   if (loading) return <div className="min-h-screen bg-white flex items-center justify-center font-black uppercase tracking-widest text-xs text-stone-400">Elaborazione Dati...</div>
 
@@ -79,6 +102,16 @@ export default function AnalyticsDashboard() {
       </div>
 
       <div className="max-w-5xl mx-auto px-4 mt-12">
+
+        {loadError && (
+          <div className="bg-red-50 border border-red-200 rounded-[2rem] p-6 mb-10 text-center">
+            <p className="text-sm font-black uppercase text-red-500 mb-2">Errore di caricamento</p>
+            <p className="text-xs font-bold text-stone-500 uppercase tracking-widest mb-4">I dati mostrati sotto potrebbero non essere aggiornati. Controlla la connessione e riprova.</p>
+            <button onClick={fetchStats} className="bg-stone-900 text-white text-[10px] font-black uppercase tracking-widest px-6 py-3 rounded-xl hover:bg-rose-600 transition-all">
+              Riprova
+            </button>
+          </div>
+        )}
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
           <div className="bg-white p-8 rounded-[2.5rem] border border-stone-200 shadow-sm hover:shadow-md transition-all">
@@ -120,7 +153,19 @@ export default function AnalyticsDashboard() {
             <span className="text-4xl mb-4 group-hover:scale-110 transition-transform">📦</span>
             <h3 className="text-xl font-black uppercase text-stone-900 mb-2">Etichette Spedizione</h3>
             <p className="text-xs font-medium text-stone-600 mb-6">Genera e stampa automaticamente le lettere di vettura per i tuoi pacchi.</p>
-            <button className="bg-blue-600 text-white px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest shadow-md hover:bg-stone-900 transition-all">
+            {/* FIX: questo pulsante non aveva nessun onClick - un tap non
+                faceva letteralmente nulla, senza nemmeno un messaggio che
+                spiegasse perché. Non esiste da nessuna parte in questo
+                progetto una pagina o funzione per configurare corrieri o
+                generare etichette, quindi non ho inventato una destinazione
+                falsa: ho aggiunto un avviso onesto che dice che la
+                funzionalità non è ancora disponibile, invece di lasciare
+                che sembri rotto. Quando costruirai davvero questa
+                funzionalità, sostituisci l'onClick con la destinazione vera. */}
+            <button
+              onClick={() => toast('🚧 Funzionalità in arrivo! La configurazione corrieri non è ancora disponibile.')}
+              className="bg-blue-600 text-white px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest shadow-md hover:bg-stone-900 transition-all"
+            >
               Configura Corriere
             </button>
           </div>

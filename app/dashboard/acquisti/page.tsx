@@ -13,6 +13,7 @@ export default function DashboardOrdini() {
   const [purchases, setPurchases] = useState<any[]>([])
   const [sales, setSales] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [user, setUser] = useState<any>(null)
   const [trackingInput, setTrackingInput] = useState<{ [key: string]: string }>({})
   const [actionLoading, setActionLoading] = useState(false)
@@ -45,6 +46,7 @@ export default function DashboardOrdini() {
 
   async function fetchOrders() {
     setLoading(true)
+    setLoadError(false)
     const { data: { user: currentUser } } = await supabase.auth.getUser()
     if (!currentUser) {
       router.push('/login')
@@ -52,20 +54,29 @@ export default function DashboardOrdini() {
     }
     setUser(currentUser)
 
-    const { data: myPurchases } = await supabase
+    const { data: myPurchases, error: purchError } = await supabase
       .from('transactions')
       .select('*, announcements(*)')
       .eq('buyer_id', currentUser.id)
       .order('created_at', { ascending: false })
 
-    if (myPurchases) setPurchases(myPurchases)
-
-    const { data: mySales } = await supabase
+    const { data: mySales, error: salesError } = await supabase
       .from('transactions')
       .select('*, announcements!inner(*)')
       .eq('announcements.user_id', currentUser.id)
       .order('created_at', { ascending: false })
 
+    // FIX: prima un errore di caricamento veniva ignorato in silenzio - la
+    // pagina mostrava "Nessun Acquisto/Ordine ricevuto", identico a come
+    // appare quando davvero non ce ne sono.
+    if (purchError || salesError) {
+      console.error('Errore caricamento ordini:', purchError || salesError)
+      setLoadError(true)
+      setLoading(false)
+      return
+    }
+
+    if (myPurchases) setPurchases(myPurchases)
     if (mySales) setSales(mySales)
 
     setLoading(false)
@@ -80,14 +91,23 @@ export default function DashboardOrdini() {
     }
 
     setActionLoading(true)
-    const { error } = await supabase
-      .from('transactions')
-      .update({ status: 'Spedito', tracking_code: tracking })
-      .eq('id', transactionId)
+    // FIX: aggiunto try/catch - senza, un fallimento di rete (Android
+    // instabile) durante l'aggiornamento lasciava "Segna Spedito" bloccato
+    // su "Attendi..." per sempre, perché l'eccezione non gestita impediva
+    // di raggiungere il setActionLoading(false) finale.
+    try {
+      const { error } = await supabase
+        .from('transactions')
+        .update({ status: 'Spedito', tracking_code: tracking })
+        .eq('id', transactionId)
 
-    if (!error) {
+      if (error) {
+        toast.error("Errore durante l'aggiornamento.")
+        return
+      }
+
       toast.success("Ordine segnato come SPEDITO! 📦")
-      
+
       const tx = sales.find(s => s.id === transactionId);
       if (tx) {
         await supabase.from('notifications').insert([{
@@ -96,11 +116,13 @@ export default function DashboardOrdini() {
           is_read: false
         }]);
       }
-      fetchOrders() 
-    } else {
-      toast.error("Errore durante l'aggiornamento.")
+      fetchOrders()
+    } catch (err) {
+      console.error('Errore segna spedito:', err)
+      toast.error("Errore di connessione. Riprova.")
+    } finally {
+      setActionLoading(false)
     }
-    setActionLoading(false)
   }
 
   // --- AZIONI COMPRATORE ---
@@ -161,20 +183,30 @@ export default function DashboardOrdini() {
       return;
     }
     setSubmittingDispute(true)
-    const sellerId = selectedTransaction.announcements?.user_id
 
-    const { error } = await supabase.from('disputes').insert([{
-      transaction_id: selectedTransaction.id,
-      buyer_id: user.id,
-      seller_id: sellerId,
-      reason: disputeReason,
-      description: disputeDescription,
-      status: 'Aperta'
-    }])
+    // FIX: aggiunto try/catch, stesso motivo delle altre funzioni qui sopra -
+    // "Invia Segnalazione" poteva restare bloccato per sempre su un
+    // fallimento di rete, proprio mentre l'utente sta già segnalando un
+    // problema e ha meno pazienza per un secondo imprevisto.
+    try {
+      const sellerId = selectedTransaction.announcements?.user_id
 
-    if (!error) {
+      const { error } = await supabase.from('disputes').insert([{
+        transaction_id: selectedTransaction.id,
+        buyer_id: user.id,
+        seller_id: sellerId,
+        reason: disputeReason,
+        description: disputeDescription,
+        status: 'Aperta'
+      }])
+
+      if (error) {
+        toast.error("Errore nell'apertura della pratica: " + error.message)
+        return
+      }
+
       toast.success("Problema segnalato allo Staff! I fondi sono stati bloccati. 🛡️")
-      
+
       if (sellerId) {
         await supabase.from('notifications').insert([{
           user_id: sellerId,
@@ -184,10 +216,12 @@ export default function DashboardOrdini() {
       }
       setShowDisputeModal(false)
       setDisputeDescription('')
-    } else {
-      toast.error("Errore nell'apertura della pratica: " + error.message)
+    } catch (err: any) {
+      console.error('Errore invio segnalazione:', err)
+      toast.error("Errore di connessione. Riprova.")
+    } finally {
+      setSubmittingDispute(false)
     }
-    setSubmittingDispute(false)
   }
 
   // --- LOGICA RESO NORMALE ---
@@ -227,24 +261,32 @@ export default function DashboardOrdini() {
     if (!comment.trim()) { toast.error("Scrivi un breve commento prima di inviare!"); return }
     
     setSubmittingDispute(true)
-    const { error } = await supabase.from('reviews').insert([{
-      rating,
-      comment,
-      reviewer_id: user.id,
-      reviewed_user_id: selectedTransaction.announcements.user_id,
-      transaction_id: selectedTransaction.id
-    }])
+    // FIX: aggiunto try/catch, stesso schema delle altre azioni di questa pagina.
+    try {
+      const { error } = await supabase.from('reviews').insert([{
+        rating,
+        comment,
+        reviewer_id: user.id,
+        reviewed_user_id: selectedTransaction.announcements.user_id,
+        transaction_id: selectedTransaction.id
+      }])
 
-    if (!error) {
+      if (error) {
+        // Potrebbe fallire se l'utente prova a recensire la stessa transazione due volte (se hai impostato il vincolo nel db)
+        toast.error("Errore durante il salvataggio della recensione (forse l'hai già lasciata?).")
+        return
+      }
+
       toast.success("Recensione pubblicata con successo! Grazie! ⭐")
       setShowReviewModal(false)
       setComment('')
       setRating(5)
-    } else {
-      // Potrebbe fallire se l'utente prova a recensire la stessa transazione due volte (se hai impostato il vincolo nel db)
-      toast.error("Errore durante il salvataggio della recensione (forse l'hai già lasciata?).")
+    } catch (err: any) {
+      console.error('Errore invio recensione:', err)
+      toast.error("Errore di connessione. Riprova.")
+    } finally {
+      setSubmittingDispute(false)
     }
-    setSubmittingDispute(false)
   }
 
   if (loading) return <div className="min-h-screen bg-stone-50 p-10 text-center font-bold uppercase text-[10px] tracking-widest text-stone-400 flex items-center justify-center">Caricamento ordini...</div>
@@ -279,7 +321,15 @@ export default function DashboardOrdini() {
         </div>
 
         {/* LISTA ORDINI */}
-        {displayedItems.length === 0 ? (
+        {loadError ? (
+          <div className="bg-white py-16 rounded-[2rem] border border-red-200 text-center shadow-sm">
+            <p className="text-sm font-black uppercase text-red-500 mb-2">Errore di caricamento</p>
+            <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-6">Controlla la connessione e riprova.</p>
+            <button onClick={fetchOrders} className="bg-stone-900 text-white text-[10px] font-black uppercase tracking-widest px-6 py-3 rounded-xl hover:bg-rose-600 transition-all">
+              Riprova
+            </button>
+          </div>
+        ) : displayedItems.length === 0 ? (
           <div className="bg-white py-24 rounded-[2rem] border border-stone-100 text-center shadow-sm flex flex-col items-center">
             {activeTab === 'acquisti' ? <Package size={64} className="text-stone-300 mb-4" strokeWidth={1} /> : <Truck size={64} className="text-stone-300 mb-4" strokeWidth={1} />}
             <h3 className="text-xl font-black uppercase text-stone-900 mb-2">Nessun {activeTab === 'acquisti' ? 'Acquisto' : 'Ordine ricevuto'}</h3>

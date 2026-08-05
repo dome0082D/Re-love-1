@@ -10,6 +10,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 function DashboardContent() {
   const [announcements, setAnnouncements] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [payLoading, setPayLoading] = useState<string | null>(null)
   
   const router = useRouter()
@@ -24,9 +25,21 @@ function DashboardContent() {
     const success = searchParams.get('success')
     const adId = searchParams.get('ad_id')
 
+    // FIX IMPORTANTE (SICUREZZA): questa funzione scriveva "is_sponsored:
+    // true" fidandosi solo del parametro "success=true" nell'indirizzo del
+    // browser - chiunque poteva ottenere una sponsorizzazione gratis
+    // scrivendo quell'indirizzo a mano, senza pagare nulla, perché
+    // l'indirizzo è completamente sotto il controllo di chi lo visita e non
+    // prova che un pagamento sia davvero avvenuto. La conferma reale deve
+    // arrivare solo dal webhook Stripe (verifica il pagamento con Stripe
+    // stesso, lato server, prima di scrivere sul database - la logica
+    // "LOGICA 0: SPONSORIZZAZIONE" già presente in
+    // app/api/webhooks/stripe/route.ts). Qui ora ci limitiamo a ripulire
+    // l'indirizzo e ricaricare gli annunci: se il webhook ha già fatto il
+    // suo lavoro (di solito questione di secondi), lo stato sponsorizzato
+    // comparirà comunque da solo.
     if (success === 'true' && adId) {
-      await supabase.from('announcements').update({ is_sponsored: true }).eq('id', adId)
-      alert("Pagamento riuscito! Il tuo annuncio è ora in Vetrina Top 🚀")
+      alert("Pagamento riuscito! Verifica in corso, l'annuncio comparirà come sponsorizzato a breve. 🚀")
       router.push('/dashboard/annunci')
       fetchMyAds()
     }
@@ -37,6 +50,8 @@ function DashboardContent() {
   }
 
   async function fetchMyAds() {
+    setLoading(true)
+    setLoadError(false)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
       router.push('/login')
@@ -49,17 +64,32 @@ function DashboardContent() {
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
 
-    if (!error && data) {
+    // FIX: prima un errore di caricamento veniva ignorato in silenzio - la
+    // pagina mostrava "Non hai ancora pubblicato nessun annuncio", identico
+    // a come appare per chi genuinamente non ha ancora annunci.
+    if (error) {
+      console.error('Errore caricamento annunci:', error)
+      setLoadError(true)
+    } else if (data) {
       setAnnouncements(data)
     }
     setLoading(false)
   }
 
   const handleDelete = async (id: string) => {
-    if (confirm('Sei sicuro di voler eliminare questo annuncio?')) {
-      await supabase.from('announcements').delete().eq('id', id)
-      setAnnouncements(announcements.filter(a => a.id !== id))
+    if (!confirm('Sei sicuro di voler eliminare questo annuncio?')) return
+
+    // FIX: prima l'annuncio spariva dalla dashboard SUBITO, senza aspettare
+    // conferma dal database - se la cancellazione falliva davvero (regole
+    // di sicurezza del database, rete instabile), l'annuncio restava
+    // comunque visibile e acquistabile da chiunque altro sul sito, mentre
+    // qui sembrava già rimosso.
+    const { error } = await supabase.from('announcements').delete().eq('id', id)
+    if (error) {
+      alert("Errore durante l'eliminazione: " + error.message)
+      return
     }
+    setAnnouncements(announcements.filter(a => a.id !== id))
   }
 
   const handleSponsor = async (adId: string) => {
@@ -97,6 +127,14 @@ function DashboardContent() {
 
       {loading ? (
         <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400 animate-pulse">Caricamento in corso...</p>
+      ) : loadError ? (
+        <div className="bg-white p-10 rounded-3xl border border-red-200 text-center shadow-sm">
+          <p className="text-sm font-black uppercase text-red-500 mb-2">Errore di caricamento</p>
+          <p className="text-xs font-bold text-stone-400 uppercase tracking-widest mb-6">Controlla la connessione e riprova.</p>
+          <button onClick={fetchMyAds} className="bg-stone-900 text-white text-[10px] font-black uppercase tracking-widest px-6 py-3 rounded-xl hover:bg-rose-600 transition-all">
+            Riprova
+          </button>
+        </div>
       ) : announcements.length === 0 ? (
         <div className="bg-white p-10 rounded-3xl border border-stone-100 text-center shadow-sm">
           <span className="text-4xl block mb-4">📝</span>

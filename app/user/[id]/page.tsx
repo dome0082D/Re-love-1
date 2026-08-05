@@ -11,6 +11,7 @@ export default function PublicProfilePage() {
   const [announcements, setAnnouncements] = useState<any[]>([])
   const [reviews, setReviews] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   
   // Stati per la form di recensione
   const [rating, setRating] = useState(5)
@@ -18,26 +19,44 @@ export default function PublicProfilePage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
-    async function fetchUserData() {
-      const { data: { user } } = await supabase.auth.getUser()
-      setCurrentUser(user)
-
-      // Carica i dati pubblici del profilo
-      const { data: prof } = await supabase.from('profiles').select('first_name, city, average_rating, total_reviews').eq('id', id).single()
-      if (prof) setProfile(prof)
-
-      // Carica gli annunci di questo utente
-      const { data: ads } = await supabase.from('announcements').select('*').eq('user_id', id).order('created_at', { ascending: false })
-      if (ads) setAnnouncements(ads)
-
-      // Carica le recensioni ricevute da questo utente
-      const { data: revs } = await supabase.from('reviews').select('*').eq('receiver_id', id).order('created_at', { ascending: false })
-      if (revs) setReviews(revs)
-
-      setLoading(false)
-    }
     if (id) fetchUserData()
   }, [id])
+
+  async function fetchUserData() {
+    setLoading(true)
+    setLoadError(false)
+    const { data: { user } } = await supabase.auth.getUser()
+    setCurrentUser(user)
+
+    // Carica i dati pubblici del profilo
+    const { data: prof, error: profError } = await supabase.from('profiles').select('first_name, city, average_rating, total_reviews').eq('id', id).single()
+
+    // FIX: prima un errore di RETE nel caricare il profilo mostrava "Utente
+    // non trovato" - la stessa identica pagina di chi visita un profilo
+    // davvero inesistente. Un semplice calo di connessione (Android
+    // instabile) affermava falsamente che quella persona non esiste.
+    if (profError) {
+      console.error('Errore caricamento profilo:', profError)
+      setLoadError(true)
+      setLoading(false)
+      return
+    }
+    if (prof) setProfile(prof)
+
+    // Carica gli annunci di questo utente
+    const { data: ads } = await supabase.from('announcements').select('*').eq('user_id', id).order('created_at', { ascending: false })
+    if (ads) setAnnouncements(ads)
+
+    // FIX (SCHEMA): questa pagina leggeva le recensioni filtrando per
+    // "receiver_id", ma le recensioni vere vengono create altrove (dopo un
+    // acquisto, in app/dashboard/acquisti) con la colonna "reviewed_user_id"
+    // - nomi diversi. Con "receiver_id" qui non sarebbe mai comparsa
+    // nessuna delle recensioni lasciate nel modo normale.
+    const { data: revs } = await supabase.from('reviews').select('*').eq('reviewed_user_id', id).order('created_at', { ascending: false })
+    if (revs) setReviews(revs)
+
+    setLoading(false)
+  }
 
   async function handleSubmitReview(e: any) {
     e.preventDefault()
@@ -45,23 +64,52 @@ export default function PublicProfilePage() {
     if (currentUser.id === id) { alert('Non puoi recensire te stesso.'); return; }
 
     setIsSubmitting(true)
-    const { error } = await supabase.from('reviews').insert([{
-      author_id: currentUser.id,
-      receiver_id: id,
-      rating: rating,
-      comment: comment
-    }])
+    // FIX (SCHEMA): stesso problema del punto sopra, ma in scrittura - questa
+    // funzione salvava la recensione con le colonne "author_id"/"receiver_id",
+    // diverse da "reviewer_id"/"reviewed_user_id" usate ovunque altrove
+    // nell'app per la stessa tabella. Con ogni probabilità il salvataggio
+    // falliva subito perché quelle colonne non esistono davvero nel database;
+    // anche nel caso esistessero, la recensione sarebbe stata invisibile
+    // alla dashboard staff e al resto dell'app.
+    // Aggiunto anche il try/catch - senza, un fallimento di rete lasciava
+    // "Pubblica Recensione" bloccato per sempre su "Pubblicazione...".
+    try {
+      const { error } = await supabase.from('reviews').insert([{
+        reviewer_id: currentUser.id,
+        reviewed_user_id: id,
+        rating: rating,
+        comment: comment
+      }])
 
-    if (error) {
-      alert('Errore: ' + error.message)
-    } else {
+      if (error) {
+        alert('Errore: ' + error.message)
+        return
+      }
+
       alert('Recensione pubblicata con successo!')
-      window.location.reload() // Ricarica per mostrare la nuova media e il commento
+      setComment('')
+      setRating(5)
+      // FIX: sostituito il ricaricamento completo della pagina (perdeva la
+      // posizione di scroll e mostrava un flash bianco) con un semplice
+      // ricaricamento dei soli dati, più fluido.
+      fetchUserData()
+    } catch (err: any) {
+      console.error('Errore invio recensione:', err)
+      alert('Errore di connessione. Riprova.')
+    } finally {
+      setIsSubmitting(false)
     }
-    setIsSubmitting(false)
   }
 
   if (loading) return <div className="p-10 font-black uppercase text-xs text-center">Caricamento profilo...</div>
+  if (loadError) return (
+    <div className="p-10 text-center">
+      <p className="font-black uppercase text-xs text-red-500 mb-4">Errore di caricamento. Controlla la connessione.</p>
+      <button onClick={fetchUserData} className="bg-stone-900 text-white text-[10px] font-black uppercase tracking-widest px-6 py-3 rounded-xl hover:bg-rose-600 transition-all">
+        Riprova
+      </button>
+    </div>
+  )
   if (!profile) return <div className="p-10 font-black uppercase text-xs text-center text-red-500">Utente non trovato.</div>
 
   return (

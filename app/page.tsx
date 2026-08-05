@@ -15,7 +15,17 @@ import ExternalResultsFallback from './components/ExternalResultsFallback'
 function useIsAndroid() {
   const [isAndroid, setIsAndroid] = useState(false)
   useEffect(() => {
+    // NOTA ESLint: "react-hooks/set-state-in-effect" segnala questo come
+    // rischio di doppio render - è un falso allarme per questo caso
+    // preciso. La documentazione ufficiale di React elenca esplicitamente
+    // "mostrare contenuto diverso su server e client" (il pattern
+    // isMounted/isClient, esattamente questo) tra gli usi accettati della
+    // regola: qui serve leggere navigator.userAgent, disponibile solo nel
+    // browser, senza generare un mismatch di idratazione rispetto a quanto
+    // renderizzato dal server. Sopprimo la riga invece di riscrivere un
+    // pattern che è già quello corretto per questo scopo.
     if (typeof navigator !== 'undefined') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsAndroid(/android/i.test(navigator.userAgent))
     }
   }, [])
@@ -79,9 +89,7 @@ function HomePageContent() {
 
   const [courses, setCourses] = useState<any[]>([])
   
-  const [showCreateForm, setShowCreateForm] = useState(false)
   const [newCourseTitle, setNewCourseTitle] = useState('')
-  const [newCourseCategory, setNewCourseCategory] = useState('Riuso')
   
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [courseForm, setCourseForm] = useState({
@@ -104,7 +112,6 @@ function HomePageContent() {
   const chatContainerRef = useRef<HTMLDivElement>(null)
   const recognitionRef = useRef<any>(null)
   
-  const router = useRouter()
   const searchParams = useSearchParams()
   const catFilter = searchParams.get('cat')
   const typeFilter = searchParams.get('type')
@@ -345,7 +352,7 @@ function HomePageContent() {
 
     const newCourseData = {
       title: titleToUse,
-      category: courseForm.category || newCourseCategory,
+      category: courseForm.category || 'Riuso',
       creator_email: user.email,
       creator_id: user.id,
       description: courseForm.description || null,
@@ -369,7 +376,6 @@ function HomePageContent() {
       toast.success("Nuovo laboratorio pubblicato e salvato nel Database! 🎉")
       
       setNewCourseTitle('')
-      setShowCreateForm(false)
       setCourseForm({ title: '', category: 'Riuso', description: '', date: '', startTime: '', endTime: '', location: '', price: '', imageUrl: '' })
       setIsCreateModalOpen(false)
       fetchInitialData()
@@ -495,13 +501,28 @@ function HomePageContent() {
         }
       },
       (geoError) => {
+        // FIX: prima "timeout" e "posizione non disponibile" mostravano lo
+        // stesso identico messaggio generico ("Impossibile ottenere la
+        // posizione. Riprova.") - un semplice "riprova" non aiuta se il
+        // problema vero è che il GPS del telefono è spento, o se
+        // l'app/browser non ha il permesso di localizzazione a livello di
+        // Android (un permesso diverso da quello richiesto dentro il sito,
+        // va concesso nelle Impostazioni del telefono). Ora ogni caso ha un
+        // messaggio che dice cosa controllare davvero.
         if (geoError.code === geoError.PERMISSION_DENIED) {
           toast.error("Permesso di localizzazione negato. Abilitalo nelle impostazioni del browser.")
+        } else if (geoError.code === geoError.TIMEOUT) {
+          toast.error("Rilevamento posizione troppo lento. Controlla che il GPS sia attivo e riprova.")
         } else {
-          toast.error("Impossibile ottenere la posizione. Riprova.")
+          toast.error("Posizione non disponibile. Controlla che la localizzazione sia attiva nelle impostazioni del telefono, non solo nel browser.")
         }
       },
-      { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+      // FIX: timeout portato da 10 a 20 secondi - con enableHighAccuracy
+      // disattivato (usa reti WiFi/celle invece del GPS puro, per consumare
+      // meno batteria) il rilevamento può richiedere più di 10 secondi in
+      // alcune condizioni, causando un fallimento anche quando la posizione
+      // sarebbe stata individuata con qualche secondo in più.
+      { enableHighAccuracy: false, timeout: 20000, maximumAge: 60000 }
     )
   }
 

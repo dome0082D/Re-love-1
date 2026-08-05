@@ -31,17 +31,25 @@ export default function SupportoPage() {
     if (!message.trim()) return
     setLoading(true)
 
-    // 1. Invia la richiesta al database
-    const { error } = await supabase.from('disputes').insert([{
-      buyer_id: user.id,
-      seller_id: null, 
-      transaction_id: null,
-      reason: `SUPPORTO: ${reason}`,
-      description: message,
-      status: 'Aperta'
-    }])
+    // FIX: aggiunto try/catch - senza, un fallimento di rete (non solo un
+    // errore restituito da Supabase, ma un'eccezione vera) lasciava "Invia
+    // Messaggio allo Staff" bloccato su "Invio in corso..." per sempre.
+    try {
+      // 1. Invia la richiesta al database
+      const { error } = await supabase.from('disputes').insert([{
+        buyer_id: user.id,
+        seller_id: null, 
+        transaction_id: null,
+        reason: `SUPPORTO: ${reason}`,
+        description: message,
+        status: 'Aperta'
+      }])
 
-    if (!error) {
+      if (error) {
+        alert('Errore durante l\'invio: ' + error.message)
+        return
+      }
+
       // 2. NOTIFICA ALL'ADMIN! Cerchiamo l'ID dell'Admin
       const { data: adminData } = await supabase.from('profiles').select('id').eq('email', ADMIN_EMAIL).single()
       if (adminData) {
@@ -54,13 +62,18 @@ export default function SupportoPage() {
 
       setSuccess(true)
       setMessage('')
-    } else {
-      alert('Errore durante l\'invio: ' + error.message)
+    } catch (err: any) {
+      console.error('Errore invio supporto:', err)
+      alert('Errore di connessione. Riprova.')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
-  if (!user) return null
+  // FIX: prima, mentre si controllava se l'utente è loggato (o appena
+  // prima del rimando al login), la pagina mostrava una schermata bianca
+  // vuota invece di un messaggio di caricamento.
+  if (!user) return <div className="min-h-screen bg-white flex items-center justify-center font-black uppercase text-xs tracking-widest text-stone-400">Caricamento...</div>
 
   return (
     <div className="min-h-screen bg-white font-sans text-stone-900 pb-32">
