@@ -70,6 +70,12 @@ function HomePageContent() {
   const [distance, setDistance] = useState(0) 
   
   const [visibleCount, setVisibleCount] = useState(12)
+  // FIX: il pulsante corona (staff) è "fixed" quindi galleggia sopra
+  // qualunque cosa si trovi in quel punto dello schermo - all'inizio pagina
+  // finiva proprio sopra l'immagine hero, sovrapposto all'illustrazione.
+  // Lo mostriamo solo dopo aver scrollato un po', come i pulsanti "torna su"
+  // delle app: compare quando serve, non appena si apre la pagina.
+  const [showStaffButton, setShowStaffButton] = useState(false)
 
   const [courses, setCourses] = useState<any[]>([])
   
@@ -124,6 +130,16 @@ function HomePageContent() {
   }, [])
 
   const hasScrolledInitially = useRef(false)
+
+  // Mostra il pulsante corona solo dopo aver scrollato oltre l'hero, per
+  // evitare che galleggi sopra l'illustrazione appena si apre la pagina.
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowStaffButton(window.scrollY > 400)
+    }
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
 
   // FIX: prima questo effect forzava SEMPRE lo scroll in fondo a ogni nuovo
   // messaggio, chiunque lo avesse scritto - se stavi scorrendo in su per
@@ -488,8 +504,8 @@ function HomePageContent() {
           non resti nascosto dietro la barra fissa dei 5 pulsanti, che compare
           solo su Android. Su tutte le altre piattaforme resta pb-20 come prima. */}
       
-      {IS_STAFF && (
-        <Link href="/staff" className="fixed right-8 z-[99] bg-stone-900 text-rose-400 w-16 h-16 rounded-full shadow-lg font-bold flex items-center justify-center border-2 border-rose-400 hover:scale-105 active:scale-95 transition-all text-2xl" style={isAndroid ? { bottom: 'calc(6rem + env(safe-area-inset-bottom, 0px))' } : { bottom: '2rem' }}>
+      {IS_STAFF && showStaffButton && (
+        <Link href="/staff" className="fixed right-8 z-[99] bg-stone-900 text-rose-400 w-16 h-16 rounded-full shadow-lg font-bold flex items-center justify-center border-2 border-rose-400 hover:scale-105 active:scale-95 transition-all text-2xl animate-in fade-in duration-300" style={isAndroid ? { bottom: 'calc(6rem + env(safe-area-inset-bottom, 0px))' } : { bottom: '2rem' }}>
           <Crown size={28} />
         </Link>
       )}
