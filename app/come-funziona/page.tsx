@@ -78,7 +78,13 @@ export default function HowItWorks() {
             <Link href="/" className="flex-1 bg-stone-900 text-white text-center py-5 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-rose-500 transition-all shadow-xl">
               Torna alla Home
             </Link>
-            <Link href="/upload" className="flex-1 border-2 border-stone-900 text-stone-900 text-center py-5 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-stone-900 hover:text-white transition-all">
+            {/* FIX: puntava a "/upload", un indirizzo che non esiste da
+                nessuna parte in questa app - dappertutto altrove (Navbar,
+                Home, i 5 pulsanti fissi) la pagina per creare un annuncio è
+                sempre "/add". Chi cliccava qui, dalla pagina pensata apposta
+                per convincere i nuovi utenti a iniziare, finiva su un errore
+                404 invece che sul modulo di pubblicazione. */}
+            <Link href="/add" className="flex-1 border-2 border-stone-900 text-stone-900 text-center py-5 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-stone-900 hover:text-white transition-all">
               Inizia a vendere
             </Link>
           </div>

@@ -17,6 +17,7 @@
 .rounded-\[2\.5rem\],
 .rounded-\[1\.5rem\],
 .rounded-\[3rem\],
+.rounded-\[4rem\],
 .rounded-3xl,
 .rounded-2xl {
   transform: translateZ(0);
@@ -32,6 +33,7 @@
   .rounded-\[2\.5rem\],
   .rounded-\[1\.5rem\],
   .rounded-\[3rem\],
+  .rounded-\[4rem\],
   .rounded-3xl,
   .rounded-2xl {
     -webkit-mask-image: -webkit-radial-gradient(white, black);

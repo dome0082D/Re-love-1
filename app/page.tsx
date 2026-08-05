@@ -131,6 +131,61 @@ function HomePageContent() {
 
   const hasScrolledInitially = useRef(false)
 
+  // --- CENTRATURA HERO SU ANDROID ---
+  const heroScrollRef = useRef<HTMLDivElement>(null)
+  const heroImgRef = useRef<HTMLImageElement>(null)
+  const heroSnapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isSnappingBackRef = useRef(false)
+
+  // Porta l'hero al centro del suo scroll orizzontale. "smooth=false" per il
+  // posizionamento iniziale (istantaneo, niente animazione appena si apre la
+  // pagina), "smooth=true" per il ritorno al centro dopo che l'utente la lascia.
+  const centerHeroScroll = (smooth: boolean) => {
+    const el = heroScrollRef.current
+    if (!el) return
+    const centerPosition = (el.scrollWidth - el.clientWidth) / 2
+    if (smooth) isSnappingBackRef.current = true
+    el.scrollTo({ left: centerPosition, behavior: smooth ? 'smooth' : 'auto' })
+  }
+
+  // Se l'immagine è già in cache del browser, l'evento "onLoad" sull'<img>
+  // potrebbe non scattare più (l'immagine risulta già caricata prima ancora
+  // che il gestore venga collegato) - questo controllo è la rete di sicurezza.
+  useEffect(() => {
+    if (isAndroid && heroImgRef.current?.complete) {
+      centerHeroScroll(false)
+    }
+  }, [isAndroid])
+
+  // Quando l'utente smette di scorrere l'hero (dito sollevato E inerzia
+  // dello scroll esaurita), la riporta dolcemente al centro dopo una breve
+  // pausa, così ha comunque il tempo di vedere cosa ha scorso prima che torni.
+  useEffect(() => {
+    if (!isAndroid) return
+    const el = heroScrollRef.current
+    if (!el) return
+
+    const handleScroll = () => {
+      // Ignora gli eventi generati dalla nostra stessa animazione di ritorno
+      // al centro - altrimenti si ritriggererebbe da sola all'infinito.
+      if (isSnappingBackRef.current) return
+
+      if (heroSnapTimeoutRef.current) clearTimeout(heroSnapTimeoutRef.current)
+      heroSnapTimeoutRef.current = setTimeout(() => {
+        centerHeroScroll(true)
+        // Lo scroll "smooth" dura circa mezzo secondo: riabilitiamo
+        // l'ascolto dopo un margine di sicurezza.
+        setTimeout(() => { isSnappingBackRef.current = false }, 600)
+      }, 1500)
+    }
+
+    el.addEventListener('scroll', handleScroll, { passive: true })
+    return () => {
+      el.removeEventListener('scroll', handleScroll)
+      if (heroSnapTimeoutRef.current) clearTimeout(heroSnapTimeoutRef.current)
+    }
+  }, [isAndroid])
+
   // Mostra il pulsante corona solo dopo aver scrollato oltre l'hero, per
   // evitare che galleggi sopra l'illustrazione appena si apre la pagina.
   useEffect(() => {
@@ -577,12 +632,14 @@ function HomePageContent() {
       )}
 
       {isAndroid ? (
-        <div className="relative w-full overflow-x-auto overflow-y-hidden mt-2 android-hero-scroll">
+        <div ref={heroScrollRef} className="relative w-full overflow-x-auto overflow-y-hidden mt-2 android-hero-scroll">
           <div className="h-[400px] w-max flex items-center">
             <img 
+              ref={heroImgRef}
               src="/hero-2.png" 
               alt="Re-love Hero Completa"
               className="h-full w-auto max-w-none object-contain object-center"
+              onLoad={() => centerHeroScroll(false)}
             />
           </div>
         </div>
