@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { User } from '@supabase/supabase-js'
-import { Mic, MicOff, Search, MapPin, Heart, Crown, Mail, Plus, Send, Trash2, Edit2, X, BookOpen, MessageCircle, Settings, User as UserIcon } from 'lucide-react'
+import { Mic, MicOff, Search, MapPin, Heart, Crown, Mail, Plus, Send, Trash2, Edit2, X, BookOpen, MessageCircle, Sparkles, User as UserIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import GalacticOutpost from './components/minigame/GalacticOutpost'
 import ExternalResultsFallback from './components/ExternalResultsFallback'
@@ -609,15 +609,14 @@ function HomePageContent() {
         </div>
       </div>
 
-      {/* 5 PULSANTI RAPIDI ACCOUNT: Profilo, Inserisci Corso, Inserisci Annuncio, Messaggi, Impostazioni.
+      {/* 5 PULSANTI RAPIDI ACCOUNT: Profilo, Inserisci Corso, Inserisci Annuncio, Vetrina, Messaggi.
           FIX: barra fissa in fondo allo schermo (come una bottom bar da app nativa),
           sempre visibile durante lo scroll, SOLO su Android - su desktop e sugli
           altri dispositivi non compare affatto, la pagina resta quella di sempre.
           "Inserisci Corso" riusa la stessa logica del pulsante "+ Crea" più in basso (apre il modale,
           chiede il login se serve) perché non esiste una pagina a sé per creare un corso - è un modale.
-          "Impostazioni" porta a /profile: è la stessa destinazione di "Profilo" perché nel resto
-          dell'app (Navbar) "Impostazioni" punta già lì - non esiste ancora una pagina impostazioni
-          separata. Se un giorno ne crei una dedicata, basta cambiare questo singolo link. */}
+          "Impostazioni" è stata tolta su richiesta (duplicava "Profilo", stessa destinazione) e
+          sostituita con "Vetrina" - Messaggi ha preso il posto che prima era di Impostazioni. */}
       {isAndroid && (
         <div className="fixed bottom-0 left-0 w-full z-[100] bg-white border-t border-stone-200 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] flex items-stretch pb-safe-bottom">
           <Link href="/profile" className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 active:bg-rose-50 transition-colors text-center">
@@ -641,13 +640,13 @@ function HomePageContent() {
             <Plus size={19} className="text-rose-500" />
             <span className="text-[8px] font-black uppercase tracking-wider text-stone-800 leading-tight">Ins. Annuncio</span>
           </Link>
+          <Link href="/vetrina" className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 active:bg-rose-50 transition-colors text-center">
+            <Sparkles size={19} className="text-rose-500" />
+            <span className="text-[8px] font-black uppercase tracking-wider text-stone-800">Vetrina</span>
+          </Link>
           <Link href="/chat" className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 active:bg-rose-50 transition-colors text-center">
             <MessageCircle size={19} className="text-rose-500" />
             <span className="text-[8px] font-black uppercase tracking-wider text-stone-800">Messaggi</span>
-          </Link>
-          <Link href="/profile" className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 active:bg-rose-50 transition-colors text-center">
-            <Settings size={19} className="text-rose-500" />
-            <span className="text-[8px] font-black uppercase tracking-wider text-stone-800">Impostazioni</span>
           </Link>
         </div>
       )}
