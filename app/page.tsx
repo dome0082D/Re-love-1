@@ -698,27 +698,21 @@ function HomePageContent() {
         </div>
       )}
 
-      {isAndroid ? (
-        <div ref={heroScrollRef} className="relative w-full overflow-x-auto overflow-y-hidden mt-2 android-hero-scroll">
-          <div className="h-[400px] w-max flex items-center">
+      {/* FIX: hero rimossa SOLO su Android, su richiesta - su Windows/desktop
+          resta visibile come sempre. Tutta la logica di scorrimento e
+          centratura automatica riguardava esclusivamente la versione Android
+          (quella scorrevole in orizzontale): resta nel file ma ora è inerte,
+          non essendoci più nulla da scorrere. Se un giorno rimetti l'hero
+          anche su Android, torna a funzionare da sola senza ricostruire nulla. */}
+      {!isAndroid && (
+        <div className="relative w-full aspect-[16/9] max-h-[580px] flex flex-col items-center justify-center overflow-hidden bg-transparent mt-2">
+          <div className="absolute inset-0 z-0 w-full h-full">
             <img 
-              ref={heroImgRef}
               src="/hero-2.png" 
               alt="Re-love Hero Completa"
-              className="h-full w-auto max-w-none object-contain object-center"
-              onLoad={() => centerHeroScroll(false)}
+              className="w-full h-full object-contain object-center scale-100"
             />
           </div>
-        </div>
-      ) : (
-        <div className="relative w-full aspect-[16/9] max-h-[580px] flex flex-col items-center justify-center overflow-hidden bg-transparent mt-2">
-            <div className="absolute inset-0 z-0 w-full h-full">
-              <img 
-                src="/hero-2.png" 
-                alt="Re-love Hero Completa"
-                className="w-full h-full object-contain object-center scale-100"
-              />
-            </div>
         </div>
       )}
 
@@ -760,7 +754,7 @@ function HomePageContent() {
         <main className="flex-1 w-full overflow-hidden order-1 lg:order-2">
           
           <div className="w-full max-w-[1170px] mx-auto mt-8 mb-8 px-2">
-            <div className="w-full rounded-[2rem] overflow-hidden border border-stone-200 shadow-md bg-[#f5efdf] flex items-center justify-center h-[210px]">
+            <div className="w-full rounded-[2rem] overflow-hidden border border-stone-200 shadow-md bg-[#f5efdf] flex items-center justify-center h-[210px] p-1">
               <video 
                 src="/hero-video.mp4" 
                 className="w-full h-full object-contain block"
