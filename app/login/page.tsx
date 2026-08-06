@@ -1,100 +1,67 @@
 'use client'
 
+import { useState } from 'react'
+import { supabase } from '@/lib/supabase'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
-export default function HowItWorks() {
+export default function LoginPage() {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [status, setStatus] = useState({ type: '', msg: '' })
+  const router = useRouter()
+
+  const handleLogin = async () => {
+    setLoading(true)
+    setStatus({ type: '', msg: '' })
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) setStatus({ type: 'error', msg: error.message })
+      else {
+        router.push('/')
+        router.refresh()
+      }
+    } catch (err: any) {
+      setStatus({ type: 'error', msg: err?.message || 'Errore di autenticazione' })
+    }
+    setLoading(false)
+  }
+
   return (
-    <div className="min-h-screen p-6 md:p-20 font-sans text-stone-900">
-      <div className="max-w-4xl mx-auto">
-        
-        {/* HEADER */}
-        <div className="text-center mb-16">
-          <span className="bg-rose-500 text-white px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest mb-6 inline-block shadow-lg shadow-rose-200">
-            Re-love Manifesto
-          </span>
-          <h1 className="text-5xl md:text-7xl font-black uppercase italic tracking-tighter leading-none mb-6">
-            Come <span className="text-rose-500 font-black">Funziona</span>
-          </h1>
-          <p className="text-sm md:text-base font-medium text-stone-500 italic max-w-2xl mx-auto leading-relaxed">
-            Non è solo un marketplace, è un nuovo modo di vivere gli oggetti. 
-            Su Re-love puoi vendere, regalare o scambiare ciò che ami con persone che lo ameranno quanto te.
-          </p>
-        </div>
+    <div className="min-h-screen bg-gray-200 flex items-center justify-center p-4 font-sans">
+      <div className="bg-white w-full max-w-md rounded-xl shadow-2xl border border-gray-200 p-8">
+        <h2 className="text-3xl font-serif font-black text-slate-800 mb-6 tracking-tighter text-center uppercase">Area Riservata</h2>
 
-        {/* LE 3 QUALITÀ CHIAVE */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-20">
-          
-          {/* VENDI & REGALA */}
-          <div className="bg-white p-8 rounded-[3rem] border border-stone-200 shadow-sm hover:shadow-xl transition-all group">
-            <div className="text-4xl mb-6 group-hover:scale-110 transition-transform inline-block">✨</div>
-            <h3 className="text-lg font-black uppercase italic mb-3">Second-hand Pro</h3>
-            <p className="text-xs text-stone-500 font-medium leading-relaxed">
-              Carica i tuoi capi d'abbigliamento, accessori o oggetti di design in meno di 60 secondi. Scegli se vendere al miglior prezzo o regalare per fare spazio al nuovo.
-            </p>
+        {status.msg && (
+          <div className={`text-[10px] p-4 rounded-md mb-6 border font-black uppercase tracking-widest ${
+            status.type === 'error' ? 'bg-red-50 text-red-500 border-red-100' : 'bg-green-50 text-green-600 border-green-100'
+          }`}>
+            {status.msg}
           </div>
+        )}
 
-          {/* SCAMBIA / BARATTO */}
-          <div className="bg-stone-900 p-8 rounded-[3rem] shadow-2xl text-white transform md:-translate-y-4">
-            <div className="text-4xl mb-6 animate-pulse">🔄</div>
-            <h3 className="text-lg font-black uppercase italic mb-3 text-rose-500">Baratto Etico</h3>
-            <p className="text-xs text-stone-300 font-medium leading-relaxed">
-              Il cuore di Re-love. Non serve denaro per avere stile: proponi uno scambio alla pari e trova tesori incredibili senza svuotare il portafoglio.
-            </p>
-          </div>
-
-          {/* SICUREZZA */}
-          <div className="bg-white p-8 rounded-[3rem] border border-stone-200 shadow-sm hover:shadow-xl transition-all group">
-            <div className="text-4xl mb-6 group-hover:scale-110 transition-transform inline-block">🛡️</div>
-            <h3 className="text-lg font-black uppercase italic mb-3">Zero Rischi</h3>
-            <p className="text-xs text-stone-500 font-medium leading-relaxed">
-              Pagamenti protetti con Stripe, chat criptata per gli accordi e spedizioni tracciabili. Su Re-love la tua fiducia è la nostra priorità numero uno.
-            </p>
+        <div className="space-y-5">
+          <input 
+            type="email" placeholder="Email"
+            className="w-full p-4 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-sky-500 text-sm"
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <input 
+            type="password" placeholder="Password"
+            className="w-full p-4 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-sky-500 text-sm"
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          <div className="grid grid-cols-1 gap-4 pt-2">
+            <button onClick={handleLogin} disabled={loading} className="bg-slate-800 text-white py-4 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-slate-700 active:translate-y-1 transition-all">Accedi</button>
           </div>
         </div>
-
-        {/* STEP-BY-STEP */}
-        <div className="bg-white rounded-[4rem] p-10 md:p-16 border border-stone-100 shadow-2xl overflow-hidden relative">
-          <div className="absolute top-0 right-0 p-10 opacity-5 text-8xl font-black italic">RE-LOVE</div>
-          
-          <h2 className="text-2xl font-black uppercase italic mb-10 border-b border-stone-100 pb-6">La tua guida rapida</h2>
-          
-          <div className="space-y-12">
-            {[
-              { n: "01", t: "Trova il colpo di fulmine", d: "Sfoglia la Home o usa i filtri per scovare oggetti unici e sostenibili." },
-              { n: "02", t: "Chatta e Accordati", d: "Usa la nostra chat sicura per chiedere info o proporre uno scambio." },
-              { n: "03", t: "Concludi l'affare", d: "Paga in sicurezza o conferma lo scambio. Al resto pensiamo noi." }
-            ].map((step, i) => (
-              <div key={i} className="flex gap-6 items-start">
-                <span className="text-4xl font-black text-rose-500 italic opacity-40">{step.n}</span>
-                <div>
-                  <h4 className="text-base font-black uppercase italic">{step.t}</h4>
-                  <p className="text-xs text-stone-500 font-medium mt-1">{step.d}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-16 flex flex-col md:flex-row gap-4">
-            <Link href="/" className="flex-1 bg-stone-900 text-white text-center py-5 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-rose-500 transition-all shadow-xl">
-              Torna alla Home
-            </Link>
-            {/* FIX: puntava a "/upload", un indirizzo che non esiste da
-                nessuna parte in questa app - dappertutto altrove (Navbar,
-                Home, i 5 pulsanti fissi) la pagina per creare un annuncio è
-                sempre "/add". Chi cliccava qui, dalla pagina pensata apposta
-                per convincere i nuovi utenti a iniziare, finiva su un errore
-                404 invece che sul modulo di pubblicazione. */}
-            <Link href="/add" className="flex-1 border-2 border-stone-900 text-stone-900 text-center py-5 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-stone-900 hover:text-white transition-all">
-              Inizia a vendere
-            </Link>
-          </div>
+        <div className="mt-6 text-center text-sm">
+          <Link href="/register" className="text-[10px] font-bold text-gray-400 hover:text-sky-600 uppercase tracking-widest transition-colors">Non hai un account? Registrati</Link>
         </div>
-
-        {/* FOOTER MESSAGGIO */}
-        <p className="text-center mt-12 text-[10px] font-black uppercase text-stone-400 tracking-[0.3em]">
-          Re-love © 2024 • Sostenibilità con Stile
-        </p>
-
+        <div className="mt-8 text-center pt-6 border-t border-gray-100">
+          <Link href="/" className="text-[9px] font-bold text-gray-400 hover:text-sky-600 uppercase tracking-widest transition-colors">← Torna alla vetrina</Link>
+        </div>
       </div>
     </div>
   )
