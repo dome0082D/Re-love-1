@@ -1,4 +1,5 @@
 'use client'
+export const dynamic = 'force-dynamic'
 
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
@@ -12,56 +13,115 @@ export default function LoginPage() {
   const [status, setStatus] = useState({ type: '', msg: '' })
   const router = useRouter()
 
-  const handleLogin = async () => {
+  const handleLogin = async (e?: React.FormEvent) => {
+    // FIX: gestiamo anche l'invio del modulo col tasto Invio della tastiera
+    // (prima funzionava solo cliccando il pulsante: su Android, dove la
+    // tastiera mostra un tasto "Vai/Invio" ben visibile, era spontaneo
+    // premerlo e non succedeva nulla).
+    if (e) e.preventDefault()
+
+    if (!email.trim() || !password) {
+      setStatus({ type: 'error', msg: 'Inserisci email e password.' })
+      return
+    }
+
     setLoading(true)
     setStatus({ type: '', msg: '' })
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
-      if (error) setStatus({ type: 'error', msg: error.message })
-      else {
+      if (error) {
+        // FIX: il messaggio grezzo di Supabase per credenziali errate è in
+        // inglese ("Invalid login credentials") - lo traduciamo, come già
+        // facevamo nella versione precedente di questa pagina.
+        setStatus({
+          type: 'error',
+          msg: error.message === 'Invalid login credentials'
+            ? 'Email o password errate.'
+            : error.message
+        })
+      } else {
         router.push('/')
         router.refresh()
       }
     } catch (err: any) {
-      setStatus({ type: 'error', msg: err?.message || 'Errore di autenticazione' })
+      console.error('Errore autenticazione:', err)
+      setStatus({ type: 'error', msg: 'Errore di connessione. Controlla la rete e riprova.' })
+    } finally {
+      // FIX: spostato in "finally" - se qualcosa lanciava un'eccezione prima
+      // di arrivare in fondo, il pulsante restava bloccato su "Attendi..."
+      // per sempre, proprio sulla pagina d'ingresso di tutta l'app.
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   return (
-    <div className="min-h-screen bg-gray-200 flex items-center justify-center p-4 font-sans">
-      <div className="bg-white w-full max-w-md rounded-xl shadow-2xl border border-gray-200 p-8">
-        <h2 className="text-3xl font-serif font-black text-slate-800 mb-6 tracking-tighter text-center uppercase">Area Riservata</h2>
+    <div className="min-h-screen flex items-center justify-center p-4 font-sans pb-32">
+      <div className="bg-white w-full max-w-md rounded-[2.5rem] p-8 md:p-10 border border-stone-200 shadow-xl text-center">
+
+        <h2 className="text-4xl font-black uppercase italic mb-2 text-rose-500 tracking-tighter">Re-love</h2>
+        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-stone-400 mb-8">
+          Bentornato a bordo
+        </p>
 
         {status.msg && (
-          <div className={`text-[10px] p-4 rounded-md mb-6 border font-black uppercase tracking-widest ${
-            status.type === 'error' ? 'bg-red-50 text-red-500 border-red-100' : 'bg-green-50 text-green-600 border-green-100'
+          <div className={`p-4 rounded-xl mb-6 border ${
+            status.type === 'error'
+              ? 'bg-red-50 border-red-100'
+              : 'bg-emerald-50 border-emerald-100'
           }`}>
-            {status.msg}
+            <p className={`text-[10px] font-black uppercase tracking-widest leading-relaxed ${
+              status.type === 'error' ? 'text-red-500' : 'text-emerald-600'
+            }`}>
+              {status.msg}
+            </p>
           </div>
         )}
 
-        <div className="space-y-5">
-          <input 
-            type="email" placeholder="Email"
-            className="w-full p-4 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-sky-500 text-sm"
+        <form onSubmit={handleLogin} className="space-y-4">
+          <input
+            required
+            type="email"
+            placeholder="Indirizzo Email"
+            value={email}
+            autoComplete="email"
+            className="w-full p-4 bg-stone-50 border border-stone-100 rounded-2xl text-sm font-bold outline-none focus:border-rose-400 focus:bg-white transition-all"
             onChange={(e) => setEmail(e.target.value)}
           />
-          <input 
-            type="password" placeholder="Password"
-            className="w-full p-4 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-sky-500 text-sm"
+          <input
+            required
+            type="password"
+            placeholder="Password"
+            value={password}
+            autoComplete="current-password"
+            className="w-full p-4 bg-stone-50 border border-stone-100 rounded-2xl text-sm font-bold outline-none focus:border-rose-400 focus:bg-white transition-all"
             onChange={(e) => setPassword(e.target.value)}
           />
-          <div className="grid grid-cols-1 gap-4 pt-2">
-            <button onClick={handleLogin} disabled={loading} className="bg-slate-800 text-white py-4 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-slate-700 active:translate-y-1 transition-all">Accedi</button>
-          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-stone-900 text-white p-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-rose-500 transition-all shadow-md disabled:opacity-50"
+          >
+            {loading ? 'Attendi...' : 'Accedi'}
+          </button>
+        </form>
+
+        <div className="mt-8 pt-6 border-t border-stone-100 flex flex-col gap-4">
+          <Link
+            href="/register"
+            className="text-xs font-black uppercase text-stone-400 hover:text-stone-900 tracking-widest transition-colors"
+          >
+            Nuovo utente? Registrati
+          </Link>
+
+          <Link
+            href="/"
+            className="inline-block text-[10px] font-bold uppercase text-stone-300 hover:text-stone-500 tracking-widest transition-colors"
+          >
+            ← Torna alla vetrina
+          </Link>
         </div>
-        <div className="mt-6 text-center text-sm">
-          <Link href="/register" className="text-[10px] font-bold text-gray-400 hover:text-sky-600 uppercase tracking-widest transition-colors">Non hai un account? Registrati</Link>
-        </div>
-        <div className="mt-8 text-center pt-6 border-t border-gray-100">
-          <Link href="/" className="text-[9px] font-bold text-gray-400 hover:text-sky-600 uppercase tracking-widest transition-colors">← Torna alla vetrina</Link>
-        </div>
+
       </div>
     </div>
   )
