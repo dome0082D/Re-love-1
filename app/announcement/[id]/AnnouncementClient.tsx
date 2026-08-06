@@ -5,7 +5,8 @@ import { supabase } from '@/lib/supabase'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { Timer, Gavel } from 'lucide-react'
+import { Timer, Gavel, ShoppingCart, Sparkles } from 'lucide-react'
+import { useCartStore } from '@/store/cartStore'
 
 function AnnouncementContent() {
   const { id } = useParams()
@@ -17,7 +18,13 @@ function AnnouncementContent() {
   const [showCoffeeModal, setShowCoffeeModal] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
   const [selectedQuantity, setSelectedQuantity] = useState(1)
-  
+
+  // FIX: il carrello esisteva (store + interfaccia completa nella Navbar con
+  // tanto di checkout Stripe) ma NESSUNA pagina ci aggiungeva mai nulla -
+  // restava quindi vuoto per sempre. Questa è l'unica pagina dove si vede un
+  // prodotto, quindi è qui che serve il pulsante.
+  const { addItem, openCart } = useCartStore()
+
   const [usePickup, setUsePickup] = useState(false)
   
   const [reviews, setReviews] = useState<any[]>([])
@@ -35,17 +42,13 @@ function AnnouncementContent() {
   // FIX ANDROID: la mappa incorporata cattura i gesti di trascinamento per il
   // proprio pan/zoom interno. Se è subito interattiva, un utente che prova a
   // scorrere la pagina passando col dito sopra la mappa la vede "bloccarsi"
-  // lì invece di continuare a scorrere - un fastidio molto comune con le
-  // mappe incorporate su touch. Richiedere un tocco prima di attivarla
-  // risolve il problema senza toccare la mappa in sé.
+  // lì invece di continuare a scorrere.
   const [mapActive, setMapActive] = useState(false)
 
   // STATI ESCLUSIVI PER LE ASTE TEMPORIZZATE ⏳
   const [timeLeft, setTimeLeft] = useState('')
   const [isAuctionEnded, setIsAuctionEnded] = useState(false)
   const [currentBid, setCurrentBid] = useState(0)
-  // Tiene traccia dell'ultima offerta senza dover mettere currentBid tra le
-  // dipendenze dell'effect qui sotto (vedi commento nell'effect stesso).
   const currentBidRef = useRef(0)
   useEffect(() => { currentBidRef.current = currentBid }, [currentBid])
 
@@ -103,13 +106,14 @@ function AnnouncementContent() {
     }, 1000)
 
     // 2. Sincronizzazione Live dei Rilanci
-    const channel = supabase.channel('auction_updates')
+    // FIX: il canale aveva un nome FISSO ('auction_updates'). Aprendo due
+    // aste diverse (anche solo in due schede del browser) finivano a
+    // contendersi lo stesso canale, con aggiornamenti che potevano arrivare
+    // all'asta sbagliata. Ora il nome è legato all'annuncio specifico.
+    const channel = supabase.channel(`auction_${ann.id}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'announcements', filter: `id=eq.${ann.id}` }, (payload) => {
          if (payload.new.current_bid) {
            setCurrentBid(payload.new.current_bid)
-           // Se non è l'utente attuale a rilanciare, mostriamo un avviso!
-           // FIX ANDROID: confrontiamo con il ref (sempre aggiornato) invece
-           // che con "currentBid" preso dalla dependency array - vedi sotto.
            if (payload.new.current_bid > currentBidRef.current) {
              toast("⚠️ Qualcuno ha appena rilanciato!", { style: { background: '#f43f5e', color: 'white', border: 'none' } })
            }
@@ -120,15 +124,6 @@ function AnnouncementContent() {
       clearInterval(interval); 
       supabase.removeChannel(channel); 
     }
-    // FIX ANDROID: prima "currentBid" era tra le dipendenze, ma viene anche
-    // aggiornato DENTRO questo stesso effect (da ogni rilancio ricevuto in
-    // realtime). Risultato: ogni singolo rilancio faceva chiudere e riaprire
-    // da zero l'intero canale WebSocket e riavviava il timer - su rete
-    // mobile Android (più soggetta a instabilità di connessione) questo
-    // significava continue disconnessioni/riconnessioni proprio durante il
-    // momento più delicato di un'asta attiva. Usando un ref per il confronto
-    // (sopra), l'effect ora si aggancia una sola volta per annuncio e resta
-    // stabile per tutta la durata dell'asta.
   }, [ann])
 
 
@@ -152,7 +147,14 @@ function AnnouncementContent() {
       .select('id')
       .eq('buyer_id', buyerId)
       .eq('announcement_id', annId)
-      .eq('status', 'Pagato') 
+      // FIX: prima cercava SOLO lo stato 'Pagato'. Ma il flusso reale degli
+      // ordini è Pagato -> Spedito -> Ricevuto -> Concluso: appena il
+      // venditore segnava l'ordine come spedito, questo controllo tornava
+      // falso e il modulo per lasciare la recensione SPARIVA dalla pagina.
+      // In pratica si poteva recensire solo nella finestrella tra pagamento
+      // e spedizione, cioè quando non si era ancora ricevuto niente da
+      // recensire. Ora vale per tutti gli stati successivi all'acquisto.
+      .in('status', ['Pagato', 'Spedito', 'Ricevuto', 'Concluso'])
       .limit(1)
     if (data && data.length > 0) setHasPurchased(true)
   }
@@ -169,22 +171,30 @@ function AnnouncementContent() {
     if (data) setExistingOffer(data)
   }
 
-  const handleSponsor = async () => {
-    setActionLoading(true)
-    try {
-      const res = await fetch('/api/stripe/sponsor', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ announcementId: ann.id, userId: user.id })
-      });
-      const data = await res.json();
-      if (data.url) window.location.href = data.url;
-      else toast.error("Errore durante l'avvio del pagamento.");
-    } catch (err) {
-      toast.error("Errore di connessione.");
-    }
-    setActionLoading(false)
-  };
+  // --- AGGIUNTA AL CARRELLO ---
+  const handleAddToCart = () => {
+    if (!user) { toast.error("Devi accedere per usare il carrello."); return; }
+    if (user.id === ann.user_id) { toast.error("Non puoi comprare un tuo stesso oggetto."); return; }
+
+    // Calcolato qui invece di usare la variabile "maxQty" più in basso:
+    // quella è dichiarata dopo questa funzione e, pur funzionando (la
+    // funzione parte solo al click, quando ormai esiste), dipendere
+    // dall'ordine di dichiarazione è fragile e si rompe facilmente al
+    // primo spostamento di codice.
+    const disponibili = ann.quantity !== undefined ? ann.quantity : 1
+
+    addItem({
+      id: ann.id,
+      title: ann.title,
+      price: Number(ann.price),
+      imageUrl: ann.image_url,
+      image_url: ann.image_url,
+      quantity: selectedQuantity,
+      maxQuantity: disponibili,
+    })
+    toast.success("Aggiunto al carrello! 🛒")
+    openCart()
+  }
 
   const handleContact = () => {
     if (!user) { toast.error("Devi accedere per continuare!"); return; }
@@ -201,11 +211,6 @@ function AnnouncementContent() {
           receiver_id: ann.user_id
         }]);
         setActionLoading(false);
-        // FIX ANDROID: prima l'esito dell'insert non veniva controllato, quindi
-        // su una connessione che cade a metà richiesta (comune passando tra
-        // WiFi e dati mobili) l'utente veniva comunque mandato in chat anche
-        // se il messaggio non era mai stato salvato, credendo di aver scritto
-        // al venditore mentre in realtà non era partito nulla.
         if (error) {
           toast.error("Errore nell'invio del messaggio. Riprova.");
           return;
@@ -221,13 +226,6 @@ function AnnouncementContent() {
     if (user.id === ann.user_id) { toast.error("Non puoi acquistare un tuo stesso oggetto."); return; }
     setActionLoading(true)
 
-    // FIX ANDROID: l'intero flusso di checkout non era protetto da try/catch.
-    // Se la richiesta cadeva a metà - scenario comune su dati mobili quando
-    // si passa da un ripetitore all'altro, o si perde campo per un istante
-    // durante un pagamento - la funzione andava in eccezione non gestita
-    // PRIMA di raggiungere uno qualsiasi dei setActionLoading(false): il
-    // pulsante "Acquista Ora" restava disabilitato per sempre, e l'unico modo
-    // per sbloccarlo era ricaricare l'intera pagina.
     try {
       const { data: sellerProfile } = await supabase.from('profiles').select('stripe_account_id').eq('id', ann.user_id).single()
 
@@ -303,7 +301,7 @@ function AnnouncementContent() {
     setSubmittingOffer(false)
   }
 
-  // --- LOGICA RILANCIO ASTA (NUOVO) ---
+  // --- LOGICA RILANCIO ASTA ---
   const submitBid = async () => {
     if (!offerPrice || isNaN(Number(offerPrice)) || Number(offerPrice) <= currentBid) {
       toast.error(`Devi rilanciare con una cifra maggiore di €${currentBid.toFixed(2)}!`); return;
@@ -312,33 +310,53 @@ function AnnouncementContent() {
     setSubmittingOffer(true)
     
     // 1. Aggiorna il prezzo attuale dell'annuncio
-    const { error: annError } = await supabase.from('announcements')
+    // FIX IMPORTANTE: prima questa scrittura non aveva NESSUNA condizione.
+    // Se due persone rilanciavano nello stesso istante - cioè esattamente
+    // quello che succede negli ultimi secondi di un'asta - la seconda
+    // scrittura sovrascriveva la prima anche quando era PIÙ BASSA,
+    // cancellando di fatto l'offerta più alta. Il ".lt(...)" qui sotto dice
+    // al database: applica questo rilancio SOLO se quello attualmente
+    // salvato è davvero inferiore. Stessa protezione già usata per lo
+    // sblocco fondi degli ordini.
+    const { data: annData, error: annError } = await supabase.from('announcements')
       .update({ current_bid: Number(offerPrice) })
       .eq('id', ann.id)
+      .lt('current_bid', Number(offerPrice))
+      .select()
+
+    if (annError) {
+      toast.error("Errore durante il rilancio.")
+      setSubmittingOffer(false)
+      return
+    }
+
+    // Nessuna riga aggiornata = qualcun altro ha rilanciato più in alto
+    // nell'istante esatto in cui stavi rilanciando tu.
+    if (!annData || annData.length === 0) {
+      toast.error("Qualcuno ha rilanciato prima di te! Ricarica la pagina e riprova con una cifra più alta.")
+      setSubmittingOffer(false)
+      return
+    }
 
     // 2. Salva lo storico del rilancio nella tabella bids
-    if (!annError) {
-       await supabase.from('bids').insert([{
-         announcement_id: ann.id,
-         bidder_id: user.id,
-         amount: Number(offerPrice)
-       }])
-       
-       toast.success("Rilancio effettuato con successo! Sei in vantaggio. 🔨")
-       setCurrentBid(Number(offerPrice))
-       setShowOfferModal(false)
-       setOfferPrice('')
+    await supabase.from('bids').insert([{
+      announcement_id: ann.id,
+      bidder_id: user.id,
+      amount: Number(offerPrice)
+    }])
 
-       // Avvisa il venditore
-       await supabase.from('notifications').insert([{
-        user_id: ann.user_id,
-        message: `🔥 Nuovo rilancio di €${offerPrice} per la tua asta "${ann.title}"!`,
-        is_read: false
-      }]);
+    toast.success("Rilancio effettuato con successo! Sei in vantaggio. 🔨")
+    setCurrentBid(Number(offerPrice))
+    setShowOfferModal(false)
+    setOfferPrice('')
 
-    } else {
-       toast.error("Errore durante il rilancio.")
-    }
+    // Avvisa il venditore
+    await supabase.from('notifications').insert([{
+      user_id: ann.user_id,
+      message: `🔥 Nuovo rilancio di €${offerPrice} per la tua asta "${ann.title}"!`,
+      is_read: false
+    }]);
+
     setSubmittingOffer(false)
   }
 
@@ -390,7 +408,7 @@ function AnnouncementContent() {
              {ann.image_urls && ann.image_urls.length > 1 && (
                <div className="flex gap-3 p-4 overflow-x-auto custom-scrollbar">
                  {ann.image_urls.map((img: string, i: number) => (
-                    <img key={i} src={img} className="w-24 h-24 rounded-2xl object-cover border-2 border-white/40 hover:border-rose-400 cursor-pointer transition-all flex-shrink-0 shadow-sm" />
+                    <img key={i} src={img} alt={`${ann.title} - foto ${i + 1}`} className="w-24 h-24 rounded-2xl object-cover border-2 border-white/40 hover:border-rose-400 cursor-pointer transition-all flex-shrink-0 shadow-sm" />
                  ))}
                </div>
              )}
@@ -406,6 +424,7 @@ function AnnouncementContent() {
                 height="100%" 
                 frameBorder="0" 
                 scrolling="no" 
+                title="Mappa della località"
                 src={mapUrl}
                 className={mapActive ? '' : 'pointer-events-none'}
               ></iframe>
@@ -468,7 +487,6 @@ function AnnouncementContent() {
                     </p>
                  </div>
                ) : ann.is_auction ? (
-                 // BANNER ASTA
                  <div className={`p-6 rounded-3xl text-white shadow-xl transition-all ${isAuctionEnded ? 'bg-stone-900' : 'bg-gradient-to-br from-red-600 to-rose-500 shadow-rose-500/30 animate-[pulse_3s_ease-in-out_infinite]'}`}>
                     <div className="flex items-center justify-between mb-2">
                        <div className="flex items-center gap-2">
@@ -485,7 +503,6 @@ function AnnouncementContent() {
                     </div>
                  </div>
                ) : (
-                 // PREZZO FISSO
                  <>
                    <p className="text-5xl font-black text-stone-900 italic drop-shadow-sm">
                       {ann.type === 'offered' || ann.condition === 'Regalo' ? 'GRATIS' : `€ ${(ann.price * selectedQuantity).toFixed(2)}`}
@@ -532,12 +549,11 @@ function AnnouncementContent() {
               </div>
             )}
 
-            {/* BOTTONI D'AZIONE (COMPRA / RILANCIA) */}
+            {/* BOTTONI D'AZIONE (COMPRA / CARRELLO / RILANCIA) */}
             <div className="space-y-3 pt-6 border-t border-white/20">
                {user?.id !== ann.user_id ? (
                  <>
                    {ann.is_auction ? (
-                     // BOTTONI PER ASTA
                      <button 
                        onClick={() => { if(!user){ router.push('/login'); return; } setShowOfferModal(true); }} 
                        disabled={actionLoading || isAuctionEnded} 
@@ -546,10 +562,15 @@ function AnnouncementContent() {
                         <Gavel size={20} /> {isAuctionEnded ? 'Asta Conclusa' : 'Fai un Rilancio'}
                      </button>
                    ) : ann.condition === 'Nuovo' || ann.condition === 'Usato' ? (
-                     // BOTTONI COMPRALO SUBITO
                      <div className="space-y-3 flex flex-col items-center">
                        <button onClick={handleSecureBuy} disabled={actionLoading || maxQty <= 0} className="w-full bg-stone-900 text-white p-5 rounded-2xl font-black uppercase text-sm tracking-[0.1em] shadow-xl hover:bg-rose-500 transition-all disabled:opacity-30">
                           {actionLoading ? 'In corso...' : 'Acquista Ora'}
+                       </button>
+
+                       {/* NUOVO: aggiunta al carrello. Utile per comprare più
+                           oggetti insieme invece di pagare uno alla volta. */}
+                       <button onClick={handleAddToCart} disabled={actionLoading || maxQty <= 0} className="w-full bg-white/40 border-2 border-stone-900/20 text-stone-900 p-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-white/80 transition-all disabled:opacity-30 flex items-center justify-center gap-2">
+                          <ShoppingCart size={16} /> Aggiungi al Carrello
                        </button>
 
                        {existingOffer ? (
@@ -580,9 +601,20 @@ function AnnouncementContent() {
                       <p className="text-[10px] font-black uppercase text-stone-900">Questo è il tuo annuncio</p>
                     </div>
                     {!ann.is_sponsored && (
-                      <button onClick={handleSponsor} disabled={actionLoading} className="w-full bg-gradient-to-r from-orange-400 to-rose-500 text-white p-5 rounded-2xl font-black uppercase text-xs tracking-[0.2em] shadow-xl hover:scale-105 transition-transform disabled:opacity-30">
-                         ✨ Metti in Vetrina (2,99€)
-                      </button>
+                    {/* FIX: questo pulsante avviava il VECCHIO sistema di
+                        sponsorizzazione (/api/stripe/sponsor), in parallelo
+                        alla Vetrina che nel frattempo abbiamo costruito e
+                        che - come mi hai confermato - è la stessa identica
+                        cosa, solo ripensata e rinominata. Ora porta al
+                        flusso della Vetrina con questo annuncio già
+                        preselezionato, esattamente come il pulsante gemello
+                        nella dashboard "Gestione Annunci". */}
+                    <Link
+                      href={`/vetrina?create=interna&ad_id=${ann.id}`}
+                      className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-orange-400 to-rose-500 text-white p-5 rounded-2xl font-black uppercase text-xs tracking-[0.2em] shadow-xl hover:scale-105 transition-transform"
+                    >
+                       <Sparkles size={16} /> Metti in Vetrina (2,99€)
+                    </Link>
                     )}
                  </div>
                )}

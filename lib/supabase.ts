@@ -42,22 +42,59 @@ declare global {
   var __supabase_client__: SupabaseClient | undefined
 }
 
+function buildClient(): SupabaseClient {
+  const isBrowser = typeof window !== 'undefined'
+
+  // FIX: il commento precedente ("creiamo il client anche se le stringhe sono
+  // vuote, evita il crash del build") affermava il contrario di quello che
+  // succede davvero: createClient() con URL o chiave vuoti LANCIA un errore
+  // ("supabaseUrl is required") e blocca comunque il build. Il "|| ''" qui
+  // sopra non protegge da nulla - dà solo una falsa sicurezza. Meglio un
+  // messaggio che dice subito QUALE variabile manca, invece dell'errore
+  // generico della libreria che non aiuta a capire dove intervenire.
+  if (!supabaseUrl || !supabaseAnonKey) {
+    const mancanti = [
+      !supabaseUrl ? 'NEXT_PUBLIC_SUPABASE_URL' : null,
+      !supabaseAnonKey ? 'NEXT_PUBLIC_SUPABASE_ANON_KEY' : null,
+    ].filter(Boolean).join(' e ')
+    throw new Error(
+      `Configurazione Supabase mancante: ${mancanti}. ` +
+      `Impostala nelle variabili d'ambiente del progetto (in locale nel file .env, ` +
+      `su Vercel in Settings > Environment Variables) e rilancia il build.`
+    )
+  }
+
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      // FIX (SICUREZZA LATO SERVER): sul server non deve esistere nessuna
+      // sessione persistente. "globalThis" in Node è condiviso tra TUTTE le
+      // richieste in arrivo: se un client con sessione attiva venisse
+      // riutilizzato tra richieste diverse, i dati di un utente potrebbero
+      // finire nella risposta destinata a un altro. Sul server disattiviamo
+      // quindi persistenza e refresh automatico, e (vedi sotto) non lo
+      // riutilizziamo nemmeno tramite la variabile globale.
+      persistSession: isBrowser,
+      autoRefreshToken: isBrowser,
+      detectSessionInUrl: isBrowser,
+      storage: createSafeStorage(),
+    },
+  })
+}
+
 function getSupabaseClient(): SupabaseClient {
+  // Sul SERVER creiamo sempre un client nuovo, senza riutilizzare la
+  // variabile globale: l'isolamento tra richieste vale più del piccolo
+  // risparmio di riutilizzarne uno solo. Nel BROWSER, invece, il client
+  // unico è proprio quello che ci serve (vedi il fix "istanze multiple").
+  if (typeof window === 'undefined') {
+    return buildClient()
+  }
+
   if (globalThis.__supabase_client__) {
     return globalThis.__supabase_client__
   }
 
-  // Creiamo il client anche se le stringhe sono vuote (evita il crash del build)
-  // Il controllo vero lo faremo solo quando serve davvero
-  const client = createClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
-      storage: createSafeStorage(),
-    },
-  })
-
+  const client = buildClient()
   globalThis.__supabase_client__ = client
   return client
 }

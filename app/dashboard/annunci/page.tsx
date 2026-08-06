@@ -6,12 +6,13 @@ import { useEffect, useState, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { toast } from 'sonner'
+import { Sparkles } from 'lucide-react'
 
 function DashboardContent() {
   const [announcements, setAnnouncements] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
-  const [payLoading, setPayLoading] = useState<string | null>(null)
   
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -25,26 +26,20 @@ function DashboardContent() {
     const success = searchParams.get('success')
     const adId = searchParams.get('ad_id')
 
-    // FIX IMPORTANTE (SICUREZZA): questa funzione scriveva "is_sponsored:
-    // true" fidandosi solo del parametro "success=true" nell'indirizzo del
-    // browser - chiunque poteva ottenere una sponsorizzazione gratis
-    // scrivendo quell'indirizzo a mano, senza pagare nulla, perché
-    // l'indirizzo è completamente sotto il controllo di chi lo visita e non
-    // prova che un pagamento sia davvero avvenuto. La conferma reale deve
-    // arrivare solo dal webhook Stripe (verifica il pagamento con Stripe
-    // stesso, lato server, prima di scrivere sul database - la logica
-    // "LOGICA 0: SPONSORIZZAZIONE" già presente in
-    // app/api/webhooks/stripe/route.ts). Qui ora ci limitiamo a ripulire
-    // l'indirizzo e ricaricare gli annunci: se il webhook ha già fatto il
-    // suo lavoro (di solito questione di secondi), lo stato sponsorizzato
-    // comparirà comunque da solo.
+    // SICUREZZA: non scriviamo MAI "is_sponsored: true" fidandoci del
+    // parametro "success=true" nell'indirizzo - chiunque potrebbe ottenere
+    // una promozione gratis scrivendo quell'indirizzo a mano, perché
+    // l'indirizzo è sotto il controllo di chi lo visita e non prova che un
+    // pagamento sia davvero avvenuto. La conferma arriva solo dal webhook
+    // Stripe, che verifica il pagamento con Stripe stessa lato server.
+    // Qui ci limitiamo a ripulire l'indirizzo e ricaricare gli annunci.
     if (success === 'true' && adId) {
-      alert("Pagamento riuscito! Verifica in corso, l'annuncio comparirà come sponsorizzato a breve. 🚀")
+      toast.success("Pagamento riuscito! L'annuncio comparirà in Vetrina a breve. 🚀")
       router.push('/dashboard/annunci')
       fetchMyAds()
     }
     if (searchParams.get('canceled') === 'true') {
-      alert("Pagamento annullato.")
+      toast('Pagamento annullato.')
       router.push('/dashboard/annunci')
     }
   }
@@ -54,6 +49,10 @@ function DashboardContent() {
     setLoadError(false)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
+      // FIX: mancava lo spegnimento del caricamento prima di uscire - chi
+      // non era loggato restava a fissare "Caricamento in corso..." per
+      // tutta la durata del reindirizzamento al login.
+      setLoading(false)
       router.push('/login')
       return
     }
@@ -64,9 +63,8 @@ function DashboardContent() {
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
 
-    // FIX: prima un errore di caricamento veniva ignorato in silenzio - la
-    // pagina mostrava "Non hai ancora pubblicato nessun annuncio", identico
-    // a come appare per chi genuinamente non ha ancora annunci.
+    // Un errore di caricamento non deve confondersi con "nessun annuncio":
+    // sono due situazioni diverse e vanno mostrate in modo diverso.
     if (error) {
       console.error('Errore caricamento annunci:', error)
       setLoadError(true)
@@ -79,41 +77,17 @@ function DashboardContent() {
   const handleDelete = async (id: string) => {
     if (!confirm('Sei sicuro di voler eliminare questo annuncio?')) return
 
-    // FIX: prima l'annuncio spariva dalla dashboard SUBITO, senza aspettare
-    // conferma dal database - se la cancellazione falliva davvero (regole
-    // di sicurezza del database, rete instabile), l'annuncio restava
-    // comunque visibile e acquistabile da chiunque altro sul sito, mentre
+    // L'annuncio sparisce dalla dashboard solo DOPO conferma dal database:
+    // se la cancellazione fallisce (regole di sicurezza, rete instabile),
+    // resterebbe visibile e acquistabile da chiunque altro sul sito mentre
     // qui sembrava già rimosso.
     const { error } = await supabase.from('announcements').delete().eq('id', id)
     if (error) {
-      alert("Errore durante l'eliminazione: " + error.message)
+      toast.error("Errore durante l'eliminazione: " + error.message)
       return
     }
     setAnnouncements(announcements.filter(a => a.id !== id))
-  }
-
-  const handleSponsor = async (adId: string) => {
-    setPayLoading(adId)
-    const { data: authData } = await supabase.auth.getUser()
-    
-    try {
-      const res = await fetch('/api/stripe/sponsor', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ announcementId: adId, userId: authData.user?.id }),
-      });
-      
-      const data = await res.json();
-      if (data.url) {
-        window.location.href = data.url;
-      } else {
-        alert("Errore nell'avvio del pagamento.");
-        setPayLoading(null);
-      }
-    } catch (err) {
-      alert("Errore di connessione al server.");
-      setPayLoading(null);
-    }
+    toast.success('Annuncio eliminato.')
   }
 
   return (
@@ -146,7 +120,7 @@ function DashboardContent() {
             <div key={ad.id} className={`bg-white rounded-2xl overflow-hidden border ${ad.is_sponsored ? 'border-orange-400 ring-1 ring-orange-400/30 shadow-md' : 'border-stone-100 shadow-sm'} flex flex-col relative`}>
               {ad.is_sponsored && (
                 <div className="absolute top-0 right-0 bg-gradient-to-r from-rose-500 to-orange-400 text-white text-[8px] font-bold uppercase px-3 py-1 rounded-bl-xl z-10 tracking-widest shadow-sm">
-                  Sponsorizzato ✨
+                  In Vetrina ✨
                 </div>
               )}
               <div className="h-40 bg-stone-50 relative">
@@ -164,9 +138,21 @@ function DashboardContent() {
                     <button onClick={() => handleDelete(ad.id)} className="flex-1 bg-red-50 text-red-500 text-[10px] font-bold uppercase py-2 rounded-lg hover:bg-red-100 transition-all">Elimina</button>
                   </div>
                   {!ad.is_sponsored && (
-                    <button onClick={() => handleSponsor(ad.id)} disabled={payLoading === ad.id} className="w-full bg-stone-900 text-orange-400 text-[9px] font-bold uppercase py-3 rounded-lg hover:bg-rose-500 hover:text-white transition-all shadow-sm border border-orange-400/30">
-                      {payLoading === ad.id ? 'Apertura cassa...' : '🚀 Sponsorizza (2.99€)'}
-                    </button>
+                    // FIX: questo pulsante avviava il VECCHIO sistema di
+                    // sponsorizzazione (/api/stripe/sponsor), mentre nel
+                    // frattempo abbiamo costruito la Vetrina - che, come mi
+                    // hai confermato, è la stessa identica cosa, solo
+                    // ripensata e rinominata. Il risultato era due sistemi
+                    // paralleli allo stesso prezzo per fare la stessa cosa,
+                    // con la Vetrina Interna che non riceveva mai nulla da
+                    // qui. Ora il pulsante porta al flusso della Vetrina,
+                    // con questo annuncio già preselezionato nel modulo.
+                    <Link
+                      href={`/vetrina?create=interna&ad_id=${ad.id}`}
+                      className="w-full flex items-center justify-center gap-2 bg-stone-900 text-orange-400 text-[9px] font-bold uppercase py-3 rounded-lg hover:bg-rose-500 hover:text-white transition-all shadow-sm border border-orange-400/30"
+                    >
+                      <Sparkles size={12} /> Metti in Vetrina (2,99€)
+                    </Link>
                   )}
                 </div>
               </div>

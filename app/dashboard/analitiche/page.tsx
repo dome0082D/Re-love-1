@@ -28,6 +28,12 @@ export default function AnalyticsDashboard() {
     setLoadError(false)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
+      // FIX: mancava lo spegnimento del caricamento prima di uscire dalla
+      // funzione - chi non era loggato restava a fissare "Elaborazione
+      // Dati..." per tutto il tempo del reindirizzamento, invece di vederlo
+      // sparire subito. È lo stesso dettaglio già corretto nella pagina
+      // delle controversie.
+      setLoading(false)
       router.push('/login')
       return
     }
@@ -65,10 +71,18 @@ export default function AnalyticsDashboard() {
         });
 
         // 2. Recuperiamo il numero totale di visualizzazioni (Traffico)
+        // FIX: prima venivano contate ANCHE le visite del venditore ai propri
+        // annunci. Ogni volta che aprivi un tuo annuncio per controllarlo, la
+        // pagina registrava una visualizzazione: bastava riaprirlo venti
+        // volte per vedersi scrivere "20 visite" e credere che ci fosse
+        // interesse, quando eri solo tu. Ora escludiamo le tue visite,
+        // continuando però a contare quelle anonime (chi guarda senza essere
+        // loggato, che sono la maggioranza e vanno assolutamente contate).
         const { count: viewCount, error: viewsError } = await supabase
           .from('page_views')
           .select('*', { count: 'exact', head: true })
-          .in('announcement_id', adIds);
+          .in('announcement_id', adIds)
+          .or(`viewer_id.is.null,viewer_id.neq.${user.id}`);
 
         if (viewsError) throw viewsError
 
@@ -79,6 +93,19 @@ export default function AnalyticsDashboard() {
           barters: bCount,
           gifts: gCount,
           totalViews: viewCount || 0
+        });
+      } else {
+        // FIX: se non ci sono annunci, prima non veniva aggiornato NULLA -
+        // quindi chi cancellava tutti i propri annunci e ricaricava questa
+        // pagina continuava a vedere i vecchi numeri (valore magazzino,
+        // visite) come se gli annunci ci fossero ancora.
+        setStats({
+          activeListings: 0,
+          totalValue: 0,
+          potentialEarnings: 0,
+          barters: 0,
+          gifts: 0,
+          totalViews: 0
         });
       }
     } catch (err) {

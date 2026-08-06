@@ -53,7 +53,11 @@ export default function Navbar() {
   const { items, isCartOpen, openCart, closeCart, removeItem, updateQuantity } = useCartStore()
   const total = items.reduce((acc, i) => acc + (Number(i.price) * i.quantity), 0)
 
-  // --- RICHIESTA PERMESSO NOTIFICHE NATIVE E SERVICE WORKER ---
+  // NOTA: la registrazione del service worker avviene ANCHE in layout.tsx.
+  // Registrarlo due volte non causa danni (il browser riconosce lo stesso
+  // file e non lo duplica), ma se un giorno vuoi fare pulizia, questa è la
+  // copia ridondante da togliere - quella in layout.tsx è più affidabile
+  // perché gira su tutte le pagine, non solo dove compare la Navbar.
   useEffect(() => {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW fallito:', err));
@@ -69,7 +73,7 @@ export default function Navbar() {
             body: message, 
             vibrate: [200, 100, 200], 
             icon: '/usato.png' 
-          });
+          } as any);
         } else {
           // FIX ANDROID: su Chrome Android (e su Android in generale) il costruttore
           // `new Notification()` non è supportato ed è previsto che lanci un errore -
@@ -102,7 +106,7 @@ export default function Navbar() {
         styleEl.id = 'dark-mode-hack';
         styleEl.innerHTML = `
           html { filter: invert(1) hue-rotate(180deg); background: #fff; transition: filter 0.5s ease; will-change: filter; }
-          img, video, iframe, .leaflet-container { filter: invert(1) hue-rotate(180deg); }
+          img, video, iframe, .leaflet-container, .site-fixed-background { filter: invert(1) hue-rotate(180deg); }
         `;
         document.head.appendChild(styleEl);
       }
@@ -133,15 +137,10 @@ export default function Navbar() {
         if (currentUser) {
           await fetchNotifications(currentUser.id)
 
-          // FIX: prima qui si apriva un SECONDO canale Supabase (Realtime,
-          // quindi una connessione WebSocket dedicata) per gli stessi
-          // identici INSERT su "notifications" già ascoltati da
-          // RealtimeNotifications.tsx - due connessioni per lo stesso
-          // evento, che su rete mobile Android significa doppio consumo di
-          // banda/batteria e doppio rischio di riconnessioni sballate.
-          // Ora ci limitiamo ad ascoltare l'evento che quel componente
-          // inoltra al browser quando riceve una nuova notifica, invece di
-          // aprire una nostra sottoscrizione parallela.
+          // Ascoltiamo l'evento inoltrato da RealtimeNotifications.tsx invece
+          // di aprire una nostra sottoscrizione Supabase parallela agli
+          // stessi identici INSERT (due connessioni WebSocket per lo stesso
+          // evento significherebbero doppio consumo di banda e batteria).
           notificationHandler = (e: Event) => {
             const detail = (e as CustomEvent).detail
             fetchNotifications(currentUser.id)
@@ -195,12 +194,22 @@ export default function Navbar() {
     setIsQuickMenuOpen(false);
 
     if (!isNotifOpen && notifications > 0 && user) {
-      await supabase
+      // FIX: l'esito di questo aggiornamento non veniva controllato - se
+      // falliva (regole del database, rete instabile), il pallino rosso
+      // spariva comunque dallo schermo ma le notifiche restavano "non
+      // lette" nel database: riaprendo la pagina il pallino sarebbe
+      // ricomparso, dando l'impressione di notifiche che tornano da sole.
+      const { error } = await supabase
         .from('notifications')
         .update({ is_read: true })
         .eq('user_id', user.id)
         .eq('is_read', false);
-      
+
+      if (error) {
+        console.error('Errore aggiornamento notifiche lette:', error)
+        return
+      }
+
       setNotifications(0);
       setNotifList(prev => prev.map(n => ({...n, is_read: true})));
     }
@@ -272,7 +281,6 @@ export default function Navbar() {
   }
 
   // Ferma il timer del radar se il componente si smonta prima che scada
-  // (protezione difensiva contro "setState su componente smontato")
   useEffect(() => {
     return () => {
       if (radarTimeoutRef.current) clearTimeout(radarTimeoutRef.current)
@@ -291,7 +299,16 @@ export default function Navbar() {
 
   return (
     <>
-      <nav className="bg-white border-b border-rose-100 sticky top-0 z-[5000] shadow-sm flex justify-between items-center h-20 md:h-24 px-4 md:px-8 transition-colors">
+      {/* FIX: sfondo bianco pieno forzato tramite "style". Quando abbiamo reso
+          semi-trasparenti tutti i riquadri per far vedere l'immagine di sfondo
+          del sito, la regola globale ha preso ANCHE questa barra, che infatti
+          risultava trasparente e lasciava intravedere il cielo
+          dell'illustrazione dietro le icone. Lo "style" ha la precedenza sulla
+          regola globale, quindi qui torna bianca piena come deve essere. */}
+      <nav
+        style={{ backgroundColor: '#ffffff', backdropFilter: 'none', WebkitBackdropFilter: 'none' }}
+        className="border-b border-rose-100 sticky top-0 z-[5000] shadow-sm flex justify-between items-center h-20 md:h-24 px-4 md:px-8 transition-colors"
+      >
         <div className="flex items-center gap-4 md:gap-6">
           <button onClick={() => setIsSidebarOpen(true)} className="p-3 text-stone-600 hover:bg-rose-50 hover:text-rose-500 rounded-xl transition-all focus:outline-none">
             <Menu size={28} strokeWidth={2.5} />
@@ -346,8 +363,16 @@ export default function Navbar() {
               )}
             </button>
             
+            {/* FIX (POPUP TAGLIATO): questo pannello è largo 320px e si
+                allineava al bordo destro della CAMPANELLA - che però non è
+                l'ultima icona della fila (dopo ci sono i tre puntini e il
+                carrello). Il pannello si estendeva quindi verso sinistra
+                uscendo dallo schermo, e su telefono la prima lettera di ogni
+                riga finiva tagliata fuori ("essuna" invece di "Nessuna").
+                Ora su telefono si ancora ai due bordi dello schermo, quindi
+                non può più uscire; da tablet in su resta esattamente com'era. */}
             {isNotifOpen && (
-              <div className="absolute right-0 mt-3 w-80 bg-white border border-stone-200 rounded-3xl shadow-2xl p-5 z-[6000]">
+              <div className="fixed left-4 right-4 top-24 sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-3 sm:w-80 bg-white border border-stone-200 rounded-3xl shadow-2xl p-5 z-[6000]">
                 <div className="flex justify-between items-center border-b border-stone-100 pb-3 mb-4">
                   <h4 className="text-sm font-bold uppercase tracking-widest text-stone-400">Notifiche</h4>
                   <button onClick={() => setIsNotifOpen(false)} className="text-stone-400 hover:text-stone-800 text-sm font-bold w-8 h-8 flex items-center justify-center rounded-full hover:bg-stone-50">
@@ -381,17 +406,19 @@ export default function Navbar() {
             }} className="p-3 text-stone-500 hover:bg-rose-50 hover:text-rose-500 rounded-full transition-all">
               <MoreVertical size={28} strokeWidth={2} />
             </button>
+            {/* Stessa correzione del pannello notifiche: su telefono si ancora
+                ai bordi dello schermo invece di poterne uscire. */}
             {isQuickMenuOpen && (
-              <div className="absolute right-0 mt-3 w-56 bg-white border border-stone-100 shadow-2xl rounded-2xl p-3 z-[6000]">
-                <Link href="/profile" className="flex items-center gap-3 p-4 text-base font-medium text-stone-700 hover:bg-rose-50 hover:text-rose-600 rounded-xl transition-all">
+              <div className="fixed left-auto right-4 top-24 w-56 sm:absolute sm:right-0 sm:top-auto sm:mt-3 bg-white border border-stone-100 shadow-2xl rounded-2xl p-3 z-[6000]">
+                <Link href="/profile" onClick={() => setIsQuickMenuOpen(false)} className="flex items-center gap-3 p-4 text-base font-medium text-stone-700 hover:bg-rose-50 hover:text-rose-600 rounded-xl transition-all">
                   <Settings size={18} /> Impostazioni
                 </Link>
                 {user && (
-                  <Link href="/dashboard/analitiche" className="flex items-center gap-3 p-4 text-base font-bold text-stone-700 hover:bg-rose-50 hover:text-rose-600 rounded-xl transition-all">
+                  <Link href="/dashboard/analitiche" onClick={() => setIsQuickMenuOpen(false)} className="flex items-center gap-3 p-4 text-base font-bold text-stone-700 hover:bg-rose-50 hover:text-rose-600 rounded-xl transition-all">
                     <TrendingUp size={18} /> Seller Hub
                   </Link>
                 )}
-                <Link href="/supporto" className="flex items-center gap-3 p-4 text-base font-medium text-stone-700 hover:bg-rose-50 hover:text-rose-600 rounded-xl transition-all">
+                <Link href="/supporto" onClick={() => setIsQuickMenuOpen(false)} className="flex items-center gap-3 p-4 text-base font-medium text-stone-700 hover:bg-rose-50 hover:text-rose-600 rounded-xl transition-all">
                   <HelpCircle size={18} /> Aiuto
                 </Link>
                 {user && (
@@ -434,7 +461,7 @@ export default function Navbar() {
         />
       )}
 
-      {/* -------------------- SIDEBAR (MENU ☰) PIÙ GRANDE -------------------- */}
+      {/* -------------------- SIDEBAR (MENU ☰) -------------------- */}
       <div className={`fixed top-0 left-0 h-dvh w-[95%] max-w-[380px] bg-white z-[9999] shadow-2xl transition-transform duration-300 ease-in-out transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex flex-col h-full">
           <div className="p-8 bg-gradient-to-br from-rose-500 to-orange-500 text-white relative">
@@ -471,7 +498,7 @@ export default function Navbar() {
                       <div className="flex items-center gap-4"><Package size={20} className="text-stone-500" /> Ordini e Resi</div> 
                       <span className="bg-rose-500 text-white text-[11px] px-3 py-1 rounded-full font-bold">SECURE</span>
                     </Link>
-                    <Link href="/chat" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-4 p-4 text-base font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all flex justify-between">
+                    <Link href="/chat" onClick={() => setIsSidebarOpen(false)} className="flex justify-between items-center p-4 text-base font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all">
                       <div className="flex items-center gap-4"><MessageCircle size={20} className="text-stone-500" /> Messaggi</div>
                     </Link>
                     <Link href="/dashboard/preferiti" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-4 p-4 text-base font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all">
@@ -526,7 +553,7 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* -------------------- CARRELLO PIÙ GRANDE -------------------- */}
+      {/* -------------------- CARRELLO -------------------- */}
       <div className={`fixed top-0 right-0 h-dvh w-[95%] max-w-[420px] bg-white z-[9999] shadow-2xl transition-transform duration-300 ease-in-out transform ${isCartOpen ? 'translate-x-0' : 'translate-x-full'} flex flex-col`}>
         <div className="p-6 flex justify-between items-center border-b border-stone-100 bg-stone-50">
           <h2 className="text-2xl font-bold uppercase italic tracking-tighter text-rose-500 flex items-center gap-3">
@@ -579,7 +606,7 @@ export default function Navbar() {
         )}
       </div>
 
-      {/* -------------------- MODALI PIÙ GRANDI -------------------- */}
+      {/* -------------------- MODALI -------------------- */}
       {showSecurityModal && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
           <div className="bg-white rounded-[2rem] shadow-2xl p-8 max-w-lg w-full relative">
@@ -624,6 +651,11 @@ export default function Navbar() {
                 <p className="text-sm font-bold text-purple-800 leading-relaxed">{aiResult}</p>
               </div>
             )}
+            {/* NOTA: questa valutazione NON usa una vera intelligenza
+                artificiale - genera un numero casuale tra 10 e 60 euro,
+                indipendente da cosa scrivi. Se vuoi renderla reale, si può
+                collegare alla stessa route che già usi per generare le
+                descrizioni (/api/generate-description). */}
             <button onClick={handleAiValuation} disabled={loading || !aiItemName} className="w-full bg-purple-600 text-white py-4 rounded-xl font-black uppercase tracking-widest text-sm hover:bg-purple-700 transition-all disabled:opacity-50 shadow-md">
               {loading ? 'Elaborazione...' : 'Calcola Valore'}
             </button>
@@ -648,7 +680,7 @@ export default function Navbar() {
         </div>
       )}
 
-      {/* -------------------- ANIMAZIONE RADAR PIÙ GRANDE -------------------- */}
+      {/* -------------------- ANIMAZIONE RADAR -------------------- */}
       {isRadarScanning && (
         <div className="fixed inset-0 z-[20000] bg-stone-900/95 backdrop-blur-md flex items-center justify-center p-4">
           <div className="text-center flex flex-col items-center">
