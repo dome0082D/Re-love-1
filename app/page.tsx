@@ -698,38 +698,29 @@ function HomePageContent() {
         </div>
       )}
 
-      {/* FIX SFONDO: involucro opaco (bg-stone-50, il colore normale della
-          pagina) attorno a tutto ciò che sta dalla cima della Home fino alla
-          fine dell'hero - qui sotto, esclusivamente in questa zona, lo
-          sfondo fisso del sito non deve vedersi. È un div normale, non
-          posizionato: la sua altezza segue automaticamente il suo contenuto
-          (l'hero, in entrambe le varianti Android/desktop), senza bisogno
-          di calcolare o indovinare un'altezza fissa. */}
-      <div className="relative z-[1] bg-stone-50">
-        {isAndroid ? (
-          <div ref={heroScrollRef} className="relative w-full overflow-x-auto overflow-y-hidden mt-2 android-hero-scroll">
-            <div className="h-[400px] w-max flex items-center">
+      {isAndroid ? (
+        <div ref={heroScrollRef} className="relative w-full overflow-x-auto overflow-y-hidden mt-2 android-hero-scroll">
+          <div className="h-[400px] w-max flex items-center">
+            <img 
+              ref={heroImgRef}
+              src="/hero-2.png" 
+              alt="Re-love Hero Completa"
+              className="h-full w-auto max-w-none object-contain object-center"
+              onLoad={() => centerHeroScroll(false)}
+            />
+          </div>
+        </div>
+      ) : (
+        <div className="relative w-full aspect-[16/9] max-h-[580px] flex flex-col items-center justify-center overflow-hidden bg-transparent mt-2">
+            <div className="absolute inset-0 z-0 w-full h-full">
               <img 
-                ref={heroImgRef}
                 src="/hero-2.png" 
                 alt="Re-love Hero Completa"
-                className="h-full w-auto max-w-none object-contain object-center"
-                onLoad={() => centerHeroScroll(false)}
+                className="w-full h-full object-contain object-center scale-100"
               />
             </div>
-          </div>
-        ) : (
-          <div className="relative w-full aspect-[16/9] max-h-[580px] flex flex-col items-center justify-center overflow-hidden bg-transparent mt-2">
-              <div className="absolute inset-0 z-0 w-full h-full">
-                <img 
-                  src="/hero-2.png" 
-                  alt="Re-love Hero Completa"
-                  className="w-full h-full object-contain object-center scale-100"
-                />
-              </div>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
 
       <div className="w-full max-w-[1750px] mx-auto px-4 md:px-6 mt-6 lg:-mt-12 relative z-20 flex flex-col lg:flex-row gap-6">
         
