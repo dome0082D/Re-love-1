@@ -218,7 +218,7 @@ body {
   background-size: contain;
   background-position: center center;
   background-repeat: no-repeat;
-  background-color: #dce8ee;
+  background-color: #fafaf9;
   pointer-events: none;
 }
 
@@ -256,4 +256,3 @@ body {
 .rounded-tl-none { border-top-left-radius: 0; }
 .rounded-br-sm { border-bottom-right-radius: 0.125rem; }
 .rounded-bl-sm { border-bottom-left-radius: 0.125rem; }
-
