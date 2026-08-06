@@ -188,6 +188,24 @@ body {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+/*
+  FIX ANDROID: il popup delle notifiche (e i messaggi a scomparsa in genere)
+  compariva TAGLIATO in alto. Causa: in layout.tsx abbiamo attivato
+  "viewportFit: cover", che permette al sito di disegnare anche sotto le
+  barre di sistema del telefono - ottimo per lo sfondo, ma significa che
+  un elemento ancorato a "top: 0" finisce fisicamente sotto la barra di
+  stato (orologio, batteria) e i suoi primi pixel diventano invisibili.
+  Qui spingiamo giù di quanto serve tutto ciò che è ancorato in alto:
+  il popup delle notifiche di Sonner e qualunque elemento "fixed top-0".
+*/
+[data-sonner-toaster] {
+  top: calc(env(safe-area-inset-top, 0px) + 0.75rem) !important;
+}
+
+.notification-safe-top {
+  top: calc(env(safe-area-inset-top, 0px) + 0.75rem);
+}
+
 /* Stessa idea applicata allo spazio in fondo alla pagina, così l'ultimo
    contenuto della Home (il gioco) non resta comunque coperto dalla barra
    ora più alta su telefoni con una barra di sistema più ingombrante. */

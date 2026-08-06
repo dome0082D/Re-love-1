@@ -559,28 +559,59 @@ function HomePageContent() {
         }
       },
       (geoError) => {
-        // FIX: prima "timeout" e "posizione non disponibile" mostravano lo
-        // stesso identico messaggio generico ("Impossibile ottenere la
-        // posizione. Riprova.") - un semplice "riprova" non aiuta se il
-        // problema vero è che il GPS del telefono è spento, o se
-        // l'app/browser non ha il permesso di localizzazione a livello di
-        // Android (un permesso diverso da quello richiesto dentro il sito,
-        // va concesso nelle Impostazioni del telefono). Ora ogni caso ha un
-        // messaggio che dice cosa controllare davvero.
+        // FIX: il primo tentativo usa enableHighAccuracy:false (posizione
+        // approssimativa da WiFi/celle telefoniche: veloce e a basso consumo).
+        // Su molti telefoni Android, però, quel metodo fallisce del tutto se
+        // il WiFi è spento o se il servizio di localizzazione di Google non
+        // risponde - restituendo timeout anche dove il GPS vero funzionerebbe
+        // benissimo. Invece di arrenderci al primo errore, riproviamo UNA
+        // volta col GPS vero (enableHighAccuracy:true, più lento ma
+        // indipendente dalla rete) e con la cache disattivata.
         if (geoError.code === geoError.PERMISSION_DENIED) {
           toast.error("Permesso di localizzazione negato. Abilitalo nelle impostazioni del browser.")
-        } else if (geoError.code === geoError.TIMEOUT) {
-          toast.error("Rilevamento posizione troppo lento. Controlla che il GPS sia attivo e riprova.")
-        } else {
-          toast.error("Posizione non disponibile. Controlla che la localizzazione sia attiva nelle impostazioni del telefono, non solo nel browser.")
+          setDistance(0)
+          return
         }
+
+        toast("Rilevamento in corso col GPS, attendi qualche secondo...", { duration: 4000 })
+
+        navigator.geolocation.getCurrentPosition(
+          async (pos) => {
+            setDistance(20)
+            try {
+              const { data, error } = await supabase.rpc('get_nearby_announcements', {
+                user_lat: pos.coords.latitude,
+                user_lon: pos.coords.longitude,
+                radius_meters: 20000
+              })
+              if (!error && data) {
+                setAnnouncements(data as Announcement[])
+                toast.success("Annunci vicini a te caricati!")
+              } else if (error) {
+                toast.error("Errore nella ricerca per zona.")
+                setDistance(0)
+              }
+            } catch (err) {
+              console.error('Nearby search error:', err)
+              toast.error("Errore nella ricerca per zona.")
+              setDistance(0)
+            }
+          },
+          (secondError) => {
+            console.error('Geolocalizzazione fallita anche col GPS:', secondError)
+            if (secondError.code === secondError.TIMEOUT) {
+              toast.error("Il GPS non risponde. Controlla che la localizzazione sia ATTIVA nelle impostazioni del telefono (non solo nel browser) e che tu non sia in un luogo chiuso.")
+            } else {
+              toast.error("Posizione non disponibile. Attiva la localizzazione dalle impostazioni Android e riprova.")
+            }
+            setDistance(0)
+          },
+          // Secondo tentativo: GPS vero, più tempo, nessuna cache
+          { enableHighAccuracy: true, timeout: 25000, maximumAge: 0 }
+        )
       },
-      // FIX: timeout portato da 10 a 20 secondi - con enableHighAccuracy
-      // disattivato (usa reti WiFi/celle invece del GPS puro, per consumare
-      // meno batteria) il rilevamento può richiedere più di 10 secondi in
-      // alcune condizioni, causando un fallimento anche quando la posizione
-      // sarebbe stata individuata con qualche secondo in più.
-      { enableHighAccuracy: false, timeout: 20000, maximumAge: 60000 }
+      // Primo tentativo: veloce e a basso consumo (WiFi/celle)
+      { enableHighAccuracy: false, timeout: 12000, maximumAge: 60000 }
     )
   }
 
@@ -754,10 +785,16 @@ function HomePageContent() {
         <main className="flex-1 w-full overflow-hidden order-1 lg:order-2">
           
           <div className="w-full max-w-[1170px] mx-auto mt-8 mb-8 px-2">
-            <div className="w-full rounded-[2rem] overflow-hidden border border-stone-200 shadow-md bg-[#f5efdf] flex items-center justify-center h-[210px] p-1">
+            {/* FIX: il video riempie ora il 96% del riquadro (era molto più
+                piccolo), restando perfettamente centrato in entrambe le
+                direzioni. Il riquadro NON cambia dimensione: resta h-[210px]
+                come prima, è solo il video dentro a crescere.
+                "object-cover" invece di "contain" fa sì che riempia davvero
+                tutto lo spazio del 96% senza lasciare bande vuote ai lati. */}
+            <div className="w-full rounded-[2rem] overflow-hidden border border-stone-200 shadow-md bg-[#f5efdf] flex items-center justify-center h-[210px]">
               <video 
                 src="/hero-video.mp4" 
-                className="w-full h-full object-contain block"
+                className="w-[96%] h-[96%] object-cover block rounded-[1.5rem]"
                 autoPlay 
                 muted 
                 loop 
@@ -958,6 +995,38 @@ function HomePageContent() {
 
           <section className="mb-12 max-w-[1300px] mx-auto px-2">
             <div className="bg-white p-6 rounded-[2.5rem] shadow-md border border-stone-200 flex flex-col gap-8">
+              {/* FIX: rimesso qui il campo di ricerca testuale. Quando ho tolto
+                  la barra sopra l'hero (su richiesta), è sparito ANCHE l'unico
+                  posto dove scrivere cosa cercare: i menu a tendina qui sotto
+                  filtravano ancora, ma "cerca per nome" non funzionava più
+                  perché non c'era più nessun campo che lo alimentasse. Ora sta
+                  dentro il pannello filtri, dove serve davvero. Riattiva anche
+                  i risultati dai siti partner quando la ricerca interna è
+                  vuota, che dipendevano dallo stesso campo. */}
+              <div className="flex flex-col gap-2">
+                <label className="text-[9px] font-black uppercase text-stone-900 ml-2 tracking-widest">Cerca per nome</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+                    <Search className="text-stone-400" size={18} strokeWidth={2.5} />
+                  </div>
+                  <input
+                    type="text"
+                    value={mainSearch}
+                    placeholder="Cerca vestiti, elettronica, arredamento..."
+                    className="w-full py-3 pl-12 pr-16 rounded-xl bg-stone-50 border border-stone-200 outline-none text-sm font-bold text-stone-900 focus:bg-white focus:border-rose-400 transition-all placeholder:text-stone-400"
+                    onChange={(e) => setMainSearch(e.target.value)}
+                  />
+                  <button
+                    onClick={handleVoiceSearch}
+                    type="button"
+                    title={isListening ? "In ascolto..." : "Ricerca con la voce"}
+                    className={`absolute inset-y-1.5 right-1.5 w-10 rounded-lg flex items-center justify-center transition-all ${isListening ? 'bg-rose-600 text-white' : 'bg-stone-100 text-rose-500 hover:bg-stone-200'}`}
+                  >
+                    {isListening ? <Mic size={18} /> : <MicOff size={18} />}
+                  </button>
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                 <div className="flex flex-col gap-2">
                   <label className="text-[9px] font-black uppercase text-stone-900 ml-2 tracking-widest">Categoria</label>

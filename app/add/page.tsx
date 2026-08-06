@@ -276,22 +276,22 @@ function AddAnnouncementForm() {
         <p className="text-stone-400 font-bold text-xs uppercase tracking-widest mb-12 text-center">Scegli la tipologia del tuo annuncio</p>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl w-full">
-          <Link href="/add?mode=new" className="p-10 border border-stone-200 rounded-[2.5rem] text-center hover:border-rose-400 hover:shadow-xl transition-all group">
+          <Link href="/add?mode=new" className="p-10 bg-white border border-stone-200 rounded-[2.5rem] text-center hover:border-rose-400 hover:shadow-xl transition-all group">
              <div className="text-5xl mb-4 group-hover:scale-110 transition-transform">✨</div>
              <h3 className="text-2xl font-black uppercase text-stone-900">Nuovo</h3>
              <p className="text-[10px] font-bold text-stone-400 mt-2 uppercase tracking-widest">Sigillato o mai usato</p>
           </Link>
-          <Link href="/add?mode=used" className="p-10 border border-stone-200 rounded-[2.5rem] text-center hover:border-orange-400 hover:shadow-xl transition-all group">
+          <Link href="/add?mode=used" className="p-10 bg-white border border-stone-200 rounded-[2.5rem] text-center hover:border-orange-400 hover:shadow-xl transition-all group">
              <div className="text-5xl mb-4 group-hover:scale-110 transition-transform">♻️</div>
              <h3 className="text-2xl font-black uppercase text-stone-900">Usato</h3>
              <p className="text-[10px] font-bold text-stone-400 mt-2 uppercase tracking-widest">Dai una seconda vita</p>
           </Link>
-          <Link href="/add?mode=gift" className="p-10 border border-stone-200 rounded-[2.5rem] text-center hover:border-red-400 hover:shadow-xl transition-all group">
+          <Link href="/add?mode=gift" className="p-10 bg-white border border-stone-200 rounded-[2.5rem] text-center hover:border-red-400 hover:shadow-xl transition-all group">
              <div className="text-5xl mb-4 group-hover:scale-110 transition-transform">🎁</div>
              <h3 className="text-2xl font-black uppercase text-stone-900">Regalo</h3>
              <p className="text-[10px] font-bold text-stone-400 mt-2 uppercase tracking-widest">Dona a chi ha bisogno</p>
           </Link>
-          <Link href="/add?mode=barter" className="p-10 border border-stone-200 rounded-[2.5rem] text-center hover:border-blue-400 hover:shadow-xl transition-all group">
+          <Link href="/add?mode=barter" className="p-10 bg-white border border-stone-200 rounded-[2.5rem] text-center hover:border-blue-400 hover:shadow-xl transition-all group">
              <div className="text-5xl mb-4 group-hover:scale-110 transition-transform">🤝</div>
              <h3 className="text-2xl font-black uppercase text-stone-900">Baratto</h3>
              <p className="text-[10px] font-bold text-stone-400 mt-2 uppercase tracking-widest">Scambia senza soldi</p>
