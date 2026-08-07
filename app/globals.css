@@ -213,17 +213,6 @@ body {
   padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0px));
 }
 
-.android-top-safe-offset {
-  padding-top: 0;
-  margin-top: 0;
-}
-
-@supports (height: 100dvh) {
-  .android-top-safe-offset {
-    min-height: 100dvh;
-  }
-}
-
 /*
   SFONDO FISSO DEL SITO. "position: fixed" lo ancora al VIEWPORT (lo schermo),
   non al documento - resta fermo mentre tutto il resto scorre sopra di lui,
