@@ -242,6 +242,11 @@ function ProfileContent() {
   async function handleDelete(e: React.MouseEvent, id: string) {
     e.preventDefault(); 
     e.stopPropagation();
+
+    if (!user?.email || user.email !== 'dome0082@gmail.com') {
+      alert("Solo lo staff può cancellare gli annunci.");
+      return;
+    }
     
     if (!window.confirm("Vuoi davvero eliminare questo annuncio?")) return;
     const { error } = await supabase.from('announcements').delete().eq('id', id);
@@ -275,9 +280,11 @@ function ProfileContent() {
                    <Link href={`/edit/${ann.id}`} className="text-center bg-stone-100 text-stone-600 text-[8px] font-black uppercase py-2 rounded-lg hover:bg-stone-900 hover:text-white transition-all">
                      ✏️ Modifica
                    </Link>
-                   <button onClick={(e) => handleDelete(e, ann.id)} className="bg-stone-50 text-rose-500 text-[8px] font-black uppercase py-2 rounded-lg hover:bg-rose-500 hover:text-white transition-all">
-                     🗑️ Elimina
-                   </button>
+                   {user?.email === 'dome0082@gmail.com' && (
+                     <button onClick={(e) => handleDelete(e, ann.id)} className="bg-stone-50 text-rose-500 text-[8px] font-black uppercase py-2 rounded-lg hover:bg-rose-500 hover:text-white transition-all">
+                       🗑️ Elimina
+                     </button>
+                   )}
                  </div>
                ) : (
                  <Link href={`/announcement/${ann.id}`} className="mt-3 block text-center w-full bg-stone-50 text-stone-800 text-[9px] font-black uppercase py-2 rounded-lg hover:bg-stone-900 hover:text-white transition-all">

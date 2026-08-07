@@ -13,6 +13,7 @@ function DashboardContent() {
   const [announcements, setAnnouncements] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
+  const [isStaff, setIsStaff] = useState(false)
   
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -48,6 +49,7 @@ function DashboardContent() {
     setLoading(true)
     setLoadError(false)
     const { data: { user } } = await supabase.auth.getUser()
+    setIsStaff(user?.email === 'dome0082@gmail.com')
     if (!user) {
       // FIX: mancava lo spegnimento del caricamento prima di uscire - chi
       // non era loggato restava a fissare "Caricamento in corso..." per
@@ -75,6 +77,11 @@ function DashboardContent() {
   }
 
   const handleDelete = async (id: string) => {
+    if (!isStaff) {
+      toast.error('Solo lo staff può cancellare gli annunci.')
+      return
+    }
+
     if (!confirm('Sei sicuro di voler eliminare questo annuncio?')) return
 
     // L'annuncio sparisce dalla dashboard solo DOPO conferma dal database:
@@ -135,7 +142,9 @@ function DashboardContent() {
                 <div className="space-y-2">
                   <div className="flex gap-2">
                     <Link href={`/announcement/${ad.id}`} className="flex-1 text-center bg-stone-100 text-stone-700 text-[10px] font-bold uppercase py-2 rounded-lg hover:bg-stone-200 transition-all">Vedi</Link>
-                    <button onClick={() => handleDelete(ad.id)} className="flex-1 bg-red-50 text-red-500 text-[10px] font-bold uppercase py-2 rounded-lg hover:bg-red-100 transition-all">Elimina</button>
+                    {isStaff && (
+                      <button onClick={() => handleDelete(ad.id)} className="flex-1 bg-red-50 text-red-500 text-[10px] font-bold uppercase py-2 rounded-lg hover:bg-red-100 transition-all">Elimina</button>
+                    )}
                   </div>
                   {!ad.is_sponsored && (
                     // FIX: questo pulsante avviava il VECCHIO sistema di

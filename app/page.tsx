@@ -435,16 +435,17 @@ function HomePageContent() {
     }
   }
 
-  const handleDeleteChat = async (id: string, msgUserId: string) => {
-    if (IS_STAFF || user?.id === msgUserId) {
-      const { error } = await supabase.from('global_chat').delete().eq('id', id)
-      if (error) {
-        toast.error("Errore durante l'eliminazione del messaggio.")
-      } else {
-        toast.success("Messaggio eliminato.")
-      }
+  const handleDeleteChat = async (id: string) => {
+    if (!IS_STAFF) {
+      toast.error("Solo lo staff può cancellare i messaggi della chat globale.")
+      return
+    }
+
+    const { error } = await supabase.from('global_chat').delete().eq('id', id)
+    if (error) {
+      toast.error("Errore durante l'eliminazione del messaggio.")
     } else {
-      toast.error("Non hai i permessi per cancellare questo messaggio.")
+      toast.success("Messaggio eliminato.")
     }
   }
 
@@ -531,6 +532,11 @@ function HomePageContent() {
   }
 
   const handleDeleteCourse = async (id: string) => {
+    if (!IS_STAFF) {
+      toast.error("Solo lo staff può eliminare i laboratori.")
+      return
+    }
+
     if (!confirm("Sei sicuro di voler eliminare questo laboratorio? L'azione è permanente.")) return
 
     const { error } = await supabase.from('workshops').delete().eq('id', id)
@@ -747,7 +753,7 @@ function HomePageContent() {
   )
 
   return (
-    <div className={`min-h-screen font-sans text-stone-900 relative ${isAndroid ? 'page-bottom-clearance' : 'pb-20'}`}>
+    <div className={`min-h-screen font-sans text-stone-900 relative ${isAndroid ? 'page-bottom-clearance android-top-safe-offset' : 'pb-20'}`}>
       {/* FIX: pb-24 solo su Android (invece del solito pb-20) - spazio extra in
           fondo alla pagina perché l'ultimo contenuto (il gioco Galactic Outpost)
           non resti nascosto dietro la barra fissa dei 5 pulsanti, che compare
@@ -934,7 +940,7 @@ function HomePageContent() {
                   ) : (
                     courses.map(course => {
                       const isFounder = user?.email === course.creator;
-                      const canModify = IS_STAFF || isFounder;
+                      const canModify = IS_STAFF;
                       return (
                         <div key={course.id} className="bg-white/80 p-3 rounded-xl border border-stone-200/60 flex items-center justify-between gap-2 shadow-sm group">
                           <Link href={`/laboratori/${course.id}`} className="overflow-hidden flex-1 cursor-pointer hover:opacity-75 transition-opacity">
@@ -1002,7 +1008,8 @@ function HomePageContent() {
                 ) : (
                   chatMessages.map(msg => {
                     const isMine = user?.id === msg.user_id;
-                    const canModify = isMine || IS_STAFF;
+                    const canEdit = isMine;
+                    const canDelete = IS_STAFF;
                     const isEditingThis = editingMsgId === msg.id;
 
                     return (
@@ -1030,16 +1037,18 @@ function HomePageContent() {
                             <p className="leading-snug break-words pr-2 font-medium">{msg.content}</p>
                           )}
 
-                          {canModify && !isEditingThis && (
+                          {(!isEditingThis) && (
                             <div className={`absolute top-1/2 -translate-y-1/2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity bg-white p-1.5 rounded-lg shadow-sm border border-stone-200 ${isMine ? 'right-full mr-2' : 'left-full ml-2'}`}>
-                              {isMine && (
+                              {canEdit && (
                                 <button onClick={() => { setEditingMsgId(msg.id); setEditMsgContent(msg.content); }} className="text-stone-400 hover:text-stone-900 transition-colors">
                                   <Edit2 size={14} />
                                 </button>
                               )}
-                              <button onClick={() => handleDeleteChat(msg.id, msg.user_id)} className="text-stone-400 hover:text-red-500 transition-colors">
-                                <Trash2 size={14} />
-                              </button>
+                              {canDelete && (
+                                <button onClick={() => handleDeleteChat(msg.id)} className="text-stone-400 hover:text-red-500 transition-colors">
+                                  <Trash2 size={14} />
+                                </button>
+                              )}
                             </div>
                           )}
                         </div>

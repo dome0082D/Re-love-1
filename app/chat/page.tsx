@@ -182,7 +182,12 @@ export default function ChatPage() {
     setNewMessage(prev => prev + emoji)
   }
 
-  async function handleDeleteMessage(messageId: string) {
+  async function handleDeleteMessage(messageId: string, senderId?: string) {
+    if (!IS_STAFF && senderId !== user?.id) {
+      alert("Puoi eliminare solo i tuoi messaggi privati.")
+      return
+    }
+
     if (!confirm("Eliminare definitivamente questo messaggio? L'azione è irreversibile.")) return
     try {
       const { error } = await supabase.from('messages').delete().eq('id', messageId)
@@ -195,6 +200,11 @@ export default function ChatPage() {
   }
 
   async function handleDeleteConversation(pairKey: string) {
+    if (!IS_STAFF) {
+      alert("Solo lo staff può eliminare l'intera conversazione.")
+      return
+    }
+
     const [u1, u2] = pairKey.split('_')
     const otherUserId = u1 === user?.id ? u2 : u1
 
@@ -252,9 +262,11 @@ export default function ChatPage() {
         <div className="flex gap-4 items-center">
           {activeChatPair ? (
             <>
-              <button onClick={() => handleDeleteConversation(activeChatPair)} className="text-[10px] font-black uppercase text-stone-400 hover:text-red-500 transition-colors flex items-center gap-1">
-                <Trash2 size={12} /> {IS_STAFF ? 'Elimina Chat (Staff)' : 'Elimina Chat'}
-              </button>
+              {IS_STAFF && (
+                <button onClick={() => handleDeleteConversation(activeChatPair)} className="text-[10px] font-black uppercase text-stone-400 hover:text-red-500 transition-colors flex items-center gap-1">
+                  <Trash2 size={12} /> Elimina Chat (Staff)
+                </button>
+              )}
               <button onClick={() => {setActiveChatPair(null); setShowEmojis(false);}} className="text-[10px] font-black uppercase text-stone-400 hover:text-rose-500 transition-colors">← Indietro</button>
             </>
           ) : (
@@ -309,8 +321,8 @@ export default function ChatPage() {
               return (
                 <div key={m.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                   <div className="relative max-w-[80%] flex items-center gap-2">
-                    {IS_STAFF && isMe && (
-                      <button onClick={() => handleDeleteMessage(m.id)} title="Elimina messaggio (Staff)" className="order-first text-stone-300 hover:text-red-500 transition-colors shrink-0">
+                    {(IS_STAFF || isMe) && (
+                      <button onClick={() => handleDeleteMessage(m.id, m.sender_id)} title={IS_STAFF ? 'Elimina messaggio (Staff)' : 'Elimina il tuo messaggio'} className="order-first text-stone-300 hover:text-red-500 transition-colors shrink-0">
                         <Trash2 size={14} />
                       </button>
                     )}
@@ -318,7 +330,7 @@ export default function ChatPage() {
                       {m.content}
                     </div>
                     {IS_STAFF && !isMe && (
-                      <button onClick={() => handleDeleteMessage(m.id)} title="Elimina messaggio (Staff)" className="text-stone-300 hover:text-red-500 transition-colors shrink-0">
+                      <button onClick={() => handleDeleteMessage(m.id, m.sender_id)} title="Elimina messaggio (Staff)" className="text-stone-300 hover:text-red-500 transition-colors shrink-0">
                         <Trash2 size={14} />
                       </button>
                     )}
