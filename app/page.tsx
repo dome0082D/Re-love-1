@@ -130,6 +130,7 @@ function HomePageContent() {
   const [distance, setDistance] = useState(0) 
   
   const [visibleCount, setVisibleCount] = useState(12)
+  const initialVisibleCount = isAndroid ? 6 : 12
   // FIX: il pulsante corona (staff) è "fixed" quindi galleggia sopra
   // qualunque cosa si trovi in quel punto dello schermo - all'inizio pagina
   // finiva proprio sopra l'immagine hero, sovrapposto all'illustrazione.
@@ -218,9 +219,7 @@ function HomePageContent() {
     }
   }, [isAndroid])
 
-  useEffect(() => {
-    setVisibleCount(isAndroid ? 6 : 12)
-  }, [isAndroid])
+  const visibleCountValue = isAndroid ? Math.min(initialVisibleCount, visibleCount) : visibleCount
 
   // FIX: prima lo scroll orizzontale dell'hero era gestito dal solo CSS
   // (touch-action: pan-x), che in teoria lascia passare i gesti verticali
@@ -1281,7 +1280,7 @@ function HomePageContent() {
               </div>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-5">
-                {regularItems.slice(0, visibleCount).map(item => (
+                {regularItems.slice(0, visibleCountValue).map(item => (
                   <div key={item.id} className={`group bg-white rounded-3xl overflow-hidden shadow-sm border ${item.is_sponsored ? 'border-orange-400' : 'border-stone-200'} hover:bg-stone-50 transition-all flex flex-col relative`}>
                     {item.is_sponsored && (
                       <div className="absolute top-0 left-0 bg-orange-500 text-white text-[7px] font-black uppercase px-2 py-1 rounded-br-xl z-40 tracking-widest shadow-sm">
@@ -1310,7 +1309,7 @@ function HomePageContent() {
               </div>
             )}
 
-            {!loading && regularItems.length > visibleCount && (
+            {!loading && regularItems.length > visibleCountValue && (
               <div className="mt-12 flex justify-center w-full">
                 <button 
                   onClick={() => setVisibleCount(prev => prev + 12)}
