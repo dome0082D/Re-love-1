@@ -167,17 +167,21 @@ function HomePageContent() {
   const typeFilter = searchParams.get('type')
   const IS_STAFF = user?.email === 'dome0082@gmail.com';
 
-  useEffect(() => { 
-    fetchInitialData() 
+  useEffect(() => {
+    void fetchInitialData()
 
-    fetchChatMessages()
+    const chatTimer = window.setTimeout(() => {
+      void fetchChatMessages()
+    }, 350)
+
     const chatChannel = supabase.channel('public:global_chat')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'global_chat' }, () => {
-        fetchChatMessages()
+        void fetchChatMessages()
       })
       .subscribe()
-      
+
     return () => {
+      window.clearTimeout(chatTimer)
       supabase.removeChannel(chatChannel)
       if (recognitionRef.current) {
         try { recognitionRef.current.stop() } catch { /* già fermo */ }
@@ -212,6 +216,10 @@ function HomePageContent() {
     if (isAndroid && heroImgRef.current?.complete) {
       centerHeroScroll(false)
     }
+  }, [isAndroid])
+
+  useEffect(() => {
+    setVisibleCount(isAndroid ? 6 : 12)
   }, [isAndroid])
 
   // FIX: prima lo scroll orizzontale dell'hero era gestito dal solo CSS
@@ -337,15 +345,24 @@ function HomePageContent() {
 
   async function fetchInitialData() {
     setLoading(true)
+
     const { data: { user: u } } = await supabase.auth.getUser()
     setUser(u)
 
-    const { data: ads, error } = await supabase
-      .from('announcements')
-      .select('*')
-      .order('created_at', { ascending: false })
+    const [adsResult, wsResult, membersResult] = await Promise.all([
+      supabase
+        .from('announcements')
+        .select('id,title,description,price,quantity,category_id,condition,image_url,user_id,created_at,is_sponsored,latitude,longitude')
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('workshops')
+        .select('id,title,category,creator_email,created_at')
+        .order('created_at', { ascending: false }),
+      supabase.from('workshop_members').select('workshop_id')
+    ])
 
-    if (!error && Array.isArray(ads)) {
+    const { data: ads, error: adsError } = adsResult
+    if (!adsError && Array.isArray(ads)) {
       setAnnouncements(ads as Announcement[])
     }
 
@@ -356,13 +373,10 @@ function HomePageContent() {
       }
     }
 
-    const { data: wsData } = await supabase
-      .from('workshops')
-      .select('*')
-      .order('created_at', { ascending: false })
+    const { data: wsData, error: wsError } = wsResult
+    const { data: membersData } = membersResult
 
-    if (Array.isArray(wsData)) {
-      const { data: membersData } = await supabase.from('workshop_members').select('*')
+    if (!wsError && Array.isArray(wsData)) {
       const realCourses: CourseItem[] = wsData.map((ws: Record<string, unknown>) => {
         const membersCount = Array.isArray(membersData)
           ? membersData.filter((m: Record<string, unknown>) => m.workshop_id === ws.id).length
@@ -385,7 +399,7 @@ function HomePageContent() {
   async function fetchChatMessages() {
     const { data, error } = await supabase
       .from('global_chat')
-      .select('*')
+      .select('id,user_email,user_id,content,created_at')
       .order('created_at', { ascending: true })
       .limit(100)
 
@@ -721,7 +735,7 @@ function HomePageContent() {
     return 0; 
   })
 
-  const topItems = sortedData.filter(i => i.condition === 'Nuovo').slice(0, 5)
+  const topItems = sortedData.filter(i => i.condition === 'Nuovo').slice(0, isAndroid ? 3 : 5)
   const regularItems = sortedData.filter(i => !topItems.find(t => t.id === i.id))
 
   const SkeletonCard = ({ isTop = false }) => (
