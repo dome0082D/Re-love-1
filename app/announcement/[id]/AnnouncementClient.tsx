@@ -600,8 +600,7 @@ function AnnouncementContent() {
                     <div className="p-4 bg-white/40 rounded-2xl text-center border border-white/50">
                       <p className="text-[10px] font-black uppercase text-stone-900">Questo è il tuo annuncio</p>
                     </div>
-                    {!ann.is_sponsored && (
-                    {/* FIX: questo pulsante avviava il VECCHIO sistema di
+                    {/* Il pulsante qui sotto avviava il VECCHIO sistema di
                         sponsorizzazione (/api/stripe/sponsor), in parallelo
                         alla Vetrina che nel frattempo abbiamo costruito e
                         che - come mi hai confermato - è la stessa identica
@@ -609,12 +608,13 @@ function AnnouncementContent() {
                         flusso della Vetrina con questo annuncio già
                         preselezionato, esattamente come il pulsante gemello
                         nella dashboard "Gestione Annunci". */}
-                    <Link
-                      href={`/vetrina?create=interna&ad_id=${ann.id}`}
-                      className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-orange-400 to-rose-500 text-white p-5 rounded-2xl font-black uppercase text-xs tracking-[0.2em] shadow-xl hover:scale-105 transition-transform"
-                    >
-                       <Sparkles size={16} /> Metti in Vetrina (2,99€)
-                    </Link>
+                    {!ann.is_sponsored && (
+                      <Link
+                        href={`/vetrina?create=interna&ad_id=${ann.id}`}
+                        className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-orange-400 to-rose-500 text-white p-5 rounded-2xl font-black uppercase text-xs tracking-[0.2em] shadow-xl hover:scale-105 transition-transform"
+                      >
+                        <Sparkles size={16} /> Metti in Vetrina (2,99€)
+                      </Link>
                     )}
                  </div>
                )}
