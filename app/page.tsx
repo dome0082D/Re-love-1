@@ -1,10 +1,12 @@
 'use client'
 export const dynamic = 'force-dynamic'
 
+/* eslint-disable @next/next/no-img-element */
+
 import { useEffect, useState, Suspense, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { User } from '@supabase/supabase-js'
 import { Mic, MicOff, Search, MapPin, Heart, Crown, Mail, Plus, Send, Trash2, Edit2, X, BookOpen, MessageCircle, Sparkles, User as UserIcon } from 'lucide-react'
 import { toast } from 'sonner'
@@ -47,6 +49,54 @@ interface Announcement {
   user_id: string;
   created_at: string;
   is_sponsored?: boolean;
+  latitude?: number | null;
+  longitude?: number | null;
+}
+
+interface SpeechRecognitionEventLike {
+  resultIndex: number
+  results: ArrayLike<ArrayLike<{ transcript: string }>>
+}
+
+interface SpeechRecognitionErrorLike {
+  error?: string
+}
+
+interface SpeechRecognitionLike {
+  lang: string
+  continuous: boolean
+  interimResults: boolean
+  onstart: (() => void) | null
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null
+  onerror: ((event: SpeechRecognitionErrorLike) => void) | null
+  onend: (() => void) | null
+  start: () => void
+  stop: () => void
+}
+
+interface SpeechRecognitionConstructor {
+  new (): SpeechRecognitionLike
+}
+
+type WindowWithSpeech = Window & typeof globalThis & {
+  SpeechRecognition?: SpeechRecognitionConstructor
+  webkitSpeechRecognition?: SpeechRecognitionConstructor
+}
+
+interface CourseItem {
+  id: string
+  title: string
+  category?: string
+  creator?: string
+  members: number
+}
+
+interface ChatMessageItem {
+  id: string
+  user_email: string
+  user_id: string
+  content: string
+  created_at?: string
 }
 
 const Tooltip = ({ children, text, wrapperClass = "relative w-full h-full" }: { children: React.ReactNode, text: string, wrapperClass?: string }) => {
@@ -87,7 +137,7 @@ function HomePageContent() {
   // delle app: compare quando serve, non appena si apre la pagina.
   const [showStaffButton, setShowStaffButton] = useState(false)
 
-  const [courses, setCourses] = useState<any[]>([])
+  const [courses, setCourses] = useState<CourseItem[]>([])
   
   const [newCourseTitle, setNewCourseTitle] = useState('')
   
@@ -105,12 +155,12 @@ function HomePageContent() {
   })
   const [creatingCourse, setCreatingCourse] = useState(false)
 
-  const [chatMessages, setChatMessages] = useState<any[]>([])
+  const [chatMessages, setChatMessages] = useState<ChatMessageItem[]>([])
   const [newChatMessage, setNewChatMessage] = useState('')
   const [editingMsgId, setEditingMsgId] = useState<string | null>(null)
   const [editMsgContent, setEditMsgContent] = useState('')
   const chatContainerRef = useRef<HTMLDivElement>(null)
-  const recognitionRef = useRef<any>(null)
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
   
   const searchParams = useSearchParams()
   const catFilter = searchParams.get('cat')
@@ -289,36 +339,41 @@ function HomePageContent() {
     setLoading(true)
     const { data: { user: u } } = await supabase.auth.getUser()
     setUser(u)
-    
+
     const { data: ads, error } = await supabase
       .from('announcements')
       .select('*')
       .order('created_at', { ascending: false })
 
-    if (!error && ads) {
+    if (!error && Array.isArray(ads)) {
       setAnnouncements(ads as Announcement[])
     }
-    
+
     if (u) {
       const { data: favs } = await supabase.from('favorites').select('announcement_id').eq('user_id', u.id)
-      if (favs) setFavorites(favs.map(f => f.announcement_id))
+      if (Array.isArray(favs)) {
+        setFavorites(favs.map((f: { announcement_id: string }) => f.announcement_id))
+      }
     }
 
     const { data: wsData } = await supabase
       .from('workshops')
       .select('*')
       .order('created_at', { ascending: false })
-      
-    if (wsData) {
+
+    if (Array.isArray(wsData)) {
       const { data: membersData } = await supabase.from('workshop_members').select('*')
-      const realCourses = wsData.map(ws => {
-        const membersCount = membersData ? membersData.filter(m => m.workshop_id === ws.id).length : 0;
+      const realCourses: CourseItem[] = wsData.map((ws: Record<string, unknown>) => {
+        const membersCount = Array.isArray(membersData)
+          ? membersData.filter((m: Record<string, unknown>) => m.workshop_id === ws.id).length
+          : 0
+
         return {
-          id: ws.id,
-          title: ws.title,
-          category: ws.category,
-          creator: ws.creator_email,
-          members: membersCount + 1
+          id: String(ws.id ?? ''),
+          title: String(ws.title ?? ''),
+          category: typeof ws.category === 'string' ? ws.category : undefined,
+          creator: typeof ws.creator_email === 'string' ? ws.creator_email : undefined,
+          members: membersCount + 1,
         }
       })
       setCourses(realCourses)
@@ -333,9 +388,9 @@ function HomePageContent() {
       .select('*')
       .order('created_at', { ascending: true })
       .limit(100)
-    
-    if (!error && data) {
-      setChatMessages(data)
+
+    if (!error && Array.isArray(data)) {
+      setChatMessages(data as ChatMessageItem[])
     }
   }
 
@@ -423,7 +478,7 @@ function HomePageContent() {
     }
 
     try {
-      const { data, error } = await supabase.from('workshops').insert([newCourseData]).select()
+      const { error } = await supabase.from('workshops').insert([newCourseData]).select()
       
       if (error) {
         toast.error("C'è stato un problema nel salvataggio. Riprova.")
@@ -483,7 +538,12 @@ function HomePageContent() {
     if (isListening) return;
 
     try {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      const SpeechRecognition = (window as WindowWithSpeech).SpeechRecognition || (window as WindowWithSpeech).webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        toast.error("Il tuo browser non supporta la ricerca vocale.");
+        return;
+      }
+
       const recognition = new SpeechRecognition();
       recognitionRef.current = recognition
 
@@ -496,14 +556,14 @@ function HomePageContent() {
         toast("🎙️ In ascolto... Parla ora", { duration: 3000 });
       };
 
-      recognition.onresult = (event: any) => {
+      recognition.onresult = (event: SpeechRecognitionEventLike) => {
         const current = event.resultIndex;
         const transcript = event.results[current][0].transcript;
         setMainSearch(transcript);
         toast.success(`Hai cercato: "${transcript}"`);
       };
 
-      recognition.onerror = (event: any) => {
+      recognition.onerror = (event: SpeechRecognitionErrorLike) => {
         if (event?.error !== 'no-speech' && event?.error !== 'aborted') {
           toast.error("Non ho capito, riprova.");
         }
@@ -525,6 +585,23 @@ function HomePageContent() {
     }
   }
 
+  async function fetchNearbyAnnouncements(lat: number, lon: number, radiusMeters: number) {
+    const params = new URLSearchParams({
+      lat: lat.toString(),
+      lon: lon.toString(),
+      dist: (radiusMeters / 1000).toString(),
+    })
+
+    const response = await fetch(`/api/announcements/nearby?${params.toString()}`)
+
+    if (!response.ok) {
+      throw new Error(`Nearby API failed: ${response.status}`)
+    }
+
+    const data = await response.json() as Announcement[]
+    return data.filter((item) => Boolean(item.latitude && item.longitude))
+  }
+
   const handleNearbySearch = () => {
     if (distance > 0) { 
       setDistance(0)
@@ -541,14 +618,11 @@ function HomePageContent() {
       async (pos) => {
         setDistance(20) 
         try {
-          const { data, error } = await supabase.rpc('get_nearby_announcements', {
-            user_lat: pos.coords.latitude, 
-            user_lon: pos.coords.longitude, 
-            radius_meters: 20000
-          })
-          if (!error && data) {
+          try {
+            const data = await fetchNearbyAnnouncements(pos.coords.latitude, pos.coords.longitude, 20000)
             setAnnouncements(data as Announcement[])
-          } else if (error) {
+          } catch (error) {
+            console.error('Nearby search error:', error)
             toast.error("Errore nella ricerca per zona.")
             setDistance(0)
           }
@@ -579,15 +653,12 @@ function HomePageContent() {
           async (pos) => {
             setDistance(20)
             try {
-              const { data, error } = await supabase.rpc('get_nearby_announcements', {
-                user_lat: pos.coords.latitude,
-                user_lon: pos.coords.longitude,
-                radius_meters: 20000
-              })
-              if (!error && data) {
+              try {
+                const data = await fetchNearbyAnnouncements(pos.coords.latitude, pos.coords.longitude, 20000)
                 setAnnouncements(data as Announcement[])
                 toast.success("Annunci vicini a te caricati!")
-              } else if (error) {
+              } catch (error) {
+                console.error('Nearby search error:', error)
                 toast.error("Errore nella ricerca per zona.")
                 setDistance(0)
               }

@@ -1,7 +1,13 @@
 // lib/mail.ts
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+function getResendClient() {
+  const apiKey = process.env.RESEND_API_KEY
+  if (!apiKey) return null
+  return new Resend(apiKey)
+}
+
+const resend = getResendClient();
 
 // ============================================================================
 // ⚠️ ATTENZIONE - LEGGI PRIMA DI ANDARE IN PRODUZIONE
@@ -52,7 +58,7 @@ export const sendReLoveEmail = async (
 ): Promise<{ ok: boolean; error?: string }> => {
   // FIX: senza chiave configurata, la libreria fallisce in modo poco chiaro.
   // Meglio dirlo subito ed esplicitamente.
-  if (!process.env.RESEND_API_KEY) {
+  if (!resend) {
     console.error('Errore invio email: RESEND_API_KEY non configurata.');
     return { ok: false, error: 'RESEND_API_KEY non configurata' };
   }
@@ -79,7 +85,7 @@ export const sendReLoveEmail = async (
     // inosservato - questa funzione riportava "tutto ok" anche quando
     // l'email non era mai partita. È lo stesso identico difetto già
     // corretto in app/api/notofy/route.ts.
-    const { data, error } = await resend.emails.send({
+    const { error } = await resend.emails.send({
       from: FROM_ADDRESS,
       to: [to],
       subject: subject,
@@ -108,12 +114,18 @@ export const sendReLoveEmail = async (
 
     if (error) {
       console.error('Errore invio email (Resend):', error);
-      return { ok: false, error: (error as any)?.message || 'Errore invio email' };
+      const message = typeof error === 'object' && error !== null && 'message' in error
+        ? (error as { message?: unknown }).message
+        : undefined;
+      return { ok: false, error: typeof message === 'string' ? message : 'Errore invio email' };
     }
 
     return { ok: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Errore invio email (connessione):', error);
-    return { ok: false, error: error?.message || 'Errore di connessione' };
+    const message = typeof error === 'object' && error !== null && 'message' in error
+      ? (error as { message?: unknown }).message
+      : undefined;
+    return { ok: false, error: typeof message === 'string' ? message : 'Errore di connessione' };
   }
 };

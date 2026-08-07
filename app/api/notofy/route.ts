@@ -1,8 +1,13 @@
 import { NextResponse } from 'next/server';
 import { Resend } from 'resend';
 
-// Inizializza Resend con la tua chiave segreta
-const resend = new Resend(process.env.RESEND_API_KEY);
+function getResendClient() {
+  const apiKey = process.env.RESEND_API_KEY
+  if (!apiKey) return null
+  return new Resend(apiKey)
+}
+
+const resend = getResendClient();
 
 export async function POST(req: Request) {
   try {
@@ -10,6 +15,10 @@ export async function POST(req: Request) {
 
     if (!to || !subject || !htmlContent) {
       return NextResponse.json({ error: "Dati mancanti per l'invio dell'email" }, { status: 400 });
+    }
+
+    if (!resend) {
+      return NextResponse.json({ error: "RESEND_API_KEY non configurata" }, { status: 500 });
     }
 
     const { data, error } = await resend.emails.send({

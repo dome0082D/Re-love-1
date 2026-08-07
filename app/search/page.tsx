@@ -1,9 +1,37 @@
 'use client'
+/* eslint-disable @next/next/no-img-element */
 
 import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
+
+type AnnouncementItem = {
+  id?: string
+  title?: string
+  price?: number | string | null
+  quantity?: number | string | null
+  category_id?: string | number | null
+  condition?: string | null
+  image_url?: string | null
+  city?: string | null
+  region?: string | null
+}
+
+async function fetchAnnouncementsWithFallback({ query, categoryId, condition }: { query?: string; categoryId?: string; condition?: string }) {
+  const params = new URLSearchParams()
+  if (query) params.set('q', query)
+  if (categoryId) params.set('cat', categoryId)
+  if (condition) params.set('cond', condition)
+
+  const response = await fetch(`/api/announcements/search?${params.toString()}`)
+
+  if (!response.ok) {
+    throw new Error(`Search API failed: ${response.status}`)
+  }
+
+  const data = await response.json()
+  return (data ?? []) as AnnouncementItem[]
+}
 
 function SearchContent() {
   const searchParams = useSearchParams()
@@ -19,7 +47,7 @@ function SearchContent() {
   const [selectedCat, setSelectedCat] = useState(categoryParams)
   const [selectedCond, setSelectedCond] = useState(conditionParams)
   
-  const [results, setResults] = useState<any[]>([])
+  const [results, setResults] = useState<AnnouncementItem[]>([])
   const [loading, setLoading] = useState(true)
 
   const categorieFisse = [
@@ -43,38 +71,44 @@ function SearchContent() {
     { id: 'Baratto', name: 'Solo Baratto' }
   ]
 
+  const fetchResults = async () => {
+    setLoading(true)
+
+    try {
+      const data = await fetchAnnouncementsWithFallback({
+        query,
+        categoryId: categoryParams,
+        condition: conditionParams,
+      })
+
+      const filteredData = (data ?? []).filter((item) => {
+        const quantity = Number(item.quantity ?? 0)
+        return quantity > 0 || item.condition === 'Baratto' || item.condition === 'Regalo'
+      })
+      setResults(filteredData)
+    } catch (error) {
+      console.error('Errore ricerca:', error)
+      setResults([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
-    fetchResults()
+    let isMounted = true
+
+    const loadResults = async () => {
+      await fetchResults()
+      if (!isMounted) return
+    }
+
+    void loadResults()
+
+    return () => {
+      isMounted = false
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, categoryParams, conditionParams])
-
-  async function fetchResults() {
-    setLoading(true)
-    
-    let dbQuery = supabase.from('announcements').select('*').order('created_at', { ascending: false })
-
-    // Applica i filtri solo se esistono
-    if (query) {
-      dbQuery = dbQuery.ilike('title', `%${query}%`) // Cerca parole simili nel titolo
-    }
-    if (categoryParams) {
-      dbQuery = dbQuery.eq('category_id', categoryParams)
-    }
-    if (conditionParams) {
-      dbQuery = dbQuery.eq('condition', conditionParams)
-    }
-
-    const { data, error } = await dbQuery
-
-    if (error) {
-      console.error("Errore ricerca:", error)
-    } else if (data) {
-      // Escludi gli annunci con quantità 0 (tranne per il baratto/regalo che potrebbero non usare la quantità)
-      const filteredData = data.filter(item => item.quantity > 0 || item.condition === 'Baratto' || item.condition === 'Regalo')
-      setResults(filteredData)
-    }
-    setLoading(false)
-  }
 
   // Aggiorna l'URL quando l'utente preme "Cerca"
   const handleSearch = (e: React.FormEvent) => {
@@ -150,7 +184,7 @@ function SearchContent() {
                 <Link href={`/announcement/${annuncio.id}`} key={annuncio.id} className="group bg-white rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all border border-stone-100 flex flex-col">
                   <div className="relative h-48 w-full overflow-hidden bg-stone-100">
                     <img 
-                      src={annuncio.image_url} 
+                      src={annuncio.image_url || '/nuovo.png'} 
                       alt={annuncio.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />
@@ -176,7 +210,7 @@ function SearchContent() {
                       ) : annuncio.condition === 'Regalo' ? (
                         <span className="text-sm font-black text-rose-500 uppercase italic">Gratis</span>
                       ) : (
-                        <span className="text-lg font-black text-stone-900">€{annuncio.price.toFixed(2)}</span>
+                        <span className="text-lg font-black text-stone-900">€{Number(annuncio.price ?? 0).toFixed(2)}</span>
                       )}
                       
                       <span className="text-xl group-hover:translate-x-1 transition-transform">→</span>
