@@ -13,6 +13,7 @@ function VetrinaContent() {
   const searchParams = useSearchParams()
 
   const [user, setUser] = useState<any>(null)
+  const IS_STAFF = user?.email === 'dome0082@gmail.com'
   const [activeTab, setActiveTab] = useState<'interna' | 'esterna'>('interna')
   const [internaItems, setInternaItems] = useState<any[]>([])
   const [esternaItems, setEsternaItems] = useState<any[]>([])
@@ -28,6 +29,7 @@ function VetrinaContent() {
   const [extTitle, setExtTitle] = useState('')
   const [extImage, setExtImage] = useState('')
   const [extPrice, setExtPrice] = useState('')
+  const [extShipping, setExtShipping] = useState('')
   const [fetchingPreview, setFetchingPreview] = useState(false)
   const [paying, setPaying] = useState(false)
 
@@ -64,6 +66,21 @@ function VetrinaContent() {
     const { data: { user: u } } = await supabase.auth.getUser()
     setUser(u)
     fetchVetrina()
+  }
+
+  // Potere staff: elimina QUALSIASI voce della Vetrina, di qualunque
+  // utente, direttamente da qui - non serve passare da altre dashboard.
+  async function handleDeleteVetrinaItem(id: string, titolo: string) {
+    if (!confirm(`Eliminare definitivamente "${titolo}" dalla Vetrina?`)) return
+    try {
+      const { error } = await supabase.from('vetrina_items').delete().eq('id', id)
+      if (error) throw error
+      toast.success('Voce eliminata dalla Vetrina.')
+      fetchVetrina()
+    } catch (err: any) {
+      console.error('Errore eliminazione voce vetrina:', err)
+      toast.error("Errore durante l'eliminazione.")
+    }
   }
 
   async function fetchVetrina() {
@@ -176,9 +193,23 @@ function VetrinaContent() {
           title: createType === 'esterna' ? extTitle.trim() : undefined,
           imageUrl: createType === 'esterna' ? extImage : undefined,
           price: createType === 'esterna' ? extPrice : undefined,
+          shippingCost: createType === 'esterna' ? (extShipping || '0') : undefined,
         }),
       })
       const data = await res.json()
+
+      // Vetrina gratuita: la voce e' gia' pubblicata, non c'e' nessun
+      // pagamento da fare. Chiudiamo il modulo e ricarichiamo l'elenco.
+      if (data.gratuita) {
+        toast.success('Pubblicato in Vetrina!')
+        setShowCreateModal(false)
+        setExtUrl(''); setExtTitle(''); setExtImage(''); setExtPrice(''); setExtShipping('')
+        setSelectedAnnouncementId('')
+        setPaying(false)
+        fetchVetrina()
+        return
+      }
+
       if (!res.ok || data.error || !data.url) {
         toast.error(data.error || "Errore nell'avvio del pagamento.")
         setPaying(false)
@@ -269,34 +300,57 @@ function VetrinaContent() {
         ) : activeTab === 'interna' ? (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
             {internaItems.map(item => item.announcements && (
-              <Link key={item.id} href={`/announcement/${item.announcements.id}`} className="group bg-white rounded-[2rem] overflow-hidden border border-orange-300 ring-1 ring-orange-300/40 shadow-md hover:shadow-lg transition-all flex flex-col relative">
+              <div key={item.id} className="group bg-white rounded-[2rem] overflow-hidden border border-orange-300 ring-1 ring-orange-300/40 shadow-md hover:shadow-lg transition-all flex flex-col relative">
                 <div className="absolute top-3 left-3 z-10 bg-gradient-to-r from-rose-500 to-orange-400 text-white text-[8px] font-black uppercase px-3 py-1 rounded-full shadow-sm tracking-widest">
                   ✨ Vetrina
                 </div>
-                <div className="aspect-square bg-stone-50 relative">
-                  <img src={item.announcements.image_url || '/usato.png'} className="w-full h-full object-cover" alt={item.announcements.title} />
-                </div>
-                <div className="p-4">
-                  <h4 className="text-[11px] font-black uppercase truncate text-stone-800">{item.announcements.title}</h4>
-                  <p className="text-lg font-black text-rose-600 italic mt-1">€ {item.announcements.price}</p>
-                </div>
-              </Link>
+                {IS_STAFF && (
+                  <button
+                    onClick={() => handleDeleteVetrinaItem(item.id, item.announcements.title)}
+                    title="Elimina dalla Vetrina (Staff)"
+                    className="absolute top-3 right-3 z-10 bg-stone-900/80 text-white w-7 h-7 rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+                <Link href={`/announcement/${item.announcements.id}`} className="contents">
+                  <div className="aspect-square bg-stone-50 relative">
+                    <img src={item.announcements.image_url || '/usato.png'} className="w-full h-full object-cover" alt={item.announcements.title} />
+                  </div>
+                  <div className="p-4">
+                    <h4 className="text-[11px] font-black uppercase truncate text-stone-800">{item.announcements.title}</h4>
+                    <p className="text-lg font-black text-rose-600 italic mt-1">€ {item.announcements.price}</p>
+                  </div>
+                </Link>
+              </div>
             ))}
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
             {esternaItems.map(item => (
-              <a
+              <div
                 key={item.id}
-                href={item.external_url}
-                target="_blank"
-                rel="noopener noreferrer sponsored"
-                onClick={() => handleExternalClick(item.id)}
                 className="group bg-white rounded-[2rem] overflow-hidden border border-blue-200 shadow-md hover:shadow-lg transition-all flex flex-col relative"
               >
                 <div className="absolute top-3 left-3 z-10 bg-blue-600 text-white text-[8px] font-black uppercase px-3 py-1 rounded-full shadow-sm tracking-widest flex items-center gap-1">
                   <ExternalLink size={9} /> Link Esterno
                 </div>
+                {IS_STAFF && (
+                  <button
+                    onClick={() => handleDeleteVetrinaItem(item.id, item.title)}
+                    title="Elimina dalla Vetrina (Staff)"
+                    className="absolute top-3 right-3 z-10 bg-stone-900/80 text-white w-7 h-7 rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+                <a
+                  href={item.external_url}
+                  target="_blank"
+                  rel="noopener noreferrer sponsored"
+                  onClick={() => handleExternalClick(item.id)}
+                  className="contents"
+                >
                 <div className="aspect-square bg-stone-50 relative">
                   {item.image_url ? (
                     <img src={item.image_url} className="w-full h-full object-contain p-2" alt={item.title} />
@@ -309,11 +363,17 @@ function VetrinaContent() {
                 <div className="p-4">
                   <h4 className="text-[11px] font-black uppercase truncate text-stone-800">{item.title}</h4>
                   <p className="text-lg font-black text-blue-600 italic mt-1">€ {Number(item.price).toFixed(2)}</p>
+                  {Number(item.shipping_cost) > 0 && (
+                    <p className="text-[9px] font-bold text-stone-500 uppercase tracking-widest mt-0.5">
+                      + € {Number(item.shipping_cost).toFixed(2)} spedizione
+                    </p>
+                  )}
                   <p className="text-[8px] font-bold text-stone-400 uppercase tracking-widest mt-1 flex items-center gap-1">
                     <Eye size={10} /> {item.clicks} visite al link
                   </p>
                 </div>
-              </a>
+                </a>
+              </div>
             ))}
           </div>
         )}
@@ -329,7 +389,7 @@ function VetrinaContent() {
               <div className="text-center mb-6">
                 <Sparkles size={48} className="text-rose-500 mx-auto mb-3" />
                 <h2 className="text-2xl font-black uppercase italic text-stone-900">Aggiungi alla Vetrina</h2>
-                <p className="text-[10px] uppercase font-bold text-stone-400 tracking-widest mt-1">2,99€ · Sempre visibile finché attiva</p>
+                <p className="text-[10px] uppercase font-bold text-emerald-600 tracking-widest mt-1">Gratis · Sempre visibile finché attiva</p>
               </div>
 
               <div className="flex gap-2 mb-6 bg-stone-50 p-1.5 rounded-xl border border-stone-100">
@@ -421,6 +481,19 @@ function VetrinaContent() {
                       Questo è il prezzo che vedranno gli utenti - non viene mai preso dal sito collegato.
                     </p>
                   </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-stone-400 tracking-widest ml-2">Spese di spedizione (€, opzionale)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={extShipping}
+                      onChange={(e) => setExtShipping(e.target.value)}
+                      placeholder="0 se gratuita o da concordare"
+                      className="w-full p-4 bg-stone-50 border border-stone-200 rounded-xl font-bold text-sm outline-none mt-1 focus:border-rose-400"
+                    />
+                  </div>
                 </div>
               )}
 
@@ -429,7 +502,7 @@ function VetrinaContent() {
                 disabled={paying}
                 className="w-full bg-rose-600 text-white py-4 rounded-xl font-black uppercase tracking-widest text-xs hover:bg-stone-900 transition-all disabled:opacity-50 mt-6 shadow-md"
               >
-                {paying ? 'Apertura pagamento...' : 'Paga 2,99€ e Pubblica'}
+                {paying ? 'Pubblicazione...' : 'Pubblica in Vetrina'}
               </button>
             </div>
           </div>
