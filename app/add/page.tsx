@@ -49,6 +49,15 @@ function AddAnnouncementForm() {
   const [shippingCost, setShippingCost] = useState('0')
   const [quantity, setQuantity] = useState('1')
   const [allowLocalPickup, setAllowLocalPickup] = useState(false)
+
+  // --- INDIRIZZO DI RITIRO ---
+  // Prima le coordinate venivano copiate dal PROFILO del venditore, che
+  // nella pratica sono quasi sempre vuote: risultato, gli annunci non
+  // avevano posizione e ne' il Radar Zona ne' la Mappa trovavano mai
+  // niente. Ora l'indirizzo si scrive qui, direttamente sull'annuncio.
+  const [address, setAddress] = useState('')
+  const [coords, setCoords] = useState<{ lat: number; lng: number; city: string; label: string } | null>(null)
+  const [geocoding, setGeocoding] = useState(false)
   const [acceptsReturns, setAcceptsReturns] = useState(false)
   const [exchangeItem, setExchangeItem] = useState('')
 
@@ -112,6 +121,8 @@ function AddAnnouncementForm() {
       setExchangeItem('')
       setAcceptsReturns(false)
       setIsAuction(false)
+      setAddress('')
+      setCoords(null)
     } else {
       setCondition(modeParam === 'new' ? 'Nuovo' : modeParam === 'gift' ? 'Regalo' : modeParam === 'barter' ? 'Baratto' : 'Usato')
       if (modeParam === 'gift' || modeParam === 'barter') {
@@ -189,6 +200,38 @@ function AddAnnouncementForm() {
     }
   };
 
+  // Cerca le coordinate dell'indirizzo scritto dall'utente. Senza questo
+  // passaggio l'annuncio non comparirebbe ne' nel Radar Zona ne' sulla
+  // Mappa Re-love Italia.
+  const handleCercaIndirizzo = async () => {
+    if (!address.trim()) {
+      toast.error('Scrivi prima un indirizzo.')
+      return
+    }
+    setGeocoding(true)
+    try {
+      const res = await fetch('/api/geocode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address: address.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        toast.error(data.error || 'Indirizzo non trovato.')
+        setCoords(null)
+        return
+      }
+      setCoords({ lat: data.latitude, lng: data.longitude, city: data.city, label: data.displayName })
+      toast.success('Posizione trovata!')
+    } catch (err) {
+      console.error('Errore geocodifica:', err)
+      toast.error('Errore di connessione. Riprova.')
+      setCoords(null)
+    } finally {
+      setGeocoding(false)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!user) return
@@ -246,8 +289,13 @@ function AddAnnouncementForm() {
           allow_local_pickup: allowLocalPickup,
           accepts_returns: acceptsReturns,
           exchange_item: condition === 'Baratto' ? exchangeItem : null,
-          latitude: profile?.latitude || null,
-          longitude: profile?.longitude || null,
+          // Prima si copiavano dal profilo (quasi sempre vuote). Ora
+          // arrivano dall'indirizzo scritto qui sopra; se l'utente non lo
+          // ha compilato, si ricade sul profilo come prima.
+          address: address.trim() || null,
+          city: coords?.city || profile?.city || null,
+          latitude: coords?.lat ?? profile?.latitude ?? null,
+          longitude: coords?.lng ?? profile?.longitude ?? null,
           // CAMPI ASTA
           is_auction: isAuction,
           auction_end: auctionEndTime,
@@ -477,6 +525,48 @@ function AddAnnouncementForm() {
                       <input type="number" step="0.10" min="0" value={shippingCost} onChange={(e) => setShippingCost(e.target.value)} className="w-full p-5 pl-10 bg-stone-50 border border-stone-100 rounded-2xl font-black outline-none focus:bg-white focus:border-stone-400 transition-all" placeholder="0.00 (Gratis)" />
                     </div>
                   </div>
+               </div>
+
+               {/* --- INDIRIZZO DI RITIRO / POSIZIONE --- */}
+               <div className="space-y-3 mt-6 p-6 bg-stone-50 border border-stone-200 rounded-3xl">
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-stone-500 tracking-widest ml-2 block mb-1">
+                      Dove si trova l&apos;oggetto? (Via e Citt&agrave;)
+                    </label>
+                    <p className="text-[9px] font-bold text-stone-400 uppercase tracking-widest ml-2 mb-2">
+                      Serve per farlo comparire nel Radar Zona e sulla mappa
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Es. Via Roma 12, Milano"
+                        value={address}
+                        onChange={(e) => { setAddress(e.target.value); setCoords(null) }}
+                        className="flex-1 p-4 bg-white border border-stone-200 rounded-2xl font-bold text-sm outline-none focus:border-rose-400 transition-all"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleCercaIndirizzo}
+                        disabled={geocoding || !address.trim()}
+                        className="shrink-0 bg-stone-900 text-white px-5 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-600 transition-all disabled:opacity-40"
+                      >
+                        {geocoding ? '...' : 'Trova'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {coords ? (
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4">
+                      <p className="text-[10px] font-black uppercase text-emerald-700 tracking-widest mb-1">
+                        Posizione confermata
+                      </p>
+                      <p className="text-xs font-bold text-emerald-800 leading-snug">{coords.label}</p>
+                    </div>
+                  ) : (
+                    <p className="text-[9px] font-bold text-orange-500 uppercase tracking-widest ml-2">
+                      Senza posizione l&apos;annuncio non comparir&agrave; nelle ricerche per zona
+                    </p>
+                  )}
                </div>
 
                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">

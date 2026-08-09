@@ -453,10 +453,18 @@ export default function Navbar() {
              onClick={() => { setIsSidebarOpen(false); closeCart(); setIsQuickMenuOpen(false); setIsNotifOpen(false); setShowSecurityModal(false); setShowAiModal(false); setShowMapModal(false); }} />
       )}
 
-      {/* OVERLAY INVISIBILE PER CHIUDERE I MENU A TENDINA (🔔 e ⋮) */}
+      {/* OVERLAY INVISIBILE PER CHIUDERE I MENU A TENDINA (🔔 e ⋮).
+          FIX: aveva priorità 5500, cioè PIÙ ALTA della barra in alto (5000) -
+          e siccome i menu vivono dentro la barra, restavano confinati sotto
+          quel valore. Risultato: questo pannello si piazzava SOPRA i menu e
+          intercettava ogni tocco, quindi toccando "Impostazioni", "Seller
+          Hub" o "Aiuto" il menu si chiudeva e basta, senza mai aprire la
+          pagina. A 4999 resta sotto la barra: continua a chiudere i menu
+          quando tocchi il resto della pagina, ma non ruba più i tocchi
+          destinati alle voci del menu. */}
       {(isQuickMenuOpen || isNotifOpen) && (
         <div 
-          className="fixed inset-0 z-[5500]" 
+          className="fixed inset-0 z-[4999]" 
           onClick={() => { setIsQuickMenuOpen(false); setIsNotifOpen(false); }} 
         />
       )}

@@ -19,8 +19,7 @@ export default function EditAnnouncementPage() {
     quantity: 1,
     category: 'Altro / Varie',
     condition: 'Usato',
-    notes: '',
-    brand: ''
+    description: ''
   })
 
   useEffect(() => {
@@ -70,8 +69,7 @@ export default function EditAnnouncementPage() {
         quantity: data.quantity !== undefined ? data.quantity : 1,
         category: data.category || 'Altro / Varie',
         condition: data.condition || 'Usato',
-        notes: data.notes || '',
-        brand: data.brand || ''
+        description: data.description || ''
       })
       
       setLoading(false)
@@ -98,8 +96,7 @@ export default function EditAnnouncementPage() {
           quantity: formData.quantity,
           category: formData.category,
           condition: formData.condition,
-          notes: formData.notes,
-          brand: formData.brand
+          description: formData.description
         })
         .eq('id', id)
         .eq('user_id', user.id) // Doppia sicurezza
@@ -122,7 +119,7 @@ export default function EditAnnouncementPage() {
   if (loading) return <div className="p-10 text-center font-black uppercase text-xs text-stone-500">Caricamento annuncio...</div>
 
   return (
-    <div className="min-h-screen bg-stone-50 p-6 font-sans text-stone-900 pb-20 flex items-center justify-center">
+    <div className="min-h-screen p-6 font-sans text-stone-900 pb-20 flex items-center justify-center">
       <div className="max-w-2xl w-full bg-white rounded-3xl p-8 border border-stone-200 shadow-sm">
         
         <div className="flex justify-between items-center mb-8 border-b border-stone-200 pb-4">
@@ -187,13 +184,8 @@ export default function EditAnnouncementPage() {
           </div>
 
           <div>
-            <label className="block text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">Marca (Opzionale)</label>
-            <input type="text" value={formData.brand} onChange={e => setFormData({...formData, brand: e.target.value})} className="w-full p-4 border border-stone-200 rounded-xl text-sm font-bold outline-none focus:border-emerald-500" />
-          </div>
-
-          <div>
             <label className="block text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">Descrizione / Note</label>
-            <textarea rows={5} value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} className="w-full p-4 border border-stone-200 rounded-xl text-sm font-bold outline-none focus:border-emerald-500 resize-none"></textarea>
+            <textarea rows={5} value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full p-4 border border-stone-200 rounded-xl text-sm font-bold outline-none focus:border-emerald-500 resize-none"></textarea>
           </div>
 
           <button disabled={saving} type="submit" className="w-full bg-emerald-500 text-white font-black uppercase text-[10px] tracking-widest p-4 rounded-xl hover:bg-emerald-600 transition-colors mt-8 shadow-sm">

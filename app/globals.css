@@ -289,13 +289,13 @@ body {
 */
 .bg-white {
   background-color: rgba(255, 255, 255, 0.82);
-  -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 .bg-\[\#f5efdf\] {
   background-color: rgba(245, 239, 223, 0.85);
-  -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 /* FIX: estesa la stessa cosa anche a "bg-stone-50" - un altro sfondo di
    riquadro molto diffuso nell'app (es. i box di selezione tipologia nella
@@ -305,7 +305,59 @@ body {
    lasciarlo pieno altrove - stesso identico problema di leggibilità. */
 .bg-stone-50 {
   background-color: rgba(250, 250, 249, 0.85);
-  -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 
+
+/*
+  EFFETTO PRESSIONE TASTI (richiesta: "si deve vedere che stai schiacciando
+  quel pulsante, dare la sensazione tattile").
+  Si applica automaticamente a OGNI pulsante e link del sito, comprese le
+  pagine che verranno aggiunte in futuro - non serve toccare i singoli file.
+  - :active scatta nell'istante del tocco e dura finché il dito resta giù
+  - scale(0.96) = il tasto "affonda" leggermente sotto il dito
+  - brightness(0.92) = si scurisce un po', come un tasto premuto
+  - la transizione è volutamente rapidissima all'andata (60ms) e più
+    morbida al ritorno: è così che i tasti fisici danno la sensazione di
+    "scatto"
+  - -webkit-tap-highlight-color rimuove il riquadro grigio che Android
+    disegna da sé al tocco, che sporcherebbe l'effetto
+*/
+button,
+a,
+[role="button"],
+label[class*="cursor-pointer"],
+select {
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.16s ease, filter 0.16s ease, background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+button:active,
+a:active,
+[role="button"]:active,
+label[class*="cursor-pointer"]:active {
+  transform: scale(0.96);
+  filter: brightness(0.92);
+  transition: transform 0.06s ease, filter 0.06s ease;
+}
+
+/* I pulsanti disattivati non devono reagire al tocco: dare un feedback
+   tattile su un tasto che non fa nulla è peggio che non darlo affatto. */
+button:disabled:active,
+button[disabled]:active {
+  transform: none;
+  filter: none;
+}
+
+/* Chi ha attivato "riduci animazioni" nelle impostazioni di sistema (per
+   motivi di accessibilità o mal di testa da movimento) non deve subire
+   l'effetto di scala: gli lasciamo solo il cambio di luminosità. */
+@media (prefers-reduced-motion: reduce) {
+  button:active,
+  a:active,
+  [role="button"]:active,
+  label[class*="cursor-pointer"]:active {
+    transform: none;
+  }
+}
