@@ -35,6 +35,7 @@ function VetrinaContent() {
   const [selectedAnnouncementId, setSelectedAnnouncementId] = useState('')
   const [extUrl, setExtUrl] = useState('')
   const [extTitle, setExtTitle] = useState('')
+  const [extDescription, setExtDescription] = useState('')
   const [extImage, setExtImage] = useState('')
   const [extPrice, setExtPrice] = useState('')
   const [extShipping, setExtShipping] = useState('')
@@ -174,12 +175,13 @@ function VetrinaContent() {
       })
       const data = await res.json()
       if (!res.ok || data.error) {
-        toast.error(data.error || "Impossibile recuperare l'anteprima. Compila titolo e immagine a mano.")
+        toast.error(data.error || "Impossibile recuperare l'anteprima. Compila i campi a mano.")
         return
       }
       if (data.title) setExtTitle(data.title)
+      if (data.description) setExtDescription(data.description)
       if (data.image) setExtImage(data.image)
-      toast.success('Anteprima recuperata! Il prezzo resta da scrivere qui sotto.')
+      toast.success('Anteprima recuperata! Prezzo e spedizione restano da scrivere qui sotto.')
     } catch (err) {
       console.error('Errore anteprima:', err)
       toast.error('Errore di connessione.')
@@ -219,6 +221,7 @@ function VetrinaContent() {
           announcementId: createType === 'interna' ? selectedAnnouncementId : undefined,
           externalUrl: createType === 'esterna' ? extUrl.trim() : undefined,
           title: createType === 'esterna' ? extTitle.trim() : undefined,
+          description: createType === 'esterna' ? extDescription.trim() : undefined,
           imageUrl: createType === 'esterna' ? extImage : undefined,
           price: createType === 'esterna' ? extPrice : undefined,
           shippingCost: createType === 'esterna' ? (extShipping || '0') : undefined,
@@ -231,7 +234,7 @@ function VetrinaContent() {
       if (data.gratuita) {
         toast.success('Pubblicato in Vetrina!')
         setShowCreateModal(false)
-        setExtUrl(''); setExtTitle(''); setExtImage(''); setExtPrice(''); setExtShipping('')
+        setExtUrl(''); setExtTitle(''); setExtDescription(''); setExtImage(''); setExtPrice(''); setExtShipping('')
         setSelectedAnnouncementId('')
         setPaying(false)
         fetchVetrina()
@@ -433,6 +436,9 @@ function VetrinaContent() {
                 </div>
                 <div className="p-4">
                   <h4 className="text-[11px] font-black uppercase truncate text-stone-800">{item.title}</h4>
+                  {item.description && (
+                    <p className="text-[10px] font-medium text-stone-500 mt-1 line-clamp-2">{item.description}</p>
+                  )}
                   <p className="text-lg font-black text-blue-600 italic mt-1">€ {Number(item.price).toFixed(2)}</p>
                   {Number(item.shipping_cost) > 0 && (
                     <p className="text-[9px] font-bold text-stone-500 uppercase tracking-widest mt-0.5">
@@ -538,6 +544,17 @@ function VetrinaContent() {
                   </div>
 
                   <div>
+                    <label className="text-[10px] font-black uppercase text-stone-400 tracking-widest ml-2">Descrizione (opzionale)</label>
+                    <textarea
+                      value={extDescription}
+                      onChange={(e) => setExtDescription(e.target.value)}
+                      placeholder="Breve descrizione dell'articolo"
+                      rows={3}
+                      className="w-full p-4 bg-stone-50 border border-stone-200 rounded-xl font-bold text-sm outline-none mt-1 focus:border-rose-400 resize-none"
+                    />
+                  </div>
+
+                  <div>
                     <label className="text-[10px] font-black uppercase text-stone-400 tracking-widest ml-2">Prezzo da mostrare (€) *</label>
                     <input
                       type="number"
@@ -564,6 +581,9 @@ function VetrinaContent() {
                       placeholder="0 se gratuita o da concordare"
                       className="w-full p-4 bg-stone-50 border border-stone-200 rounded-xl font-bold text-sm outline-none mt-1 focus:border-rose-400"
                     />
+                    <p className="text-[9px] font-bold text-stone-400 uppercase tracking-widest mt-2 ml-2">
+                      Non recuperabile automaticamente dal link - dipende da indirizzo e metodo di consegna.
+                    </p>
                   </div>
                 </div>
               )}

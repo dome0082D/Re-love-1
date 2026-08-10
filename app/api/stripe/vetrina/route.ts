@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { createClient } from '@supabase/supabase-js'
+import { aggiungiTagAffiliazioneAmazon } from '@/lib/affiliates/amazonTag'
 
 // FIX: "@/lib/supabase-admin" non esiste in questo progetto (sotto lib/ ci
 // sono solo mail.ts e supabase.ts) - era un'assunzione mia, segnalata come
@@ -17,37 +18,26 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
 
 const VETRINA_PRICE_CENTS = 299 // 2,99€ - stessa cifra della vecchia Sponsorizza
 
-// FIX/NUOVO: trasforma un link Amazon aggiungendo il codice di affiliazione
-// (AMAZON_PARTNER_TAG, già tra le variabili d'ambiente previste dal
-// progetto). Da qui in avanti, ogni acquisto fatto su Amazon a partire da
-// questo link genera una commissione reale per te - pagata da Amazon
-// stessa, senza toccare minimamente il prezzo che l'utente vede, che resta
-// sempre quello vero. Se il link non è di Amazon, o se la variabile
-// d'ambiente non è ancora configurata, restituisce il link intatto.
-function aggiungiTagAffiliazioneAmazon(url: string): string {
-  const tag = process.env.AMAZON_PARTNER_TAG
-  if (!tag) return url
-
-  try {
-    const parsed = new URL(url)
-    const dominiAmazon = ['amazon.it', 'amazon.com', 'amazon.de', 'amazon.fr', 'amazon.es', 'amazon.co.uk']
-    const isAmazon = dominiAmazon.some(d => parsed.hostname === d || parsed.hostname.endsWith('.' + d))
-    if (!isAmazon) return url
-
-    parsed.searchParams.set('tag', tag)
-    return parsed.toString()
-  } catch {
-    return url
-  }
-}
+// NOTA: aggiungiTagAffiliazioneAmazon() ora vive in
+// lib/affiliates/amazonTag.ts, condivisa con il resto del progetto (è la
+// stessa che affilia anche i risultati della ricerca esterna). Rispetto
+// alla vecchia versione locale, quella condivisa in più:
+//   - riconosce anche i link accorciati Amazon (amzn.to, amzn.eu)
+//   - NON sovrascrive un tag già presente nel link: se chi pubblica ha un
+//     proprio account Amazon Associates e il link ha già il suo tag, resta
+//     il suo - il nostro tag di default si applica solo quando il link non
+//     ne ha già uno. Così, se in futuro sarete in più persone con account
+//     affiliati diversi a pubblicare link, ognuno prende la commissione sui
+//     link che pubblica lui.
+// Il comportamento verso l'utente non cambia in nient'altro: se il link non
+// è Amazon, o se AMAZON_PARTNER_TAG non è configurato, il link torna intatto.
 
 // TODO: eBay e AliExpress hanno un meccanismo di affiliazione diverso da
 // Amazon - non basta aggiungere un parametro all'indirizzo, serve generare
 // il link tramite le loro API (le stesse già scritte tempo fa in
 // lib/affiliates/ebay.ts e lib/affiliates/aliexpress.ts per la ricerca
 // a vuoto). Per ora un link a quei siti viene salvato così com'è, senza
-// affiliazione. Se vuoi, mandami quei due file così come sono ora e li collego
-// allo stesso modo di Amazon, invece di indovinare come sono fatti oggi.
+// affiliazione.
 
 // ============================================================================
 // VETRINA GRATUITA (momentaneamente, su richiesta)
@@ -63,7 +53,7 @@ const VETRINA_GRATUITA = true
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { userId, type, announcementId, externalUrl, title, imageUrl, price, shippingCost } = body
+    const { userId, type, announcementId, externalUrl, title, description, imageUrl, price, shippingCost } = body
 
     if (!userId || !type) {
       return NextResponse.json({ error: 'Dati mancanti.' }, { status: 400 })
@@ -118,6 +108,7 @@ export async function POST(req: NextRequest) {
         announcement_id: type === 'interna' ? announcementId : null,
         external_url: type === 'esterna' ? aggiungiTagAffiliazioneAmazon(externalUrl) : null,
         title: type === 'esterna' ? title : null,
+        description: type === 'esterna' ? (description || null) : null,
         image_url: type === 'esterna' ? (imageUrl || null) : null,
         price: type === 'esterna' ? Number(price) : null,
         shipping_cost: type === 'esterna' ? (Number(shippingCost) || 0) : null,
