@@ -62,11 +62,6 @@ export default function AdminDashboard() {
 
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
-  
-  // Stati per la modale di ispezione
-  const [selectedUser, setSelectedUser] = useState<Profile | null>(null)
-  const [userMessages, setUserMessages] = useState<any[]>([])
-  const [isModalOpen, setIsModalOpen] = useState(false)
 
   const router = useRouter()
   const ADMIN_EMAIL = 'dome0082@gmail.com'
@@ -148,12 +143,6 @@ export default function AdminDashboard() {
   const forceStatus = async (txId: string, newStatus: string) => {
     if (!confirm(`Vuoi forzare lo stato a: ${newStatus}?`)) return
 
-    // FIX: "Ricevuto" qui scriveva solo l'etichetta di stato senza mai
-    // sbloccare i fondi veri al venditore - la dashboard diceva "sbloccato"
-    // ma nessun euro si spostava. Ora, solo per questo stato specifico,
-    // passiamo dalla route /api/orders/action che esegue il vero
-    // trasferimento Stripe (la stessa già usata dalla pagina ordini normale,
-    // qui con un permesso speciale per lo staff).
     if (newStatus === 'Ricevuto') {
       setActionLoading(true)
       try {
@@ -178,13 +167,6 @@ export default function AdminDashboard() {
       return
     }
 
-    // ATTENZIONE - NON RISOLTO: "Rimborsato" invece scrive solo l'etichetta
-    // di stato, come prima - nessun rimborso Stripe reale parte da qui.
-    // Non ho aggiunto io la chiamata a stripe.refunds.create(...): quanto
-    // rimborsare (intero? trattenendo la commissione già presa?) e se va
-    // gestito diversamente in caso i fondi al venditore siano già stati
-    // sbloccati sono scelte che spettano a te, non qualcosa che dovrei
-    // decidere al posto tuo.
     const { error } = await supabase.from('transactions').update({ status: newStatus }).eq('id', txId)
     if (error) {
       alert("Errore durante l'aggiornamento: " + error.message)
@@ -216,75 +198,12 @@ export default function AdminDashboard() {
 
   const deleteReview = async (id: string) => {
     if (!confirm("Eliminare definitivamente questa recensione?")) return
-    // FIX: prima l'esito non veniva controllato - la recensione poteva
-    // restare visibile pur avendo premuto "elimina", senza alcun avviso.
     const { error } = await supabase.from('reviews').delete().eq('id', id)
     if (error) {
       alert("Errore durante l'eliminazione: " + error.message)
       return
     }
     checkAdminAndFetchData()
-  }
-
-  const viewUserDetails = async (profile: Profile) => {
-    setSelectedUser(profile)
-    setIsModalOpen(true)
-    
-    try {
-      const { data, error } = await supabase
-        .from('messages')
-        .select('*')
-        .or(`sender_id.eq.${profile.id},receiver_id.eq.${profile.id}`)
-        .order('created_at', { ascending: false })
-        
-      if (error) {
-        console.error("Errore recupero messaggi:", error)
-        setUserMessages([])
-      } else {
-        setUserMessages(data || [])
-      }
-    } catch (err) {
-      console.error("Errore catch messaggi:", err)
-    }
-  }
-
-  const deleteChats = async (userId: string) => {
-    if (!confirm("Sei sicuro? Questa azione eliminerà TUTTE le chat (inviate e ricevute) di questo utente in modo irreversibile.")) return
-    
-    try {
-      const { error } = await supabase.rpc('delete_user_chats', { target_user_id: userId })
-      
-      if (!error) {
-        alert("Tutte le chat dell'utente sono state spazzate via con successo. 🌪️")
-        setUserMessages([]) 
-        if (selectedUser?.id === userId) {
-          viewUserDetails(selectedUser)
-        }
-      } else {
-        alert("Errore durante l'eliminazione: " + error.message)
-      }
-    } catch (err: any) {
-      alert("Errore: " + err.message)
-    }
-  }
-
-  // NUOVA VERSIONE: USA LA SUPER-FUNZIONE SQL NUCLEARE POTENZIATA
-  const deleteProfile = async (userId: string) => {
-    if (!confirm("AZIONE NUCLEARE: Verranno eliminati messaggi, recensioni, transazioni, annunci, notifiche e l'ACCESSO AL SITO di questo utente. Sicuro di voler distruggere questi dati?")) return
-    
-    try {
-      const { error } = await supabase.rpc('delete_user_cascade', { target_user_id: userId })
-      
-      if (error) {
-        throw error
-      }
-      
-      alert("L'utente è stato disintegrato con successo. 💥 Non esiste più nel database e non potrà più fare login.")
-      setIsModalOpen(false)
-      checkAdminAndFetchData()
-    } catch (err: any) {
-      alert("Il Database ha bloccato l'eliminazione per questo motivo:\n\n" + err.message + "\n\nAssicurati di aver eseguito l'ultimo script SQL in Supabase!")
-    }
   }
 
   // --- LOGICA DEL TRIBUNALE ---
@@ -296,12 +215,6 @@ export default function AdminDashboard() {
     if (!confirm(confirmMessage)) return;
     setActionLoading(true)
 
-    // FIX: "Fondi al Venditore" chiudeva la contestazione e notificava "i
-    // fondi sono stati sbloccati" senza mai trasferire un euro davvero.
-    // Ora, per questa risoluzione specifica, tentiamo prima il vero
-    // trasferimento Stripe (stessa route usata sopra per "Sblocca") - se
-    // fallisce, la contestazione NON viene chiusa, così non risulta
-    // "risolta" una pratica dove i soldi non si sono davvero mossi.
     if (resolution === 'Fondi al Venditore' && transactionId) {
       try {
         const { data: { user } } = await supabase.auth.getUser()
@@ -322,9 +235,6 @@ export default function AdminDashboard() {
         return
       }
     }
-    // ATTENZIONE - NON RISOLTO: "Rimborso Acquirente" chiude comunque solo
-    // la pratica, senza un vero stripe.refunds.create(...) - stessa nota di
-    // forceStatus qui sopra: decidere la policy di rimborso spetta a te.
 
     const { error } = await supabase.from('disputes').update({ status: `Risolta (${resolution})` }).eq('id', disputeId)
 
@@ -399,7 +309,7 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* ---------------- NUOVA SEZIONE: TRIBUNALE E SUPPORTO ---------------- */}
+        {/* ---------------- SEZIONE: TRIBUNALE E SUPPORTO ---------------- */}
         <div className="bg-stone-800/40 p-8 rounded-[2.5rem] border border-rose-900/50 mb-12 shadow-2xl">
           <div className="flex justify-between items-center mb-8 border-b border-stone-800 pb-4">
             <h2 className="text-lg font-black uppercase italic text-rose-500 tracking-tighter flex items-center gap-3">
@@ -413,7 +323,7 @@ export default function AdminDashboard() {
             <div className="space-y-4">
               {disputes.map(dispute => {
                 const isClosed = dispute.status.includes('Risolta');
-                const isSupport = !dispute.seller_id; // Se non c'è venditore, è supporto
+                const isSupport = !dispute.seller_id;
                 
                 return (
                   <div key={dispute.id} className={`p-6 rounded-3xl border ${isClosed ? 'border-[#333] bg-[#1f1f1f] opacity-60' : isSupport ? 'border-blue-900/50 bg-[#1c2433]' : 'border-rose-900/50 bg-[#331c1c]'} flex flex-col md:flex-row justify-between items-start md:items-center gap-6`}>
@@ -438,7 +348,6 @@ export default function AdminDashboard() {
                       </div>
                     </div>
 
-                    {/* AZIONI GIUDICE */}
                     {!isClosed && (
                       <div className="flex flex-col gap-2 w-full md:w-56 min-w-[200px]">
                         {isSupport ? (
@@ -546,7 +455,15 @@ export default function AdminDashboard() {
                     <p className="font-black text-white text-sm">{p.email}</p>
                     <p className="text-[10px] text-stone-500 font-bold uppercase tracking-widest">{p.city || 'Città non impostata'}</p>
                   </div>
-                  <button onClick={() => viewUserDetails(p)} className="bg-blue-500/10 border border-blue-500/40 text-blue-400 hover:bg-blue-50 hover:text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase transition-all">Ispeziona</button>
+                  {/* FIX: prima apriva un popup dentro questa stessa pagina.
+                      Ora porta a una pagina dedicata (/staff/users/[id]),
+                      su richiesta - con dentro anche gli annunci
+                      dell'utente (prima assenti) e le chat raggruppate per
+                      conversazione con eliminazione per singolo messaggio
+                      (prima solo un elenco piatto in sola lettura). */}
+                  <Link href={`/staff/users/${p.id}`} className="bg-blue-500/10 border border-blue-500/40 text-blue-400 hover:bg-blue-500 hover:text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase transition-all">
+                    Ispeziona
+                  </Link>
                 </div>
               ))}
             </div>
@@ -573,78 +490,6 @@ export default function AdminDashboard() {
           </div>
         </div>
       </div>
-
-      {/* MODALE DI ISPEZIONE TOTALE */}
-      {isModalOpen && selectedUser && (
-        <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-stone-900 border border-stone-700 rounded-[3rem] w-full max-w-5xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
-            
-            <div className="p-10 border-b border-stone-800 flex justify-between items-center bg-stone-900">
-              <div>
-                <h2 className="text-3xl font-black uppercase italic text-white">Profilo Sotto Lente</h2>
-                <p className="text-rose-500 text-xs font-bold uppercase tracking-[0.3em] mt-1">{selectedUser.email || 'Nessuna Email'}</p>
-              </div>
-              <button onClick={() => setIsModalOpen(false)} className="text-stone-500 hover:text-white text-5xl transition-colors leading-none">&times;</button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-10 space-y-10">
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {[
-                  { l: '📧 Indirizzo Email', v: selectedUser.email || '⚠️ Vuota (Inseriscila da Supabase)' },
-                  { l: '👤 Nome', v: selectedUser.first_name || 'Non inserito' },
-                  { l: '👥 Cognome', v: selectedUser.last_name || 'Non inserito' },
-                  { l: '🏙️ Città', v: selectedUser.city || 'Non inserito' },
-                  { l: '📍 Indirizzo', v: selectedUser.address || 'Non inserito' },
-                  { l: '📅 Data Iscrizione', v: new Date(selectedUser.created_at).toLocaleString('it-IT') },
-                  { l: '🛡️ Ruolo Sistema', v: selectedUser.role || 'user' },
-                  { l: '🆔 ID Database', v: selectedUser.id },
-                  { l: '💳 Stripe Connect', v: selectedUser.stripe_account_id || 'Account non collegato' },
-                ].map((item, idx) => (
-                  <div key={idx} className="bg-stone-800 p-5 rounded-2xl border border-stone-700/50">
-                    <p className="text-[9px] font-black uppercase text-stone-500 tracking-widest mb-2">{item.l}</p>
-                    <p className="text-sm font-bold text-white truncate" title={item.v}>{item.v}</p>
-                  </div>
-                ))}
-              </div>
-
-              <div>
-                <h3 className="text-[11px] font-black uppercase text-blue-400 tracking-[0.3em] mb-6 flex items-center gap-3">
-                  <span className="w-10 h-[1px] bg-blue-500/30"></span> 
-                  Cronologia Chat (Sola Lettura)
-                </h3>
-                <div className="space-y-4">
-                  {userMessages.length === 0 ? (
-                    <p className="text-stone-600 text-xs italic text-center py-10 bg-stone-800/30 rounded-3xl border border-dashed border-stone-700">L'utente non ha ancora scambiato messaggi sulla piattaforma.</p>
-                  ) : (
-                    userMessages.map(msg => (
-                      <div key={msg.id} className={`p-5 rounded-[2rem] text-sm border flex flex-col ${msg.sender_id === selectedUser.id ? 'bg-stone-800 border-stone-700 ml-12' : 'bg-stone-900 border-stone-800 mr-12'}`}>
-                        <div className="flex justify-between items-center mb-3">
-                          <span className={`text-[8px] font-black uppercase px-2 py-1 rounded-md ${msg.sender_id === selectedUser.id ? 'bg-blue-500/20 text-blue-400' : 'bg-orange-500/20 text-orange-400'}`}>
-                            {msg.sender_id === selectedUser.id ? 'Messaggio Inviato' : 'Messaggio Ricevuto'}
-                          </span>
-                          <span className="text-[9px] font-bold text-stone-600 uppercase">{new Date(msg.created_at).toLocaleString('it-IT')}</span>
-                        </div>
-                        <p className="text-stone-200 font-medium leading-relaxed italic">"{msg.content}"</p>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              <div className="pt-10 border-t border-stone-800 flex flex-wrap gap-4">
-                <button onClick={() => deleteChats(selectedUser.id)} className="bg-orange-500/10 border border-orange-500/40 text-orange-500 hover:bg-orange-500 hover:text-white px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all">
-                  🔥 Svuota Chat
-                </button>
-                <button onClick={() => deleteProfile(selectedUser.id)} className="bg-rose-500 text-white hover:bg-rose-600 px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl shadow-rose-500/20">
-                  ⚠️ Elimina Utente a Cascata
-                </button>
-              </div>
-
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

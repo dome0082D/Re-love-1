@@ -1,16 +1,15 @@
 'use client'
 export const dynamic = 'force-dynamic'
 
-/* eslint-disable @next/next/no-img-element */
-
 import { useEffect, useState, Suspense, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { User } from '@supabase/supabase-js'
 import { Mic, MicOff, Search, MapPin, Heart, Crown, Mail, Plus, Send, Trash2, Edit2, X, BookOpen, MessageCircle, Sparkles, User as UserIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import GalacticOutpost from './components/minigame/GalacticOutpost'
+import VetrinaCarousel from './components/VetrinaCarousel'
 import ExternalResultsFallback from './components/ExternalResultsFallback'
 
 // --- RILEVAMENTO ANDROID (solo lato client, per adattare l'hero) ---
@@ -49,54 +48,6 @@ interface Announcement {
   user_id: string;
   created_at: string;
   is_sponsored?: boolean;
-  latitude?: number | null;
-  longitude?: number | null;
-}
-
-interface SpeechRecognitionEventLike {
-  resultIndex: number
-  results: ArrayLike<ArrayLike<{ transcript: string }>>
-}
-
-interface SpeechRecognitionErrorLike {
-  error?: string
-}
-
-interface SpeechRecognitionLike {
-  lang: string
-  continuous: boolean
-  interimResults: boolean
-  onstart: (() => void) | null
-  onresult: ((event: SpeechRecognitionEventLike) => void) | null
-  onerror: ((event: SpeechRecognitionErrorLike) => void) | null
-  onend: (() => void) | null
-  start: () => void
-  stop: () => void
-}
-
-interface SpeechRecognitionConstructor {
-  new (): SpeechRecognitionLike
-}
-
-type WindowWithSpeech = Window & typeof globalThis & {
-  SpeechRecognition?: SpeechRecognitionConstructor
-  webkitSpeechRecognition?: SpeechRecognitionConstructor
-}
-
-interface CourseItem {
-  id: string
-  title: string
-  category?: string
-  creator?: string
-  members: number
-}
-
-interface ChatMessageItem {
-  id: string
-  user_email: string
-  user_id: string
-  content: string
-  created_at?: string
 }
 
 const Tooltip = ({ children, text, wrapperClass = "relative w-full h-full" }: { children: React.ReactNode, text: string, wrapperClass?: string }) => {
@@ -130,7 +81,6 @@ function HomePageContent() {
   const [distance, setDistance] = useState(0) 
   
   const [visibleCount, setVisibleCount] = useState(12)
-  const initialVisibleCount = isAndroid ? 6 : 12
   // FIX: il pulsante corona (staff) è "fixed" quindi galleggia sopra
   // qualunque cosa si trovi in quel punto dello schermo - all'inizio pagina
   // finiva proprio sopra l'immagine hero, sovrapposto all'illustrazione.
@@ -138,7 +88,7 @@ function HomePageContent() {
   // delle app: compare quando serve, non appena si apre la pagina.
   const [showStaffButton, setShowStaffButton] = useState(false)
 
-  const [courses, setCourses] = useState<CourseItem[]>([])
+  const [courses, setCourses] = useState<any[]>([])
   
   const [newCourseTitle, setNewCourseTitle] = useState('')
   
@@ -156,33 +106,30 @@ function HomePageContent() {
   })
   const [creatingCourse, setCreatingCourse] = useState(false)
 
-  const [chatMessages, setChatMessages] = useState<ChatMessageItem[]>([])
+  const [chatMessages, setChatMessages] = useState<any[]>([])
   const [newChatMessage, setNewChatMessage] = useState('')
   const [editingMsgId, setEditingMsgId] = useState<string | null>(null)
   const [editMsgContent, setEditMsgContent] = useState('')
   const chatContainerRef = useRef<HTMLDivElement>(null)
-  const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
+  const recognitionRef = useRef<any>(null)
   
+  const router = useRouter()
   const searchParams = useSearchParams()
   const catFilter = searchParams.get('cat')
   const typeFilter = searchParams.get('type')
   const IS_STAFF = user?.email === 'dome0082@gmail.com';
 
-  useEffect(() => {
-    void fetchInitialData()
+  useEffect(() => { 
+    fetchInitialData() 
 
-    const chatTimer = window.setTimeout(() => {
-      void fetchChatMessages()
-    }, 350)
-
+    fetchChatMessages()
     const chatChannel = supabase.channel('public:global_chat')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'global_chat' }, () => {
-        void fetchChatMessages()
+        fetchChatMessages()
       })
       .subscribe()
-
+      
     return () => {
-      window.clearTimeout(chatTimer)
       supabase.removeChannel(chatChannel)
       if (recognitionRef.current) {
         try { recognitionRef.current.stop() } catch { /* già fermo */ }
@@ -218,8 +165,6 @@ function HomePageContent() {
       centerHeroScroll(false)
     }
   }, [isAndroid])
-
-  const visibleCountValue = isAndroid ? Math.min(initialVisibleCount, visibleCount) : visibleCount
 
   // FIX: prima lo scroll orizzontale dell'hero era gestito dal solo CSS
   // (touch-action: pan-x), che in teoria lascia passare i gesti verticali
@@ -344,49 +289,38 @@ function HomePageContent() {
 
   async function fetchInitialData() {
     setLoading(true)
-
     const { data: { user: u } } = await supabase.auth.getUser()
     setUser(u)
+    
+    const { data: ads, error } = await supabase
+      .from('announcements')
+      .select('*')
+      .order('created_at', { ascending: false })
 
-    const [adsResult, wsResult, membersResult] = await Promise.all([
-      supabase
-        .from('announcements')
-        .select('id,title,description,price,quantity,category_id,condition,image_url,user_id,created_at,is_sponsored,latitude,longitude')
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('workshops')
-        .select('id,title,category,creator_email,created_at')
-        .order('created_at', { ascending: false }),
-      supabase.from('workshop_members').select('workshop_id')
-    ])
-
-    const { data: ads, error: adsError } = adsResult
-    if (!adsError && Array.isArray(ads)) {
+    if (!error && ads) {
       setAnnouncements(ads as Announcement[])
     }
-
+    
     if (u) {
       const { data: favs } = await supabase.from('favorites').select('announcement_id').eq('user_id', u.id)
-      if (Array.isArray(favs)) {
-        setFavorites(favs.map((f: { announcement_id: string }) => f.announcement_id))
-      }
+      if (favs) setFavorites(favs.map(f => f.announcement_id))
     }
 
-    const { data: wsData, error: wsError } = wsResult
-    const { data: membersData } = membersResult
-
-    if (!wsError && Array.isArray(wsData)) {
-      const realCourses: CourseItem[] = wsData.map((ws: Record<string, unknown>) => {
-        const membersCount = Array.isArray(membersData)
-          ? membersData.filter((m: Record<string, unknown>) => m.workshop_id === ws.id).length
-          : 0
-
+    const { data: wsData } = await supabase
+      .from('workshops')
+      .select('*')
+      .order('created_at', { ascending: false })
+      
+    if (wsData) {
+      const { data: membersData } = await supabase.from('workshop_members').select('*')
+      const realCourses = wsData.map(ws => {
+        const membersCount = membersData ? membersData.filter(m => m.workshop_id === ws.id).length : 0;
         return {
-          id: String(ws.id ?? ''),
-          title: String(ws.title ?? ''),
-          category: typeof ws.category === 'string' ? ws.category : undefined,
-          creator: typeof ws.creator_email === 'string' ? ws.creator_email : undefined,
-          members: membersCount + 1,
+          id: ws.id,
+          title: ws.title,
+          category: ws.category,
+          creator: ws.creator_email,
+          members: membersCount + 1
         }
       })
       setCourses(realCourses)
@@ -398,12 +332,12 @@ function HomePageContent() {
   async function fetchChatMessages() {
     const { data, error } = await supabase
       .from('global_chat')
-      .select('id,user_email,user_id,content,created_at')
+      .select('*')
       .order('created_at', { ascending: true })
       .limit(100)
-
-    if (!error && Array.isArray(data)) {
-      setChatMessages(data as ChatMessageItem[])
+    
+    if (!error && data) {
+      setChatMessages(data)
     }
   }
 
@@ -491,7 +425,7 @@ function HomePageContent() {
     }
 
     try {
-      const { error } = await supabase.from('workshops').insert([newCourseData]).select()
+      const { data, error } = await supabase.from('workshops').insert([newCourseData]).select()
       
       if (error) {
         toast.error("C'è stato un problema nel salvataggio. Riprova.")
@@ -551,12 +485,7 @@ function HomePageContent() {
     if (isListening) return;
 
     try {
-      const SpeechRecognition = (window as WindowWithSpeech).SpeechRecognition || (window as WindowWithSpeech).webkitSpeechRecognition;
-      if (!SpeechRecognition) {
-        toast.error("Il tuo browser non supporta la ricerca vocale.");
-        return;
-      }
-
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       const recognition = new SpeechRecognition();
       recognitionRef.current = recognition
 
@@ -569,14 +498,14 @@ function HomePageContent() {
         toast("🎙️ In ascolto... Parla ora", { duration: 3000 });
       };
 
-      recognition.onresult = (event: SpeechRecognitionEventLike) => {
+      recognition.onresult = (event: any) => {
         const current = event.resultIndex;
         const transcript = event.results[current][0].transcript;
         setMainSearch(transcript);
         toast.success(`Hai cercato: "${transcript}"`);
       };
 
-      recognition.onerror = (event: SpeechRecognitionErrorLike) => {
+      recognition.onerror = (event: any) => {
         if (event?.error !== 'no-speech' && event?.error !== 'aborted') {
           toast.error("Non ho capito, riprova.");
         }
@@ -598,23 +527,6 @@ function HomePageContent() {
     }
   }
 
-  async function fetchNearbyAnnouncements(lat: number, lon: number, radiusMeters: number) {
-    const params = new URLSearchParams({
-      lat: lat.toString(),
-      lon: lon.toString(),
-      dist: (radiusMeters / 1000).toString(),
-    })
-
-    const response = await fetch(`/api/announcements/nearby?${params.toString()}`)
-
-    if (!response.ok) {
-      throw new Error(`Nearby API failed: ${response.status}`)
-    }
-
-    const data = await response.json() as Announcement[]
-    return data.filter((item) => Boolean(item.latitude && item.longitude))
-  }
-
   const handleNearbySearch = () => {
     if (distance > 0) { 
       setDistance(0)
@@ -631,11 +543,14 @@ function HomePageContent() {
       async (pos) => {
         setDistance(20) 
         try {
-          try {
-            const data = await fetchNearbyAnnouncements(pos.coords.latitude, pos.coords.longitude, 20000)
+          const { data, error } = await supabase.rpc('get_nearby_announcements', {
+            user_lat: pos.coords.latitude, 
+            user_lon: pos.coords.longitude, 
+            radius_meters: 20000
+          })
+          if (!error && data) {
             setAnnouncements(data as Announcement[])
-          } catch (error) {
-            console.error('Nearby search error:', error)
+          } else if (error) {
             toast.error("Errore nella ricerca per zona.")
             setDistance(0)
           }
@@ -666,12 +581,15 @@ function HomePageContent() {
           async (pos) => {
             setDistance(20)
             try {
-              try {
-                const data = await fetchNearbyAnnouncements(pos.coords.latitude, pos.coords.longitude, 20000)
+              const { data, error } = await supabase.rpc('get_nearby_announcements', {
+                user_lat: pos.coords.latitude,
+                user_lon: pos.coords.longitude,
+                radius_meters: 20000
+              })
+              if (!error && data) {
                 setAnnouncements(data as Announcement[])
                 toast.success("Annunci vicini a te caricati!")
-              } catch (error) {
-                console.error('Nearby search error:', error)
+              } else if (error) {
                 toast.error("Errore nella ricerca per zona.")
                 setDistance(0)
               }
@@ -734,7 +652,7 @@ function HomePageContent() {
     return 0; 
   })
 
-  const topItems = sortedData.filter(i => i.condition === 'Nuovo').slice(0, isAndroid ? 3 : 5)
+  const topItems = sortedData.filter(i => i.condition === 'Nuovo').slice(0, 5)
   const regularItems = sortedData.filter(i => !topItems.find(t => t.id === i.id))
 
   const SkeletonCard = ({ isTop = false }) => (
@@ -887,6 +805,270 @@ function HomePageContent() {
             </div>
           </div>
 
+
+          <section className="mb-12 max-w-[1300px] mx-auto px-2">
+            <div className="bg-white p-6 rounded-[2.5rem] shadow-md border border-stone-200 flex flex-col gap-8">
+              {/* FIX: rimesso qui il campo di ricerca testuale. Quando ho tolto
+                  la barra sopra l'hero (su richiesta), è sparito ANCHE l'unico
+                  posto dove scrivere cosa cercare: i menu a tendina qui sotto
+                  filtravano ancora, ma "cerca per nome" non funzionava più
+                  perché non c'era più nessun campo che lo alimentasse. Ora sta
+                  dentro il pannello filtri, dove serve davvero. Riattiva anche
+                  i risultati dai siti partner quando la ricerca interna è
+                  vuota, che dipendevano dallo stesso campo. */}
+              <div className="flex flex-col gap-2">
+                <label className="text-[9px] font-black uppercase text-stone-900 ml-2 tracking-widest">Cerca per nome</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+                    <Search className="text-stone-400" size={18} strokeWidth={2.5} />
+                  </div>
+                  <input
+                    type="text"
+                    value={mainSearch}
+                    placeholder="Cerca vestiti, elettronica, arredamento..."
+                    className="w-full py-3 pl-12 pr-16 rounded-xl bg-stone-50 border border-stone-200 outline-none text-sm font-bold text-stone-900 focus:bg-white focus:border-rose-400 transition-all placeholder:text-stone-400"
+                    onChange={(e) => setMainSearch(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && mainSearch.trim()) {
+                        router.push(`/cerca?q=${encodeURIComponent(mainSearch.trim())}`)
+                      }
+                    }}
+                  />
+                  <button
+                    onClick={handleVoiceSearch}
+                    type="button"
+                    title={isListening ? "In ascolto..." : "Ricerca con la voce"}
+                    className={`absolute inset-y-1.5 right-1.5 w-10 rounded-lg flex items-center justify-center transition-all ${isListening ? 'bg-rose-600 text-white' : 'bg-stone-100 text-rose-500 hover:bg-stone-200'}`}
+                  >
+                    {isListening ? <Mic size={18} /> : <MicOff size={18} />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                <div className="flex flex-col gap-2">
+                  <label className="text-[9px] font-black uppercase text-stone-900 ml-2 tracking-widest">Categoria</label>
+                  <select onChange={(e) => setSearchCategory(e.target.value)} className="p-3 bg-stone-50 rounded-xl text-[11px] font-black uppercase tracking-wide outline-none border border-stone-200 hover:bg-white transition-colors cursor-pointer text-stone-900">
+                    <option value="all">Tutte le Categorie</option>
+                    <option value="Abbigliamento e Accessori">👕 Abbigliamento e Accessori</option>
+                    <option value="Elettronica e Informatica">💻 Elettronica e Informatica</option>
+                    <option value="Casa, Arredamento e Giardino">🛋️ Casa, Arredo, Giardino</option>
+                    <option value="Alimentari e Bevande">🍎 Alimentari e Bevande</option>
+                    <option value="Libri, Film e Musica">📚 Libri, Film e Musica</option>
+                    <option value="Salute e Bellezza">💄 Salute e Bellezza</option>
+                    <option value="Sport e Tempo Libero">⚽ Sport e Tempo Libero</option>
+                    <option value="Motori e Veicoli">🚗 Motori e Veicoli</option>
+                    <option value="Altro / Varie">📦 Altro / Varie</option>
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-[9px] font-black uppercase text-stone-900 ml-2 tracking-widest">Condizione</label>
+                  <select onChange={(e) => setSearchCondition(e.target.value)} className="p-3 bg-stone-50 rounded-xl text-[11px] font-black uppercase tracking-wide outline-none border border-stone-200 hover:bg-white transition-colors cursor-pointer text-stone-900">
+                    <option value="all">Tutte</option>
+                    <option value="Nuovo">✨ Nuovo</option>
+                    <option value="Usato">♻️ Usato</option>
+                    <option value="Regalo">🎁 In Regalo</option>
+                    <option value="Baratto">🤝 Baratto</option>
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="text-[9px] font-black uppercase text-stone-900 ml-2 tracking-widest">Fascia di Prezzo (€)</label>
+                  <div className="flex gap-2 items-center">
+                    <input 
+                      type="number" 
+                      placeholder="Min" 
+                      value={minPrice}
+                      onChange={(e) => setMinPrice(e.target.value)}
+                      className="w-full p-3 bg-stone-50 rounded-xl text-[11px] font-black outline-none border border-stone-200 hover:bg-white focus:bg-white focus:border-rose-500 transition-colors"
+                    />
+                    <span className="text-stone-400 font-black">-</span>
+                    <input 
+                      type="number" 
+                      placeholder="Max" 
+                      value={maxPrice}
+                      onChange={(e) => setMaxPrice(e.target.value)}
+                      className="w-full p-3 bg-stone-50 rounded-xl text-[11px] font-black outline-none border border-stone-200 hover:bg-white focus:bg-white focus:border-rose-500 transition-colors"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  {/* FIX: tolto il pulsante "Radar Zona" (usava la
+                      geolocalizzazione, spesso lenta o bloccata su Android) e
+                      messo al suo posto "Cerca", su richiesta - porta a una
+                      pagina dedicata con tutti gli annunci corrispondenti a
+                      quello scritto nel campo qui sopra. La funzione del
+                      radar resta nel file, semplicemente non è più
+                      disegnata: se un giorno la vuoi rimettere, basta
+                      rimettere questo pulsante. */}
+                  <Tooltip text="Cerca in tutti gli annunci 🔍" wrapperClass="relative w-full">
+                    <button
+                      onClick={() => router.push(`/cerca?q=${encodeURIComponent(mainSearch.trim())}`)}
+                      disabled={!mainSearch.trim()}
+                      className="w-full p-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all shadow-md flex items-center justify-center gap-2 bg-stone-900 text-white hover:bg-rose-600 disabled:opacity-40"
+                    >
+                      <Search size={16} />
+                      Cerca
+                    </button>
+                  </Tooltip>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {!catFilter && !typeFilter && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-16 max-w-[1300px] mx-auto px-2">
+              
+              <Tooltip text="Metti in vendita un oggetto mai usato ✨" wrapperClass="relative w-full h-full">
+                <Link href="/add?mode=new" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#f5efdf] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
+                   <div className="absolute inset-0 w-full h-full overflow-hidden">
+                     <img src="/nuovo.png" className="w-full h-full object-cover" alt="Nuovo" loading="lazy" decoding="async" />
+                   </div>
+                   <div className="absolute bottom-3 z-10 w-full px-2">
+                     <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Vendi Nuovo</span>
+                   </div>
+                </Link>
+              </Tooltip>
+              
+              <Tooltip text="Dai una seconda vita ai tuoi oggetti ♻️" wrapperClass="relative w-full h-full">
+                <Link href="/add?mode=used" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#f5efdf] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
+                   <div className="absolute inset-0 w-full h-full overflow-hidden">
+                     <img src="/usato.png" className="w-full h-full object-cover" alt="Usato" loading="lazy" decoding="async" />
+                   </div>
+                   <div className="absolute bottom-3 z-10 w-full px-2">
+                     <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Vendi Usato</span>
+                   </div>
+                </Link>
+              </Tooltip>
+              
+              <Tooltip text="Regala o trova oggetti gratis in regalo 🎁" wrapperClass="relative w-full h-full">
+                <Link href="/add?mode=gift" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#f5efdf] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
+                   <div className="absolute inset-0 w-full h-full overflow-hidden">
+                     <img src="/regalo.png" className="w-full h-full object-cover" alt="Regalo" loading="lazy" decoding="async" />
+                   </div>
+                   <div className="absolute bottom-3 z-10 w-full px-2">
+                     <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Regalo</span>
+                   </div>
+                </Link>
+              </Tooltip>
+
+              <Tooltip text="Scambia i tuoi oggetti senza usare soldi 🤝" wrapperClass="relative w-full h-full">
+                <Link href="/add?mode=barter" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#f5efdf] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
+                   <div className="absolute inset-0 w-full h-full overflow-hidden">
+                     <img src="/baratto.png" className="w-full h-full object-cover" alt="Baratto" loading="lazy" decoding="async" />
+                   </div>
+                   <div className="absolute bottom-3 z-10 w-full px-2">
+                     <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Baratto</span>
+                   </div>
+                </Link>
+              </Tooltip>
+            </div>
+          )}
+
+          <section className="mb-20 max-w-[1300px] mx-auto px-2">
+            <div className="flex justify-between items-end mb-8 border-b border-stone-300 pb-4">
+              <h2 className="text-[14px] font-black uppercase tracking-[0.4em] text-stone-900">Vetrina Top Nuovo</h2>
+              <Link href="/?condition=Nuovo" className="text-[10px] font-black uppercase text-rose-600 hover:text-stone-900 transition-colors">Vedi tutti →</Link>
+            </div>
+            
+            {loading ? (
+               <div className="grid grid-cols-2 lg:grid-cols-5 gap-6">
+                 {Array.from({ length: 5 }).map((_, i) => <SkeletonCard key={`top-skel-${i}`} isTop={true} />)}
+               </div>
+            ) : topItems.length === 0 ? (
+               <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest text-center my-10">Nessun oggetto TOP trovato con questi filtri.</p>
+            ) : (
+              <div className="grid grid-cols-2 lg:grid-cols-5 gap-6">
+                {topItems.map(item => (
+                  <div key={item.id} className={`group bg-white p-4 rounded-[2rem] shadow-md border ${item.is_sponsored ? 'border-orange-400 ring-2 ring-orange-400' : 'border-stone-200'} hover:bg-stone-50 transition-all relative overflow-hidden`}>
+                    {item.is_sponsored && (
+                      <div className="absolute top-0 left-0 bg-orange-500 text-white text-[8px] font-black uppercase px-3 py-1.5 rounded-br-2xl z-40 tracking-widest shadow-sm">
+                        TOP ✨
+                      </div>
+                    )}
+                    <button onClick={(e) => handleToggleFavorite(e, item.id)} className="absolute top-6 right-6 z-30 bg-white w-8 h-8 flex items-center justify-center rounded-full shadow-md hover:scale-110 transition-all">
+                      <Heart size={16} className={favorites.includes(item.id) ? "fill-rose-500 text-rose-500" : "text-stone-400"} />
+                    </button>
+                    <Link href={`/announcement/${item.id}`}>
+                      <div className="aspect-square rounded-2xl overflow-hidden bg-stone-100 mb-4 relative border border-stone-200">
+                        <img src={item.image_url || "/nuovo.png"} className="w-full h-full object-contain" alt={item.title} loading="lazy" decoding="async" />
+                      </div>
+                      <h4 className="text-[12px] font-black uppercase truncate text-stone-900 mb-1">{item.title}</h4>
+                      <p className="text-xl font-black text-rose-600 italic">€ {item.price}</p>
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="mb-20 max-w-[1300px] mx-auto px-2">
+            <div className="flex justify-between items-end mb-8 border-b border-stone-300 pb-4">
+              <h2 className="text-[14px] font-black uppercase tracking-[0.4em] text-stone-900 opacity-50">Tutti gli Annunci</h2>
+            </div>
+            
+            {loading ? (
+               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-5">
+                 {Array.from({ length: 12 }).map((_, i) => <SkeletonCard key={`reg-skel-${i}`} isTop={false} />)}
+               </div>
+            ) : regularItems.length === 0 ? (
+              <div className="text-center py-20 bg-white rounded-3xl border border-stone-200">
+                 <Search size={64} className="text-stone-300 mx-auto mb-4" strokeWidth={1.5} />
+                 <p className="text-sm font-black text-stone-900 uppercase tracking-widest">Nessun risultato</p>
+                 <p className="text-[10px] font-bold text-stone-500 uppercase mt-2">Prova ad allargare i filtri di ricerca o la fascia di prezzo.</p>
+                 {mainSearch.trim() && (
+                   <div className="mt-10 text-left">
+                     <ExternalResultsFallback query={mainSearch.trim()} />
+                   </div>
+                 )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-5">
+                {regularItems.slice(0, visibleCount).map(item => (
+                  <div key={item.id} className={`group bg-white rounded-3xl overflow-hidden shadow-sm border ${item.is_sponsored ? 'border-orange-400' : 'border-stone-200'} hover:bg-stone-50 transition-all flex flex-col relative`}>
+                    {item.is_sponsored && (
+                      <div className="absolute top-0 left-0 bg-orange-500 text-white text-[7px] font-black uppercase px-2 py-1 rounded-br-xl z-40 tracking-widest shadow-sm">
+                        TOP 🌟
+                      </div>
+                    )}
+                    <Link href={`/announcement/${item.id}`} className="aspect-square bg-stone-100 relative block overflow-hidden">
+                      <button onClick={(e) => handleToggleFavorite(e, item.id)} className="absolute top-2 right-2 z-30 bg-white w-8 h-8 flex items-center justify-center rounded-full shadow-sm hover:scale-110 transition-all">
+                        <Heart size={16} className={favorites.includes(item.id) ? "fill-rose-500 text-rose-500" : "text-stone-400"} />
+                      </button>
+                      <img src={item.image_url || "/usato.png"} className="w-full h-full object-contain" alt={item.title} loading="lazy" decoding="async" />
+                    </Link>
+                    <div className="p-3 flex flex-col justify-between flex-grow">
+                      <div>
+                        <h4 className="text-[10px] font-black uppercase line-clamp-2 text-stone-800 leading-tight mb-1">{item.title}</h4>
+                        <p className="text-[14px] font-black text-rose-600 italic">
+                          {item.condition === 'Regalo' || item.condition === 'Baratto' ? '€ 0' : `€ ${item.price}`}
+                        </p>
+                      </div>
+                      <Link href={`/announcement/${item.id}`} className="mt-3 block text-center w-full bg-stone-900 text-white text-[9px] font-black uppercase py-2 rounded-xl hover:bg-rose-600 transition-all">
+                        {item.condition === 'Baratto' ? 'Baratta' : item.condition === 'Regalo' ? 'Ricevi' : 'Acquista'}
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {!loading && regularItems.length > visibleCount && (
+              <div className="mt-12 flex justify-center w-full">
+                <button 
+                  onClick={() => setVisibleCount(prev => prev + 12)}
+                  className="bg-stone-900 text-white px-10 py-4 rounded-full text-[11px] font-black uppercase tracking-widest hover:bg-rose-600 transition-all shadow-md"
+                >
+                  Carica Altri ({regularItems.length - visibleCount})
+                </button>
+              </div>
+            )}
+          </section>
+
+          <VetrinaCarousel />
+
           <div className="w-full max-w-[1300px] mx-auto grid grid-cols-1 xl:grid-cols-2 gap-6 mb-12 px-2">
             
             <div className="w-full h-full rounded-[2rem] border border-stone-200 shadow-md bg-[#f5efdf] p-6 flex flex-col justify-between min-h-[400px] text-stone-900 relative">
@@ -1030,14 +1212,39 @@ function HomePageContent() {
                             <p className="leading-snug break-words pr-2 font-medium">{msg.content}</p>
                           )}
 
+                          {/* FIX ANDROID: prima questi pulsanti comparivano solo
+                              al passaggio del mouse ("group-hover") - su Android,
+                              dove non esiste il passaggio del mouse, restavano
+                              invisibili e intoccabili per sempre. Nessuno, staff
+                              compreso, poteva davvero cancellare un messaggio da
+                              telefono. Ora sono sempre visibili, solo più discreti. */}
                           {canModify && !isEditingThis && (
-                            <div className={`absolute top-1/2 -translate-y-1/2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity bg-white p-1.5 rounded-lg shadow-sm border border-stone-200 ${isMine ? 'right-full mr-2' : 'left-full ml-2'}`}>
+                            <div className={`absolute top-1/2 -translate-y-1/2 flex gap-1.5 bg-white p-1.5 rounded-lg shadow-sm border border-stone-200 ${isMine ? 'right-full mr-2' : 'left-full ml-2'}`}>
                               {isMine && (
                                 <button onClick={() => { setEditingMsgId(msg.id); setEditMsgContent(msg.content); }} className="text-stone-400 hover:text-stone-900 transition-colors">
                                   <Edit2 size={14} />
                                 </button>
                               )}
-                              <button onClick={() => handleDeleteChat(msg.id, msg.user_id)} className="text-stone-400 hover:text-red-500 transition-colors">
+                              {/* FIX: aggiunta una conferma prima di cancellare -
+                                  prima bastava un tocco solo e il messaggio spariva
+                                  per sempre, senza nessun passaggio intermedio.
+                                  Soprattutto per lo staff, che può cancellare
+                                  messaggi di CHIUNQUE, un tocco accidentale era
+                                  irreversibile. Il testo cambia a seconda che sia
+                                  un proprio messaggio o una moderazione staff su
+                                  quello di qualcun altro, per chiarezza. */}
+                              <button
+                                onClick={() => {
+                                  const conferma = isMine
+                                    ? confirm('Eliminare questo messaggio?')
+                                    : confirm('Stai per eliminare il messaggio di un altro utente come moderazione staff. Continuare?')
+                                  if (conferma) handleDeleteChat(msg.id, msg.user_id)
+                                }}
+                                title={!isMine && IS_STAFF ? 'Elimina (Moderazione Staff)' : 'Elimina messaggio'}
+                                className={!isMine && IS_STAFF
+                                  ? 'text-rose-500 hover:text-white hover:bg-rose-600 rounded-md p-0.5 transition-colors'
+                                  : 'text-stone-400 hover:text-red-500 transition-colors'}
+                              >
                                 <Trash2 size={14} />
                               </button>
                             </div>
@@ -1076,250 +1283,6 @@ function HomePageContent() {
               </div>
             </div>
           </div>
-
-          <section className="mb-12 max-w-[1300px] mx-auto px-2">
-            <div className="bg-white p-6 rounded-[2.5rem] shadow-md border border-stone-200 flex flex-col gap-8">
-              {/* FIX: rimesso qui il campo di ricerca testuale. Quando ho tolto
-                  la barra sopra l'hero (su richiesta), è sparito ANCHE l'unico
-                  posto dove scrivere cosa cercare: i menu a tendina qui sotto
-                  filtravano ancora, ma "cerca per nome" non funzionava più
-                  perché non c'era più nessun campo che lo alimentasse. Ora sta
-                  dentro il pannello filtri, dove serve davvero. Riattiva anche
-                  i risultati dai siti partner quando la ricerca interna è
-                  vuota, che dipendevano dallo stesso campo. */}
-              <div className="flex flex-col gap-2">
-                <label className="text-[9px] font-black uppercase text-stone-900 ml-2 tracking-widest">Cerca per nome</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-                    <Search className="text-stone-400" size={18} strokeWidth={2.5} />
-                  </div>
-                  <input
-                    type="text"
-                    value={mainSearch}
-                    placeholder="Cerca vestiti, elettronica, arredamento..."
-                    className="w-full py-3 pl-12 pr-16 rounded-xl bg-stone-50 border border-stone-200 outline-none text-sm font-bold text-stone-900 focus:bg-white focus:border-rose-400 transition-all placeholder:text-stone-400"
-                    onChange={(e) => setMainSearch(e.target.value)}
-                  />
-                  <button
-                    onClick={handleVoiceSearch}
-                    type="button"
-                    title={isListening ? "In ascolto..." : "Ricerca con la voce"}
-                    className={`absolute inset-y-1.5 right-1.5 w-10 rounded-lg flex items-center justify-center transition-all ${isListening ? 'bg-rose-600 text-white' : 'bg-stone-100 text-rose-500 hover:bg-stone-200'}`}
-                  >
-                    {isListening ? <Mic size={18} /> : <MicOff size={18} />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                <div className="flex flex-col gap-2">
-                  <label className="text-[9px] font-black uppercase text-stone-900 ml-2 tracking-widest">Categoria</label>
-                  <select onChange={(e) => setSearchCategory(e.target.value)} className="p-3 bg-stone-50 rounded-xl text-[11px] font-black uppercase tracking-wide outline-none border border-stone-200 hover:bg-white transition-colors cursor-pointer text-stone-900">
-                    <option value="all">Tutte le Categorie</option>
-                    <option value="Abbigliamento e Accessori">👕 Abbigliamento e Accessori</option>
-                    <option value="Elettronica e Informatica">💻 Elettronica e Informatica</option>
-                    <option value="Casa, Arredamento e Giardino">🛋️ Casa, Arredo, Giardino</option>
-                    <option value="Alimentari e Bevande">🍎 Alimentari e Bevande</option>
-                    <option value="Libri, Film e Musica">📚 Libri, Film e Musica</option>
-                    <option value="Salute e Bellezza">💄 Salute e Bellezza</option>
-                    <option value="Sport e Tempo Libero">⚽ Sport e Tempo Libero</option>
-                    <option value="Motori e Veicoli">🚗 Motori e Veicoli</option>
-                    <option value="Altro / Varie">📦 Altro / Varie</option>
-                  </select>
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  <label className="text-[9px] font-black uppercase text-stone-900 ml-2 tracking-widest">Condizione</label>
-                  <select onChange={(e) => setSearchCondition(e.target.value)} className="p-3 bg-stone-50 rounded-xl text-[11px] font-black uppercase tracking-wide outline-none border border-stone-200 hover:bg-white transition-colors cursor-pointer text-stone-900">
-                    <option value="all">Tutte</option>
-                    <option value="Nuovo">✨ Nuovo</option>
-                    <option value="Usato">♻️ Usato</option>
-                    <option value="Regalo">🎁 In Regalo</option>
-                    <option value="Baratto">🤝 Baratto</option>
-                  </select>
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  <label className="text-[9px] font-black uppercase text-stone-900 ml-2 tracking-widest">Fascia di Prezzo (€)</label>
-                  <div className="flex gap-2 items-center">
-                    <input 
-                      type="number" 
-                      placeholder="Min" 
-                      value={minPrice}
-                      onChange={(e) => setMinPrice(e.target.value)}
-                      className="w-full p-3 bg-stone-50 rounded-xl text-[11px] font-black outline-none border border-stone-200 hover:bg-white focus:bg-white focus:border-rose-500 transition-colors"
-                    />
-                    <span className="text-stone-400 font-black">-</span>
-                    <input 
-                      type="number" 
-                      placeholder="Max" 
-                      value={maxPrice}
-                      onChange={(e) => setMaxPrice(e.target.value)}
-                      className="w-full p-3 bg-stone-50 rounded-xl text-[11px] font-black outline-none border border-stone-200 hover:bg-white focus:bg-white focus:border-rose-500 transition-colors"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  <Tooltip text="Trova annunci in un raggio di 20km 📍" wrapperClass="relative w-full">
-                    <button onClick={handleNearbySearch} className={`w-full p-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all shadow-md flex items-center justify-center gap-2 ${distance > 0 ? 'bg-rose-600 text-white' : 'bg-stone-900 text-white hover:bg-rose-600'}`}>
-                      <MapPin size={16} />
-                      {distance > 0 ? 'Filtro 20km Attivo' : 'Radar Zona'}
-                    </button>
-                  </Tooltip>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {!catFilter && !typeFilter && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-16 max-w-[1300px] mx-auto px-2">
-              
-              <Tooltip text="Metti in vendita un oggetto mai usato ✨" wrapperClass="relative w-full h-full">
-                <Link href="/add?mode=new" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#f5efdf] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
-                   <div className="absolute inset-0 w-full h-full overflow-hidden">
-                     <img src="/nuovo.png" className="w-full h-full object-cover" alt="Nuovo" loading="lazy" decoding="async" />
-                   </div>
-                   <div className="absolute bottom-3 z-10 w-full px-2">
-                     <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Vendi Nuovo</span>
-                   </div>
-                </Link>
-              </Tooltip>
-              
-              <Tooltip text="Dai una seconda vita ai tuoi oggetti ♻️" wrapperClass="relative w-full h-full">
-                <Link href="/add?mode=used" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#f5efdf] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
-                   <div className="absolute inset-0 w-full h-full overflow-hidden">
-                     <img src="/usato.png" className="w-full h-full object-cover" alt="Usato" loading="lazy" decoding="async" />
-                   </div>
-                   <div className="absolute bottom-3 z-10 w-full px-2">
-                     <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Vendi Usato</span>
-                   </div>
-                </Link>
-              </Tooltip>
-              
-              <Tooltip text="Regala o trova oggetti gratis in regalo 🎁" wrapperClass="relative w-full h-full">
-                <Link href="/add?mode=gift" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#f5efdf] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
-                   <div className="absolute inset-0 w-full h-full overflow-hidden">
-                     <img src="/regalo.png" className="w-full h-full object-cover" alt="Regalo" loading="lazy" decoding="async" />
-                   </div>
-                   <div className="absolute bottom-3 z-10 w-full px-2">
-                     <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Regalo</span>
-                   </div>
-                </Link>
-              </Tooltip>
-
-              <Tooltip text="Scambia i tuoi oggetti senza usare soldi 🤝" wrapperClass="relative w-full h-full">
-                <Link href="/add?mode=barter" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#f5efdf] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
-                   <div className="absolute inset-0 w-full h-full overflow-hidden">
-                     <img src="/baratto.png" className="w-full h-full object-cover" alt="Baratto" loading="lazy" decoding="async" />
-                   </div>
-                   <div className="absolute bottom-3 z-10 w-full px-2">
-                     <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Baratto</span>
-                   </div>
-                </Link>
-              </Tooltip>
-            </div>
-          )}
-
-          <section className="mb-20 max-w-[1300px] mx-auto px-2">
-            <div className="flex justify-between items-end mb-8 border-b border-stone-300 pb-4">
-              <h2 className="text-[14px] font-black uppercase tracking-[0.4em] text-stone-900">Vetrina Top Nuovo</h2>
-              <Link href="/?condition=Nuovo" className="text-[10px] font-black uppercase text-rose-600 hover:text-stone-900 transition-colors">Vedi tutti →</Link>
-            </div>
-            
-            {loading ? (
-               <div className="grid grid-cols-2 lg:grid-cols-5 gap-6">
-                 {Array.from({ length: 5 }).map((_, i) => <SkeletonCard key={`top-skel-${i}`} isTop={true} />)}
-               </div>
-            ) : topItems.length === 0 ? (
-               <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest text-center my-10">Nessun oggetto TOP trovato con questi filtri.</p>
-            ) : (
-              <div className="grid grid-cols-2 lg:grid-cols-5 gap-6">
-                {topItems.map(item => (
-                  <div key={item.id} className={`group bg-white p-4 rounded-[2rem] shadow-md border ${item.is_sponsored ? 'border-orange-400 ring-2 ring-orange-400' : 'border-stone-200'} hover:bg-stone-50 transition-all relative overflow-hidden`}>
-                    {item.is_sponsored && (
-                      <div className="absolute top-0 left-0 bg-orange-500 text-white text-[8px] font-black uppercase px-3 py-1.5 rounded-br-2xl z-40 tracking-widest shadow-sm">
-                        TOP ✨
-                      </div>
-                    )}
-                    <button onClick={(e) => handleToggleFavorite(e, item.id)} className="absolute top-6 right-6 z-30 bg-white w-8 h-8 flex items-center justify-center rounded-full shadow-md hover:scale-110 transition-all">
-                      <Heart size={16} className={favorites.includes(item.id) ? "fill-rose-500 text-rose-500" : "text-stone-400"} />
-                    </button>
-                    <Link href={`/announcement/${item.id}`}>
-                      <div className="aspect-square rounded-2xl overflow-hidden bg-stone-100 mb-4 relative border border-stone-200">
-                        <img src={item.image_url || "/nuovo.png"} className="w-full h-full object-contain" alt={item.title} loading="lazy" decoding="async" />
-                      </div>
-                      <h4 className="text-[12px] font-black uppercase truncate text-stone-900 mb-1">{item.title}</h4>
-                      <p className="text-xl font-black text-rose-600 italic">€ {item.price}</p>
-                    </Link>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <section className="mb-20 max-w-[1300px] mx-auto px-2">
-            <div className="flex justify-between items-end mb-8 border-b border-stone-300 pb-4">
-              <h2 className="text-[14px] font-black uppercase tracking-[0.4em] text-stone-900 opacity-50">Tutti gli Annunci</h2>
-            </div>
-            
-            {loading ? (
-               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-5">
-                 {Array.from({ length: 12 }).map((_, i) => <SkeletonCard key={`reg-skel-${i}`} isTop={false} />)}
-               </div>
-            ) : regularItems.length === 0 ? (
-              <div className="text-center py-20 bg-white rounded-3xl border border-stone-200">
-                 <Search size={64} className="text-stone-300 mx-auto mb-4" strokeWidth={1.5} />
-                 <p className="text-sm font-black text-stone-900 uppercase tracking-widest">Nessun risultato</p>
-                 <p className="text-[10px] font-bold text-stone-500 uppercase mt-2">Prova ad allargare i filtri di ricerca o la fascia di prezzo.</p>
-                 {mainSearch.trim() && (
-                   <div className="mt-10 text-left">
-                     <ExternalResultsFallback query={mainSearch.trim()} />
-                   </div>
-                 )}
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-5">
-                {regularItems.slice(0, visibleCountValue).map(item => (
-                  <div key={item.id} className={`group bg-white rounded-3xl overflow-hidden shadow-sm border ${item.is_sponsored ? 'border-orange-400' : 'border-stone-200'} hover:bg-stone-50 transition-all flex flex-col relative`}>
-                    {item.is_sponsored && (
-                      <div className="absolute top-0 left-0 bg-orange-500 text-white text-[7px] font-black uppercase px-2 py-1 rounded-br-xl z-40 tracking-widest shadow-sm">
-                        TOP 🌟
-                      </div>
-                    )}
-                    <Link href={`/announcement/${item.id}`} className="aspect-square bg-stone-100 relative block overflow-hidden">
-                      <button onClick={(e) => handleToggleFavorite(e, item.id)} className="absolute top-2 right-2 z-30 bg-white w-8 h-8 flex items-center justify-center rounded-full shadow-sm hover:scale-110 transition-all">
-                        <Heart size={16} className={favorites.includes(item.id) ? "fill-rose-500 text-rose-500" : "text-stone-400"} />
-                      </button>
-                      <img src={item.image_url || "/usato.png"} className="w-full h-full object-contain" alt={item.title} loading="lazy" decoding="async" />
-                    </Link>
-                    <div className="p-3 flex flex-col justify-between flex-grow">
-                      <div>
-                        <h4 className="text-[10px] font-black uppercase line-clamp-2 text-stone-800 leading-tight mb-1">{item.title}</h4>
-                        <p className="text-[14px] font-black text-rose-600 italic">
-                          {item.condition === 'Regalo' || item.condition === 'Baratto' ? '€ 0' : `€ ${item.price}`}
-                        </p>
-                      </div>
-                      <Link href={`/announcement/${item.id}`} className="mt-3 block text-center w-full bg-stone-900 text-white text-[9px] font-black uppercase py-2 rounded-xl hover:bg-rose-600 transition-all">
-                        {item.condition === 'Baratto' ? 'Baratta' : item.condition === 'Regalo' ? 'Ricevi' : 'Acquista'}
-                      </Link>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {!loading && regularItems.length > visibleCountValue && (
-              <div className="mt-12 flex justify-center w-full">
-                <button 
-                  onClick={() => setVisibleCount(prev => prev + 12)}
-                  className="bg-stone-900 text-white px-10 py-4 rounded-full text-[11px] font-black uppercase tracking-widest hover:bg-rose-600 transition-all shadow-md"
-                >
-                  Carica Altri ({regularItems.length - visibleCount})
-                </button>
-              </div>
-            )}
-          </section>
 
           <div className="w-full max-w-[800px] mx-auto mt-12 mb-10 rounded-[2rem] overflow-hidden shadow-sm bg-[#020205] relative h-[400px] flex">
             <GalacticOutpost />

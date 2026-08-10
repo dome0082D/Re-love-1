@@ -16,11 +16,18 @@ export default function EditAnnouncementPage() {
   const [formData, setFormData] = useState({
     title: '',
     price: 0,
+    shippingCost: 0,
     quantity: 1,
     category: 'Altro / Varie',
     condition: 'Usato',
-    description: ''
+    description: '',
+    address: ''
   })
+
+  // Coordinate trovate a partire dall'indirizzo. Servono al Radar Zona e ai
+  // segnaposti sulla Mappa: senza, l'annuncio resta invisibile a entrambi.
+  const [coords, setCoords] = useState<{ lat: number; lng: number; city: string; label: string } | null>(null)
+  const [geocoding, setGeocoding] = useState(false)
 
   useEffect(() => {
     async function fetchAnnouncement() {
@@ -66,10 +73,12 @@ export default function EditAnnouncementPage() {
       setFormData({
         title: data.title || '',
         price: data.price || 0,
+        shippingCost: data.shipping_cost || 0,
         quantity: data.quantity !== undefined ? data.quantity : 1,
         category: data.category || 'Altro / Varie',
         condition: data.condition || 'Usato',
-        description: data.description || ''
+        description: data.description || '',
+        address: data.address || ''
       })
       
       setLoading(false)
@@ -77,6 +86,38 @@ export default function EditAnnouncementPage() {
     
     if (id) fetchAnnouncement()
   }, [id, router])
+
+  // Cerca le coordinate dell'indirizzo. Stesso servizio usato nella pagina
+  // "Inserisci Annuncio": qui serve per dare una posizione anche agli
+  // annunci pubblicati PRIMA che il campo indirizzo esistesse, senza
+  // doverli ripubblicare da zero.
+  async function handleCercaIndirizzo() {
+    if (!formData.address.trim()) {
+      alert('Scrivi prima un indirizzo.')
+      return
+    }
+    setGeocoding(true)
+    try {
+      const res = await fetch('/api/geocode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address: formData.address.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        alert(data.error || 'Indirizzo non trovato.')
+        setCoords(null)
+        return
+      }
+      setCoords({ lat: data.latitude, lng: data.longitude, city: data.city, label: data.displayName })
+    } catch (err) {
+      console.error('Errore geocodifica:', err)
+      alert('Errore di connessione. Riprova.')
+      setCoords(null)
+    } finally {
+      setGeocoding(false)
+    }
+  }
 
   async function handleSave(e: any) {
     e.preventDefault()
@@ -93,10 +134,16 @@ export default function EditAnnouncementPage() {
         .update({
           title: formData.title,
           price: formData.price,
+          shipping_cost: formData.shippingCost,
           quantity: formData.quantity,
           category: formData.category,
           condition: formData.condition,
-          description: formData.description
+          description: formData.description,
+          address: formData.address.trim() || null,
+          // Se l'utente ha cercato un nuovo indirizzo usiamo quelle
+          // coordinate; altrimenti lasciamo intatte quelle già salvate
+          // (non le azzeriamo per sbaglio modificando solo il titolo).
+          ...(coords ? { city: coords.city, latitude: coords.lat, longitude: coords.lng } : {})
         })
         .eq('id', id)
         .eq('user_id', user.id) // Doppia sicurezza
@@ -137,12 +184,28 @@ export default function EditAnnouncementPage() {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">Prezzo (€) *</label>
+              <label className="block text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1 flex justify-between">
+                Prezzo (€) *
+                <span className="text-rose-500">-10% Comm.</span>
+              </label>
               <input required type="number" step="0.01" min="0" value={formData.price} onChange={e => setFormData({...formData, price: parseFloat(e.target.value)})} className="w-full p-4 border border-stone-200 rounded-xl text-sm font-bold outline-none focus:border-emerald-500" />
             </div>
             <div>
               <label className="block text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">Quantità Disponibile *</label>
               <input required type="number" min="0" value={formData.quantity} onChange={e => setFormData({...formData, quantity: parseInt(e.target.value)})} className="w-full p-4 border border-stone-200 rounded-xl text-sm font-bold outline-none focus:border-emerald-500" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">Spese di Spedizione (€)</label>
+              <input type="number" step="0.10" min="0" value={formData.shippingCost} onChange={e => setFormData({...formData, shippingCost: parseFloat(e.target.value) || 0})} className="w-full p-4 border border-stone-200 rounded-xl text-sm font-bold outline-none focus:border-emerald-500" placeholder="0.00 (Gratis)" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-black uppercase tracking-widest text-emerald-600 mb-1">Tu Guadagni (sul prezzo)</label>
+              <div className="w-full p-4 bg-emerald-50 border border-emerald-100 rounded-xl text-sm font-black text-emerald-700 flex items-center h-[46px]">
+                € {(Number(formData.price) * 0.90).toFixed(2)}
+              </div>
             </div>
           </div>
 
@@ -181,6 +244,38 @@ export default function EditAnnouncementPage() {
                 <option value="Baratto">🤝 Baratto</option>
               </select>
             </div>
+          </div>
+
+          <div className="p-5 bg-stone-50 border border-stone-200 rounded-2xl space-y-3">
+            <label className="block text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">
+              Dove si trova l&apos;oggetto? (Via e Citt&agrave;)
+            </label>
+            <p className="text-[9px] font-bold text-stone-400 uppercase tracking-widest mb-2">
+              Serve per il Radar Zona e per comparire sulla mappa
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Es. Via Roma 12, Milano"
+                value={formData.address}
+                onChange={e => { setFormData({...formData, address: e.target.value}); setCoords(null) }}
+                className="flex-1 p-4 bg-white border border-stone-200 rounded-xl text-sm font-bold outline-none focus:border-emerald-500"
+              />
+              <button
+                type="button"
+                onClick={handleCercaIndirizzo}
+                disabled={geocoding || !formData.address.trim()}
+                className="shrink-0 bg-stone-900 text-white px-5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-600 transition-all disabled:opacity-40"
+              >
+                {geocoding ? '...' : 'Trova'}
+              </button>
+            </div>
+            {coords && (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3">
+                <p className="text-[10px] font-black uppercase text-emerald-700 tracking-widest mb-1">Nuova posizione</p>
+                <p className="text-xs font-bold text-emerald-800 leading-snug">{coords.label}</p>
+              </div>
+            )}
           </div>
 
           <div>
