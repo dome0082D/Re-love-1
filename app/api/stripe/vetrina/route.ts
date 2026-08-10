@@ -17,6 +17,38 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
 
 const VETRINA_PRICE_CENTS = 299 // 2,99€ - stessa cifra della vecchia Sponsorizza
 
+// FIX/NUOVO: trasforma un link Amazon aggiungendo il codice di affiliazione
+// (AMAZON_PARTNER_TAG, già tra le variabili d'ambiente previste dal
+// progetto). Da qui in avanti, ogni acquisto fatto su Amazon a partire da
+// questo link genera una commissione reale per te - pagata da Amazon
+// stessa, senza toccare minimamente il prezzo che l'utente vede, che resta
+// sempre quello vero. Se il link non è di Amazon, o se la variabile
+// d'ambiente non è ancora configurata, restituisce il link intatto.
+function aggiungiTagAffiliazioneAmazon(url: string): string {
+  const tag = process.env.AMAZON_PARTNER_TAG
+  if (!tag) return url
+
+  try {
+    const parsed = new URL(url)
+    const dominiAmazon = ['amazon.it', 'amazon.com', 'amazon.de', 'amazon.fr', 'amazon.es', 'amazon.co.uk']
+    const isAmazon = dominiAmazon.some(d => parsed.hostname === d || parsed.hostname.endsWith('.' + d))
+    if (!isAmazon) return url
+
+    parsed.searchParams.set('tag', tag)
+    return parsed.toString()
+  } catch {
+    return url
+  }
+}
+
+// TODO: eBay e AliExpress hanno un meccanismo di affiliazione diverso da
+// Amazon - non basta aggiungere un parametro all'indirizzo, serve generare
+// il link tramite le loro API (le stesse già scritte tempo fa in
+// lib/affiliates/ebay.ts e lib/affiliates/aliexpress.ts per la ricerca
+// a vuoto). Per ora un link a quei siti viene salvato così com'è, senza
+// affiliazione. Se vuoi, mandami quei due file così come sono ora e li collego
+// allo stesso modo di Amazon, invece di indovinare come sono fatti oggi.
+
 // ============================================================================
 // VETRINA GRATUITA (momentaneamente, su richiesta)
 //
@@ -84,7 +116,7 @@ export async function POST(req: NextRequest) {
         user_id: userId,
         type,
         announcement_id: type === 'interna' ? announcementId : null,
-        external_url: type === 'esterna' ? externalUrl : null,
+        external_url: type === 'esterna' ? aggiungiTagAffiliazioneAmazon(externalUrl) : null,
         title: type === 'esterna' ? title : null,
         image_url: type === 'esterna' ? (imageUrl || null) : null,
         price: type === 'esterna' ? Number(price) : null,

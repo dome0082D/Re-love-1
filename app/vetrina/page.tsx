@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { Sparkles, ExternalLink, Plus, X, Eye } from 'lucide-react'
+import ExternalLinkConfirmModal from '../components/ExternalLinkConfirmModal'
 
 function VetrinaContent() {
   const router = useRouter()
@@ -39,6 +40,9 @@ function VetrinaContent() {
   const [extShipping, setExtShipping] = useState('')
   const [fetchingPreview, setFetchingPreview] = useState(false)
   const [paying, setPaying] = useState(false)
+  // URL in attesa di conferma prima di uscire da Re-love - vedi la modale
+  // condivisa ExternalLinkConfirmModal.
+  const [pendingUrl, setPendingUrl] = useState<string | null>(null)
 
   useEffect(() => {
     init()
@@ -414,12 +418,9 @@ function VetrinaContent() {
                     <X size={14} />
                   </button>
                 )}
-                <a
-                  href={item.external_url}
-                  target="_blank"
-                  rel="noopener noreferrer sponsored"
-                  onClick={() => handleExternalClick(item.id)}
-                  className="contents"
+                <div
+                  onClick={() => { handleExternalClick(item.id); setPendingUrl(item.external_url) }}
+                  className="contents cursor-pointer"
                 >
                 <div className="aspect-square bg-stone-50 relative">
                   {item.image_url ? (
@@ -442,7 +443,7 @@ function VetrinaContent() {
                     <Eye size={10} /> {item.clicks} visite al link
                   </p>
                 </div>
-                </a>
+                </div>
               </div>
             ))}
           </div>

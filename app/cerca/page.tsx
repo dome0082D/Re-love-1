@@ -1,274 +1,169 @@
 'use client'
+export const dynamic = 'force-dynamic'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
-import { useParams, useRouter } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import { Search, Heart } from 'lucide-react'
+import ExternalResultsFallback from '../components/ExternalResultsFallback'
 
-export default function EditAnnouncementPage() {
-  const { id } = useParams()
-  const router = useRouter()
-  
+function CercaContent() {
+  const searchParams = useSearchParams()
+  const query = (searchParams.get('q') || '').trim()
+
+  const [results, setResults] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
+  const [loadError, setLoadError] = useState(false)
+  const [favorites, setFavorites] = useState<string[]>([])
   const [user, setUser] = useState<any>(null)
-  
-  const [formData, setFormData] = useState({
-    title: '',
-    price: 0,
-    quantity: 1,
-    category: 'Altro / Varie',
-    condition: 'Usato',
-    description: '',
-    address: ''
-  })
-
-  // Coordinate trovate a partire dall'indirizzo. Servono al Radar Zona e ai
-  // segnaposti sulla Mappa: senza, l'annuncio resta invisibile a entrambi.
-  const [coords, setCoords] = useState<{ lat: number; lng: number; city: string; label: string } | null>(null)
-  const [geocoding, setGeocoding] = useState(false)
 
   useEffect(() => {
-    async function fetchAnnouncement() {
-      // 1. Controlla chi è loggato
-      const { data: { user: currentUser } } = await supabase.auth.getUser()
-      if (!currentUser) {
-        router.push('/login')
-        return
-      }
-      setUser(currentUser)
+    init()
+  }, [query])
 
-      // 2. Scarica i vecchi dati dell'annuncio
+  async function init() {
+    const { data: { user: u } } = await supabase.auth.getUser()
+    setUser(u)
+    if (u) {
+      const { data: favs } = await supabase.from('favorites').select('announcement_id').eq('user_id', u.id)
+      if (favs) setFavorites(favs.map(f => f.announcement_id))
+    }
+    fetchResults()
+  }
+
+  async function fetchResults() {
+    if (!query) {
+      setResults([])
+      setLoading(false)
+      return
+    }
+
+    setLoading(true)
+    setLoadError(false)
+    try {
+      // La virgola e le parentesi hanno un significato speciale nella
+      // sintassi dei filtri di Supabase/PostgREST: se il testo cercato le
+      // contiene, romperebbero la query invece di essere cercate come
+      // testo. Le togliamo prima di usarle nella ricerca.
+      const pulita = query.replace(/[,()]/g, ' ').trim()
+
       const { data, error } = await supabase
         .from('announcements')
         .select('*')
-        .eq('id', id)
-        .single()
+        .or(`title.ilike.%${pulita}%,description.ilike.%${pulita}%`)
+        .order('created_at', { ascending: false })
 
-      // FIX: prima un errore di RETE e un annuncio DAVVERO inesistente
-      // mostravano lo stesso identico messaggio "Annuncio non trovato" e
-      // rimandavano subito al profilo - un semplice calo di connessione
-      // (Android instabile) ti buttava fuori dalla modifica come se
-      // l'annuncio non esistesse più, anche se esiste benissimo.
-      if (error) {
-        alert("Errore di connessione nel caricare l'annuncio. Riprova.")
-        router.push('/profile')
-        return
-      }
-      if (!data) {
-        alert("Annuncio non trovato.")
-        router.push('/profile')
-        return
-      }
-
-      // 3. SICUREZZA: Solo il proprietario può modificare
-      if (data.user_id !== currentUser.id) {
-        alert("Non sei autorizzato a modificare questo annuncio.")
-        router.push('/profile')
-        return
-      }
-
-      // 4. Inserisce i vecchi dati nel modulo pronti per essere cambiati
-      setFormData({
-        title: data.title || '',
-        price: data.price || 0,
-        quantity: data.quantity !== undefined ? data.quantity : 1,
-        category: data.category || 'Altro / Varie',
-        condition: data.condition || 'Usato',
-        description: data.description || '',
-        address: data.address || ''
-      })
-      
+      if (error) throw error
+      setResults(data || [])
+    } catch (err) {
+      console.error('Errore ricerca:', err)
+      setLoadError(true)
+    } finally {
       setLoading(false)
     }
-    
-    if (id) fetchAnnouncement()
-  }, [id, router])
-
-  // Cerca le coordinate dell'indirizzo. Stesso servizio usato nella pagina
-  // "Inserisci Annuncio": qui serve per dare una posizione anche agli
-  // annunci pubblicati PRIMA che il campo indirizzo esistesse, senza
-  // doverli ripubblicare da zero.
-  async function handleCercaIndirizzo() {
-    if (!formData.address.trim()) {
-      alert('Scrivi prima un indirizzo.')
-      return
-    }
-    setGeocoding(true)
-    try {
-      const res = await fetch('/api/geocode', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ address: formData.address.trim() }),
-      })
-      const data = await res.json()
-      if (!res.ok || data.error) {
-        alert(data.error || 'Indirizzo non trovato.')
-        setCoords(null)
-        return
-      }
-      setCoords({ lat: data.latitude, lng: data.longitude, city: data.city, label: data.displayName })
-    } catch (err) {
-      console.error('Errore geocodifica:', err)
-      alert('Errore di connessione. Riprova.')
-      setCoords(null)
-    } finally {
-      setGeocoding(false)
-    }
   }
 
-  async function handleSave(e: any) {
+  async function handleToggleFavorite(e: React.MouseEvent, id: string) {
     e.preventDefault()
-    setSaving(true)
-
-    // FIX: aggiunto try/catch - senza, un fallimento di rete durante il
-    // salvataggio (non solo un errore restituito da Supabase, ma
-    // un'eccezione vera e propria) lasciava "Salva Modifiche" bloccato su
-    // "Salvataggio..." per sempre.
-    try {
-      // 5. Salva i nuovi dati sovrascrivendo i vecchi
-      const { error } = await supabase
-        .from('announcements')
-        .update({
-          title: formData.title,
-          price: formData.price,
-          quantity: formData.quantity,
-          category: formData.category,
-          condition: formData.condition,
-          description: formData.description,
-          address: formData.address.trim() || null,
-          // Se l'utente ha cercato un nuovo indirizzo usiamo quelle
-          // coordinate; altrimenti lasciamo intatte quelle già salvate
-          // (non le azzeriamo per sbaglio modificando solo il titolo).
-          ...(coords ? { city: coords.city, latitude: coords.lat, longitude: coords.lng } : {})
-        })
-        .eq('id', id)
-        .eq('user_id', user.id) // Doppia sicurezza
-
-      if (error) {
-        alert("Errore durante il salvataggio: " + error.message)
-        return
-      }
-
-      alert("Annuncio aggiornato con successo!")
-      router.push('/profile') // Torna al profilo
-    } catch (err: any) {
-      console.error('Errore salvataggio annuncio:', err)
-      alert("Errore di connessione. Riprova.")
-    } finally {
-      setSaving(false)
+    e.stopPropagation()
+    if (!user) return
+    if (favorites.includes(id)) {
+      const { error } = await supabase.from('favorites').delete().eq('user_id', user.id).eq('announcement_id', id)
+      if (!error) setFavorites(favorites.filter(f => f !== id))
+    } else {
+      const { error } = await supabase.from('favorites').insert([{ user_id: user.id, announcement_id: id }])
+      if (!error) setFavorites([...favorites, id])
     }
   }
-
-  if (loading) return <div className="p-10 text-center font-black uppercase text-xs text-stone-500">Caricamento annuncio...</div>
 
   return (
-    <div className="min-h-screen p-6 font-sans text-stone-900 pb-20 flex items-center justify-center">
-      <div className="max-w-2xl w-full bg-white rounded-3xl p-8 border border-stone-200 shadow-sm">
-        
-        <div className="flex justify-between items-center mb-8 border-b border-stone-200 pb-4">
-          <h1 className="text-2xl font-black uppercase italic text-stone-900">Modifica Annuncio</h1>
-          <Link href="/profile" className="text-[10px] font-black uppercase tracking-widest text-stone-400 hover:text-stone-900 transition-colors">
-            ← Annulla
-          </Link>
+    <div className="min-h-screen font-sans text-stone-900 pb-32">
+      <div className="w-full py-14 bg-[#f5efdf] border-b border-stone-200 flex items-center justify-center">
+        <div className="text-center max-w-2xl px-6">
+          <span className="inline-flex items-center gap-2 bg-stone-900 text-white text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-full mb-4">
+            <Search size={12} /> Risultati di ricerca
+          </span>
+          <h1 className="text-3xl md:text-4xl font-black uppercase italic text-stone-900 tracking-tight">
+            {query ? `"${query}"` : 'Nessuna ricerca'}
+          </h1>
         </div>
+      </div>
 
-        <form onSubmit={handleSave} className="space-y-4">
-          <div>
-            <label className="block text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">Titolo dell'oggetto *</label>
-            <input required type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="w-full p-4 border border-stone-200 rounded-xl text-sm font-bold outline-none focus:border-emerald-500" />
+      <div className="max-w-6xl mx-auto px-4 mt-10">
+        {!query ? (
+          <div className="bg-white border-2 border-dashed border-stone-200 rounded-[2rem] p-16 text-center">
+            <Search size={48} className="text-stone-300 mx-auto mb-4" strokeWidth={1.5} />
+            <p className="text-sm font-black uppercase text-stone-400">Scrivi qualcosa da cercare</p>
           </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">Prezzo (€) *</label>
-              <input required type="number" step="0.01" min="0" value={formData.price} onChange={e => setFormData({...formData, price: parseFloat(e.target.value)})} className="w-full p-4 border border-stone-200 rounded-xl text-sm font-bold outline-none focus:border-emerald-500" />
-            </div>
-            <div>
-              <label className="block text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">Quantità Disponibile *</label>
-              <input required type="number" min="0" value={formData.quantity} onChange={e => setFormData({...formData, quantity: parseInt(e.target.value)})} className="w-full p-4 border border-stone-200 rounded-xl text-sm font-bold outline-none focus:border-emerald-500" />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              {/* FIX: queste voci non corrispondevano alle categorie usate nel
-                  resto del sito (i filtri della Home) - un annuncio con una
-                  categoria "vera" (es. "Elettronica e Informatica") non
-                  trovava corrispondenza qui, il menu ricadeva sulla prima
-                  voce senza avviso, e salvando la categoria veniva
-                  silenziosamente cambiata. Allineate alla lista reale. */}
-              <label className="block text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">Categoria</label>
-              <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} className="w-full p-4 border border-stone-200 rounded-xl text-sm font-bold outline-none focus:border-emerald-500 cursor-pointer">
-                <option value="Abbigliamento e Accessori">👕 Abbigliamento e Accessori</option>
-                <option value="Elettronica e Informatica">💻 Elettronica e Informatica</option>
-                <option value="Casa, Arredamento e Giardino">🛋️ Casa, Arredo, Giardino</option>
-                <option value="Alimentari e Bevande">🍎 Alimentari e Bevande</option>
-                <option value="Libri, Film e Musica">📚 Libri, Film e Musica</option>
-                <option value="Salute e Bellezza">💄 Salute e Bellezza</option>
-                <option value="Sport e Tempo Libero">⚽ Sport e Tempo Libero</option>
-                <option value="Motori e Veicoli">🚗 Motori e Veicoli</option>
-                <option value="Altro / Varie">📦 Altro / Varie</option>
-              </select>
-            </div>
-            <div>
-              {/* FIX: mancavano "Regalo" e "Baratto" - modificare un annuncio
-                  con una di queste due condizioni lo avrebbe silenziosamente
-                  trasformato in "Nuovo" al salvataggio, con tutto quello che
-                  ne consegue (un regalo che improvvisamente mostra un prezzo
-                  invece di "Gratis" nel resto del sito). */}
-              <label className="block text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">Condizione</label>
-              <select value={formData.condition} onChange={e => setFormData({...formData, condition: e.target.value})} className="w-full p-4 border border-stone-200 rounded-xl text-sm font-bold outline-none focus:border-emerald-500 cursor-pointer">
-                <option value="Nuovo">✨ Nuovo</option>
-                <option value="Usato">♻️ Usato</option>
-                <option value="Regalo">🎁 In Regalo</option>
-                <option value="Baratto">🤝 Baratto</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="p-5 bg-stone-50 border border-stone-200 rounded-2xl space-y-3">
-            <label className="block text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">
-              Dove si trova l&apos;oggetto? (Via e Citt&agrave;)
-            </label>
-            <p className="text-[9px] font-bold text-stone-400 uppercase tracking-widest mb-2">
-              Serve per il Radar Zona e per comparire sulla mappa
-            </p>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                placeholder="Es. Via Roma 12, Milano"
-                value={formData.address}
-                onChange={e => { setFormData({...formData, address: e.target.value}); setCoords(null) }}
-                className="flex-1 p-4 bg-white border border-stone-200 rounded-xl text-sm font-bold outline-none focus:border-emerald-500"
-              />
-              <button
-                type="button"
-                onClick={handleCercaIndirizzo}
-                disabled={geocoding || !formData.address.trim()}
-                className="shrink-0 bg-stone-900 text-white px-5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-600 transition-all disabled:opacity-40"
-              >
-                {geocoding ? '...' : 'Trova'}
-              </button>
-            </div>
-            {coords && (
-              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3">
-                <p className="text-[10px] font-black uppercase text-emerald-700 tracking-widest mb-1">Nuova posizione</p>
-                <p className="text-xs font-bold text-emerald-800 leading-snug">{coords.label}</p>
+        ) : loading ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="bg-white rounded-[2rem] p-4 shadow-sm border border-stone-200 animate-pulse h-56">
+                <div className="w-full h-28 bg-stone-200 rounded-2xl mb-4"></div>
+                <div className="w-3/4 h-4 bg-stone-200 rounded mb-2"></div>
+                <div className="w-1/2 h-6 bg-stone-200 rounded"></div>
               </div>
-            )}
+            ))}
           </div>
-
-          <div>
-            <label className="block text-[10px] font-black uppercase tracking-widest text-stone-400 mb-1">Descrizione / Note</label>
-            <textarea rows={5} value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full p-4 border border-stone-200 rounded-xl text-sm font-bold outline-none focus:border-emerald-500 resize-none"></textarea>
+        ) : loadError ? (
+          <div className="bg-white border border-red-200 rounded-[2rem] p-16 text-center">
+            <p className="text-sm font-black uppercase text-red-500 mb-2">Errore di caricamento</p>
+            <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-6">Controlla la connessione e riprova.</p>
+            <button onClick={fetchResults} className="bg-stone-900 text-white text-[10px] font-black uppercase tracking-widest px-6 py-3 rounded-xl hover:bg-rose-600 transition-all">
+              Riprova
+            </button>
           </div>
-
-          <button disabled={saving} type="submit" className="w-full bg-emerald-500 text-white font-black uppercase text-[10px] tracking-widest p-4 rounded-xl hover:bg-emerald-600 transition-colors mt-8 shadow-sm">
-            {saving ? 'Salvataggio...' : 'Salva Modifiche'}
-          </button>
-        </form>
+        ) : results.length === 0 ? (
+          <>
+            <div className="bg-white border-2 border-dashed border-stone-200 rounded-[3rem] p-16 text-center">
+              <span className="text-6xl block mb-4">🔍</span>
+              <h3 className="text-xl font-black uppercase text-stone-900 mb-2">Nessun risultato</h3>
+              <p className="text-xs font-bold text-stone-400 uppercase tracking-widest">Prova con parole diverse o più generiche.</p>
+            </div>
+            {/* NUOVO: quando su Re-love non c'è nulla, proponiamo i partner
+                esterni - stesso componente già usato altrove nel sito, riusato
+                qui invece di riscriverne una copia. */}
+            <div className="mt-10">
+              <ExternalResultsFallback query={query} />
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="text-[10px] font-black uppercase text-stone-400 tracking-widest mb-6">
+              {results.length} {results.length === 1 ? 'annuncio trovato' : 'annunci trovati'}
+            </p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
+              {results.map(item => (
+                <Link key={item.id} href={`/announcement/${item.id}`} className="group bg-white rounded-[2rem] overflow-hidden shadow-sm border border-stone-200 hover:shadow-md transition-all flex flex-col relative">
+                  <div className="aspect-square bg-stone-100 relative">
+                    {user && (
+                      <button onClick={(e) => handleToggleFavorite(e, item.id)} className="absolute top-2 right-2 z-10 bg-white w-8 h-8 flex items-center justify-center rounded-full shadow-sm hover:scale-110 transition-all">
+                        <Heart size={16} className={favorites.includes(item.id) ? 'fill-rose-500 text-rose-500' : 'text-stone-400'} />
+                      </button>
+                    )}
+                    <img src={item.image_url || '/usato.png'} className="w-full h-full object-contain" alt={item.title} loading="lazy" decoding="async" />
+                  </div>
+                  <div className="p-3">
+                    <h4 className="text-[10px] font-black uppercase line-clamp-2 text-stone-800 leading-tight mb-1">{item.title}</h4>
+                    <p className="text-[14px] font-black text-rose-600 italic">
+                      {item.condition === 'Regalo' || item.condition === 'Baratto' ? 'GRATIS' : `€ ${item.price}`}
+                    </p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </div>
+  )
+}
+
+export default function CercaPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center font-bold uppercase tracking-widest text-stone-400 text-xs">Ricerca in corso...</div>}>
+      <CercaContent />
+    </Suspense>
   )
 }
