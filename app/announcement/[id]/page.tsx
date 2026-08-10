@@ -70,7 +70,10 @@ export async function generateMetadata(
 }
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params // Recuperiamo l'ID anche qui per passarlo al Client
+  // FIX: prima questo id veniva passato come prop a AnnouncementClientWrapper,
+  // ma il componente non lo usava mai - prende il proprio id da solo con
+  // useParams(). Qui ci serve comunque, per il controllo 404 qui sotto.
+  const { id } = await params
 
   // FIX: se l'annuncio non esiste (eliminato, link vecchio condiviso in
   // chat), prima la pagina rispondeva comunque "200 OK" e lasciava al
@@ -89,5 +92,5 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     notFound()
   }
 
-  return <AnnouncementClientWrapper announcementId={id} />
+  return <AnnouncementClientWrapper />
 }

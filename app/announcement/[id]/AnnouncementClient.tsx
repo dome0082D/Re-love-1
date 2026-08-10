@@ -8,15 +8,67 @@ import { toast } from 'sonner'
 import { Timer, Gavel, ShoppingCart, Sparkles } from 'lucide-react'
 import { pushNotify } from '@/lib/pushNotify'
 import { useCartStore } from '@/store/cartStore'
+import type { User } from '@supabase/supabase-js'
+
+// FIX (ESLint "Unexpected any"): tipi precisi al posto di "any", costruiti
+// leggendo esattamente quali campi il file usa davvero (controllato campo
+// per campo, non un tipo generico indovinato). "User" è il tipo VERO già
+// fornito dalla libreria Supabase per l'utente autenticato - non ce n'era
+// bisogno di inventarne uno.
+interface Announcement {
+  id: string
+  title: string
+  description?: string
+  price: number
+  category?: string
+  category_id?: string
+  condition: string
+  image_url?: string
+  image_urls?: string[]
+  user_id: string
+  shipping_cost?: number
+  quantity?: number
+  allow_local_pickup?: boolean
+  accepts_returns?: boolean
+  exchange_item?: string
+  city?: string
+  is_sponsored?: boolean
+  type?: string
+  is_auction?: boolean
+  auction_end?: string
+  current_bid?: number
+}
+
+interface SellerProfile {
+  id: string
+  nickname?: string
+  first_name?: string
+  stripe_account_id?: string
+}
+
+interface Review {
+  id: string
+  rating: number
+  comment: string
+  reviewer?: { first_name?: string }
+}
+
+interface Offer {
+  id: string
+  offer_price: number
+  status: string
+  buyer_id: string
+  seller_id: string
+  announcement_id: string
+}
 
 function AnnouncementContent() {
   const { id } = useParams()
   const router = useRouter()
-  const [ann, setAnn] = useState<any>(null)
-  const [seller, setSeller] = useState<any>(null)
-  const [user, setUser] = useState<any>(null)
+  const [ann, setAnn] = useState<Announcement | null>(null)
+  const [seller, setSeller] = useState<SellerProfile | null>(null)
+  const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
-  const [showCoffeeModal, setShowCoffeeModal] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
   const [selectedQuantity, setSelectedQuantity] = useState(1)
 
@@ -28,7 +80,7 @@ function AnnouncementContent() {
 
   const [usePickup, setUsePickup] = useState(false)
   
-  const [reviews, setReviews] = useState<any[]>([])
+  const [reviews, setReviews] = useState<Review[]>([])
   const [hasPurchased, setHasPurchased] = useState(false)
   const [newReview, setNewReview] = useState({ rating: 5, comment: '' })
   const [submittingReview, setSubmittingReview] = useState(false)
@@ -38,7 +90,7 @@ function AnnouncementContent() {
   const [showOfferModal, setShowOfferModal] = useState(false)
   const [offerPrice, setOfferPrice] = useState<string>('')
   const [submittingOffer, setSubmittingOffer] = useState(false)
-  const [existingOffer, setExistingOffer] = useState<any>(null)
+  const [existingOffer, setExistingOffer] = useState<Offer | null>(null)
 
   // FIX ANDROID: la mappa incorporata cattura i gesti di trascinamento per il
   // proprio pan/zoom interno. Se è subito interattiva, un utente che prova a
@@ -663,7 +715,7 @@ function AnnouncementContent() {
                       <span className="text-xs font-black uppercase text-stone-900 italic">{review.reviewer?.first_name || 'Utente Re-love'}</span>
                       <div className="flex text-orange-500 text-sm">{'★'.repeat(review.rating)}</div>
                     </div>
-                    <p className="text-sm font-black text-stone-800 italic">"{review.comment}"</p>
+                    <p className="text-sm font-black text-stone-800 italic">&ldquo;{review.comment}&rdquo;</p>
                   </div>
               ))}
               {reviews.length > visibleReviews && (
@@ -714,7 +766,7 @@ function AnnouncementContent() {
   )
 }
 
-export default function AnnouncementClientWrapper({ announcementId }: { announcementId?: string }) {
+export default function AnnouncementClientWrapper() {
   return (
     <Suspense fallback={<div className="min-h-screen bg-transparent flex items-center justify-center font-black uppercase tracking-widest text-stone-400 text-xs">In caricamento...</div>}>
       <AnnouncementContent />
