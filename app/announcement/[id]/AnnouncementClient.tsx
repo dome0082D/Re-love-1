@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { Timer, Gavel, ShoppingCart, Sparkles } from 'lucide-react'
+import { pushNotify } from '@/lib/pushNotify'
 import { useCartStore } from '@/store/cartStore'
 
 function AnnouncementContent() {
@@ -295,6 +296,7 @@ function AnnouncementContent() {
         message: `Hai ricevuto una nuova proposta di €${offerPrice} per il tuo annuncio "${ann.title}"!`,
         is_read: false
       }]);
+      pushNotify(ann.user_id, 'Nuova proposta 💡', `€${offerPrice} per "${ann.title}"`, `/announcement/${ann.id}`)
     } else {
       toast.error("Errore database: " + error.message)
     }
@@ -356,6 +358,7 @@ function AnnouncementContent() {
       message: `🔥 Nuovo rilancio di €${offerPrice} per la tua asta "${ann.title}"!`,
       is_read: false
     }]);
+    pushNotify(ann.user_id, 'Nuovo rilancio 🔨', `€${offerPrice} per "${ann.title}"`, `/announcement/${ann.id}`)
 
     setSubmittingOffer(false)
   }

@@ -20,6 +20,13 @@ function VetrinaContent() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
 
+  // --- NASTRO VENDITORI SCORREVOLE ---
+  // Mappa user_id -> profilo, per mostrare nomi reali nel nastro e nelle
+  // card. Il filtro per venditore vive nell'indirizzo (?venditore=...), così
+  // si può anche condividere un link diretto "vetrina di questa persona".
+  const [sellerProfiles, setSellerProfiles] = useState<Record<string, any>>({})
+  const selectedSeller = searchParams.get('venditore')
+
   // --- MODALE DI CREAZIONE ---
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [createType, setCreateType] = useState<'interna' | 'esterna'>('interna')
@@ -110,6 +117,23 @@ function VetrinaContent() {
 
     setInternaItems(interna || [])
     setEsternaItems(esterna || [])
+
+    // Profili dei venditori presenti in Vetrina Interna, per il nastro
+    // scorrevole e per i nomi mostrati nelle card. Una sola richiesta per
+    // tutti i venditori distinti, non una per ciascuno.
+    const idVenditori = Array.from(new Set((interna || []).map((i: any) => i.user_id).filter(Boolean)))
+    if (idVenditori.length > 0) {
+      const { data: profili } = await supabase
+        .from('profiles')
+        .select('id, first_name, user_serial_id')
+        .in('id', idVenditori)
+      if (profili) {
+        const mappa: Record<string, any> = {}
+        profili.forEach((p: any) => { mappa[p.id] = p })
+        setSellerProfiles(mappa)
+      }
+    }
+
     setLoading(false)
   }
 
@@ -234,7 +258,18 @@ function VetrinaContent() {
     }
   }
 
-  const items = activeTab === 'interna' ? internaItems : esternaItems
+  // Se è stato scelto un venditore dal nastro scorrevole, mostriamo solo i
+  // suoi annunci in Vetrina Interna; altrimenti tutti.
+  const internaFiltrata = selectedSeller
+    ? internaItems.filter(item => item.user_id === selectedSeller)
+    : internaItems
+  const items = activeTab === 'interna' ? internaFiltrata : esternaItems
+
+  // Elenco dei venditori distinti presenti in Vetrina Interna, nell'ordine
+  // in cui compare la loro voce più recente.
+  const venditoriDistinti = Array.from(
+    new Map(internaItems.map(item => [item.user_id, item])).values()
+  )
 
   return (
     <div className="min-h-screen font-sans text-stone-900 pb-32">
@@ -270,6 +305,41 @@ function VetrinaContent() {
             <Plus size={14} /> Aggiungi alla Vetrina
           </button>
         </div>
+
+        {/* NASTRO VENDITORI SCORREVOLE - solo se ci sono venditori in
+            Vetrina Interna da mostrare. Toccando un nome si filtra la lista
+            sotto a quel solo venditore, senza cambiare pagina; il tondino
+            "Tutti" toglie il filtro. */}
+        {venditoriDistinti.length > 0 && (
+          <div className="flex gap-3 overflow-x-auto pb-3 mb-6 custom-scrollbar">
+            <button
+              onClick={() => router.push('/vetrina')}
+              className={`shrink-0 flex flex-col items-center gap-1.5 transition-all ${!selectedSeller ? 'opacity-100' : 'opacity-50 hover:opacity-80'}`}
+            >
+              <div className={`w-14 h-14 rounded-full flex items-center justify-center font-black text-sm ${!selectedSeller ? 'bg-stone-900 text-white' : 'bg-stone-100 text-stone-500'}`}>
+                Tutti
+              </div>
+              <span className="text-[9px] font-black uppercase text-stone-500">Vetrina</span>
+            </button>
+            {venditoriDistinti.map(item => {
+              const profilo = sellerProfiles[item.user_id]
+              const nome = profilo?.first_name || 'Utente'
+              const attivo = selectedSeller === item.user_id
+              return (
+                <button
+                  key={item.user_id}
+                  onClick={() => { setActiveTab('interna'); router.push(`/vetrina?venditore=${item.user_id}`) }}
+                  className={`shrink-0 flex flex-col items-center gap-1.5 transition-all ${attivo ? 'opacity-100' : 'opacity-60 hover:opacity-90'}`}
+                >
+                  <div className={`w-14 h-14 rounded-full flex items-center justify-center font-black text-lg uppercase ${attivo ? 'bg-rose-600 text-white ring-2 ring-rose-300' : 'bg-white text-rose-500 border border-rose-200'}`}>
+                    {nome[0]}
+                  </div>
+                  <span className="text-[9px] font-black uppercase text-stone-700 max-w-[64px] truncate">{nome}</span>
+                </button>
+              )
+            })}
+          </div>
+        )}
 
         {loading ? (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
