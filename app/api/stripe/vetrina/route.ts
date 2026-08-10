@@ -17,10 +17,21 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
 
 const VETRINA_PRICE_CENTS = 299 // 2,99€ - stessa cifra della vecchia Sponsorizza
 
+// ============================================================================
+// VETRINA GRATUITA (momentaneamente, su richiesta)
+//
+// Con questo interruttore su "true" la pubblicazione in Vetrina NON passa da
+// Stripe: la voce viene creata e attivata subito. Per tornare a farla pagare
+// basta rimettere "false" - non serve toccare nient'altro, ne' qui ne' nella
+// pagina, ne' nel webhook: tutta la logica di pagamento e' rimasta al suo
+// posto, semplicemente scavalcata.
+// ============================================================================
+const VETRINA_GRATUITA = true
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { userId, type, announcementId, externalUrl, title, imageUrl, price } = body
+    const { userId, type, announcementId, externalUrl, title, imageUrl, price, shippingCost } = body
 
     if (!userId || !type) {
       return NextResponse.json({ error: 'Dati mancanti.' }, { status: 400 })
@@ -77,7 +88,10 @@ export async function POST(req: NextRequest) {
         title: type === 'esterna' ? title : null,
         image_url: type === 'esterna' ? (imageUrl || null) : null,
         price: type === 'esterna' ? Number(price) : null,
-        is_active: false,
+        shipping_cost: type === 'esterna' ? (Number(shippingCost) || 0) : null,
+        // Quando la Vetrina e' gratuita la voce nasce gia' attiva; altrimenti
+        // resta spenta finche' il webhook Stripe non conferma il pagamento.
+        is_active: VETRINA_GRATUITA,
       }])
       .select()
       .single()
@@ -85,6 +99,12 @@ export async function POST(req: NextRequest) {
     if (insertError || !item) {
       console.error('Errore creazione voce vetrina:', insertError)
       return NextResponse.json({ error: 'Errore nella creazione della voce Vetrina.' }, { status: 500 })
+    }
+
+    // Vetrina gratuita: niente Stripe, la voce e' gia' attiva qui sopra.
+    // Rispondiamo senza URL di pagamento e la pagina se ne accorge da sola.
+    if (VETRINA_GRATUITA) {
+      return NextResponse.json({ gratuita: true, itemId: item.id })
     }
 
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://re-love-rouge.vercel.app'
