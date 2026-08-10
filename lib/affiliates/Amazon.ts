@@ -1,123 +1,122 @@
 // lib/affiliates/amazon.ts
-//
-// Integrazione con Amazon Product Advertising API (PA-API) 5.0.
-// PA-API richiede la firma delle richieste con AWS Signature Version 4 -
-// non esiste altra forma di autenticazione accettata. Non serve nessuna
-// libreria esterna: la firma si calcola con il modulo "crypto" nativo di Node.
-//
-// NOTA IMPORTANTE PRIMA DI USARLA:
-// L'accesso a PA-API non è immediato alla registrazione ad Amazon Associates -
-// Amazon richiede che il tuo account generi almeno 3 vendite qualificanti nei
-// primi 180 giorni per attivare (e poi mantenere) l'accesso alle API. Finché
-// non hai quell'accesso, questa funzione riceverà un errore di autorizzazione
-// da Amazon - il codice è corretto, è una condizione del programma Amazon
-// stesso, non un bug.
+// Integrazione Amazon Product Advertising API (PA-API 5.0).
+// Richiede le seguenti variabili d'ambiente su Vercel:
+//   AMAZON_ACCESS_KEY
+//   AMAZON_SECRET_KEY
+//   AMAZON_PARTNER_TAG
+//   AMAZON_HOST (es. "webservices.amazon.it")
+//   AMAZON_REGION (es. "eu-west-1")
 
 import crypto from 'crypto'
 import type { AffiliateProduct } from './types'
 
-const ACCESS_KEY = process.env.AMAZON_PAAPI_ACCESS_KEY || ''
-const SECRET_KEY = process.env.AMAZON_PAAPI_SECRET_KEY || ''
-const PARTNER_TAG = process.env.AMAZON_PARTNER_TAG || ''
-// Valori di default per il marketplace italiano - cambia queste tre variabili
-// (o i default qui sotto) se ti serve un altro paese Amazon.
-const HOST = process.env.AMAZON_PAAPI_HOST || 'webservices.amazon.it'
-const REGION = process.env.AMAZON_PAAPI_REGION || 'eu-west-1'
-const MARKETPLACE = process.env.AMAZON_MARKETPLACE || 'www.amazon.it'
-
 const SERVICE = 'ProductAdvertisingAPI'
-const TARGET = 'com.amazon.paapi5.v1.ProductAdvertisingAPIv1.SearchItems'
-const PATH = '/paapi5/searchitems'
 
-function hmac(key: Buffer | string, data: string): Buffer {
-  return crypto.createHmac('sha256', key).update(data, 'utf8').digest()
+function sign(key: Buffer, msg: string) {
+  return crypto.createHmac('sha256', key).update(msg, 'utf8').digest()
 }
 
-function sha256Hex(data: string): string {
-  return crypto.createHash('sha256').update(data, 'utf8').digest('hex')
+function getSignatureKey(secretKey: string, dateStamp: string, region: string) {
+  const kDate = sign(Buffer.from('AWS4' + secretKey, 'utf8'), dateStamp)
+  const kRegion = sign(kDate, region)
+  const kService = sign(kRegion, SERVICE)
+  return sign(kService, 'aws4_request')
 }
 
-function signRequest(payload: string, amzDate: string, dateStamp: string): string {
-  const canonicalHeaders =
-    `content-encoding:amz-1.0\n` +
-    `content-type:application/json; charset=utf-8\n` +
-    `host:${HOST}\n` +
-    `x-amz-date:${amzDate}\n` +
-    `x-amz-target:${TARGET}\n`
-  const signedHeaders = 'content-encoding;content-type;host;x-amz-date;x-amz-target'
+export async function fetchAmazonProducts(query: string): Promise<AffiliateProduct[]> {
+  const accessKey = process.env.AMAZON_ACCESS_KEY
+  const secretKey = process.env.AMAZON_SECRET_KEY
+  const partnerTag = process.env.AMAZON_PARTNER_TAG
+  const host = process.env.AMAZON_HOST || 'webservices.amazon.it'
+  const region = process.env.AMAZON_REGION || 'eu-west-1'
 
-  const canonicalRequest = `POST\n${PATH}\n\n${canonicalHeaders}\n${signedHeaders}\n${sha256Hex(payload)}`
-
-  const credentialScope = `${dateStamp}/${REGION}/${SERVICE}/aws4_request`
-  const stringToSign = `AWS4-HMAC-SHA256\n${amzDate}\n${credentialScope}\n${sha256Hex(canonicalRequest)}`
-
-  const kDate = hmac(`AWS4${SECRET_KEY}`, dateStamp)
-  const kRegion = hmac(kDate, REGION)
-  const kService = hmac(kRegion, SERVICE)
-  const kSigning = hmac(kService, 'aws4_request')
-  const signature = hmac(kSigning, stringToSign).toString('hex')
-
-  return `AWS4-HMAC-SHA256 Credential=${ACCESS_KEY}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`
-}
-
-export async function searchAmazon(query: string): Promise<AffiliateProduct[]> {
-  if (!ACCESS_KEY || !SECRET_KEY || !PARTNER_TAG) {
-    console.warn('[Amazon] Credenziali PA-API mancanti (AMAZON_PAAPI_ACCESS_KEY / AMAZON_PAAPI_SECRET_KEY / AMAZON_PARTNER_TAG) - salto la ricerca.')
+  // Se le credenziali non sono ancora configurate, non blocchiamo tutta la
+  // ricerca: restituiamo semplicemente zero risultati da questa piattaforma.
+  if (!accessKey || !secretKey || !partnerTag) {
+    console.warn('[Affiliates/Amazon] Credenziali mancanti, salto questa fonte')
     return []
   }
 
-  const now = new Date()
-  // Formato richiesto da AWS: YYYYMMDDTHHMMSSZ (niente trattini, due punti, millisecondi)
-  const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '')
-  const dateStamp = amzDate.slice(0, 8)
-
+  const endpoint = `https://${host}/paapi5/searchitems`
   const payload = JSON.stringify({
     Keywords: query,
-    Resources: ['Images.Primary.Medium', 'ItemInfo.Title', 'Offers.Listings.Price'],
-    PartnerTag: PARTNER_TAG,
+    PartnerTag: partnerTag,
     PartnerType: 'Associates',
-    Marketplace: MARKETPLACE,
-    ItemCount: 6,
+    Marketplace: 'www.amazon.it',
+    Resources: [
+      'Images.Primary.Large',
+      'ItemInfo.Title',
+      'Offers.Listings.Price',
+    ],
   })
 
-  const authorizationHeader = signRequest(payload, amzDate, dateStamp)
+  const amzDate = new Date().toISOString().replace(/[:-]|\.\d{3}/g, '')
+  const dateStamp = amzDate.slice(0, 8)
+
+  const canonicalHeaders =
+    `content-encoding:amz-1.0\n` +
+    `host:${host}\n` +
+    `x-amz-date:${amzDate}\n` +
+    `x-amz-target:com.amazon.paapi5.v1.ProductAdvertisingAPIv1.SearchItems\n`
+  const signedHeaders = 'content-encoding;host;x-amz-date;x-amz-target'
+  const payloadHash = crypto.createHash('sha256').update(payload).digest('hex')
+
+  const canonicalRequest = [
+    'POST',
+    '/paapi5/searchitems',
+    '',
+    canonicalHeaders,
+    signedHeaders,
+    payloadHash,
+  ].join('\n')
+
+  const credentialScope = `${dateStamp}/${region}/${SERVICE}/aws4_request`
+  const stringToSign = [
+    'AWS4-HMAC-SHA256',
+    amzDate,
+    credentialScope,
+    crypto.createHash('sha256').update(canonicalRequest).digest('hex'),
+  ].join('\n')
+
+  const signingKey = getSignatureKey(secretKey, dateStamp, region)
+  const signature = crypto.createHmac('sha256', signingKey).update(stringToSign).digest('hex')
+
+  const authorizationHeader =
+    `AWS4-HMAC-SHA256 Credential=${accessKey}/${credentialScope}, ` +
+    `SignedHeaders=${signedHeaders}, Signature=${signature}`
 
   try {
-    const res = await fetch(`https://${HOST}${PATH}`, {
+    const res = await fetch(endpoint, {
       method: 'POST',
       headers: {
         'content-encoding': 'amz-1.0',
         'content-type': 'application/json; charset=utf-8',
-        'host': HOST,
+        host,
         'x-amz-date': amzDate,
-        'x-amz-target': TARGET,
-        'Authorization': authorizationHeader,
+        'x-amz-target': 'com.amazon.paapi5.v1.ProductAdvertisingAPIv1.SearchItems',
+        Authorization: authorizationHeader,
       },
       body: payload,
     })
 
     if (!res.ok) {
-      console.error('[Amazon] Errore PA-API:', res.status, await res.text())
+      console.error('[Affiliates/Amazon] Risposta non ok:', res.status, await res.text())
       return []
     }
 
     const data = await res.json()
     const items = data?.SearchResult?.Items || []
 
-    return items
-      .map((item: any): AffiliateProduct => ({
-        title: item?.ItemInfo?.Title?.DisplayValue || 'Prodotto Amazon',
-        price: item?.Offers?.Listings?.[0]?.Price?.Amount ?? 0,
-        currency: item?.Offers?.Listings?.[0]?.Price?.Currency || 'EUR',
-        imageUrl: item?.Images?.Primary?.Medium?.URL || '',
-        // DetailPageURL restituito da Amazon include già il Partner Tag - non
-        // serve costruire il link a mano.
-        affiliateUrl: item?.DetailPageURL || '',
-        platform: 'Amazon',
-      }))
-      .filter((p: AffiliateProduct) => p.affiliateUrl)
+    return items.map((item: any): AffiliateProduct => ({
+      title: item?.ItemInfo?.Title?.DisplayValue || 'Prodotto Amazon',
+      price: item?.Offers?.Listings?.[0]?.Price?.Amount ?? 0,
+      currency: item?.Offers?.Listings?.[0]?.Price?.Currency || 'EUR',
+      imageUrl: item?.Images?.Primary?.Large?.URL || '',
+      affiliateUrl: item?.DetailPageURL || '',
+      platform: 'Amazon',
+    }))
   } catch (err) {
-    console.error('[Amazon] Richiesta fallita:', err)
+    console.error('[Affiliates/Amazon] Errore chiamata API:', err)
     return []
   }
 }

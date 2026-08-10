@@ -1,87 +1,108 @@
-// lib/affiliates/aliexpress.ts
-//
-// Integrazione con l'AliExpress Affiliate API (metodo aliexpress.affiliate.product.query),
-// esposta tramite il gateway "Taobao Open Platform" che AliExpress condivide
-// con Alibaba/Taobao. La firma non è OAuth2 né AWS SigV4, ma uno schema
-// proprietario MD5: si ordinano i parametri alfabeticamente, si concatenano
-// come chiave+valore senza separatori, si racchiude il risultato tra due
-// copie dell'App Secret, e si fa l'hash MD5 in maiuscolo.
+// lib/affiliates/ebay.ts
+// Integrazione eBay Browse API + eBay Partner Network (per il tracking commissioni).
+// Richiede le seguenti variabili d'ambiente su Vercel:
+//   EBAY_CLIENT_ID
+//   EBAY_CLIENT_SECRET
+//   EBAY_CAMPAIGN_ID   (il tuo Campaign ID di eBay Partner Network)
 
-import crypto from 'crypto'
 import type { AffiliateProduct } from './types'
 
-const APP_KEY = process.env.ALIEXPRESS_APP_KEY || ''
-const APP_SECRET = process.env.ALIEXPRESS_APP_SECRET || ''
-const TRACKING_ID = process.env.ALIEXPRESS_TRACKING_ID || ''
-const API_URL = 'https://api-sg.aliexpress.com/sync'
+let cachedToken: { value: string; expiresAt: number } | null = null
 
-function signParams(params: Record<string, string>): string {
-  const sortedKeys = Object.keys(params).sort()
-  const concatenated = sortedKeys.reduce((acc, key) => `${acc}${key}${params[key]}`, '')
-  const wrapped = `${APP_SECRET}${concatenated}${APP_SECRET}`
-  return crypto.createHash('md5').update(wrapped, 'utf8').digest('hex').toUpperCase()
-}
+async function getEbayAccessToken(): Promise<string | null> {
+  const clientId = process.env.EBAY_CLIENT_ID
+  const clientSecret = process.env.EBAY_CLIENT_SECRET
 
-export async function searchAliExpress(query: string): Promise<AffiliateProduct[]> {
-  if (!APP_KEY || !APP_SECRET || !TRACKING_ID) {
-    console.warn('[AliExpress] Credenziali mancanti (ALIEXPRESS_APP_KEY / ALIEXPRESS_APP_SECRET / ALIEXPRESS_TRACKING_ID) - salto la ricerca.')
-    return []
+  if (!clientId || !clientSecret) {
+    console.warn('[Affiliates/eBay] Credenziali mancanti, salto questa fonte')
+    return null
   }
 
-  const params: Record<string, string> = {
-    method: 'aliexpress.affiliate.product.query',
-    app_key: APP_KEY,
-    sign_method: 'md5',
-    timestamp: String(Date.now()),
-    v: '2.0',
-    format: 'json',
-    keywords: query,
-    tracking_id: TRACKING_ID,
-    target_currency: 'EUR',
-    target_language: 'IT',
-    page_size: '6',
+  // Riusiamo il token finché non sta per scadere, invece di richiederne uno
+  // nuovo ad ogni ricerca.
+  if (cachedToken && cachedToken.expiresAt > Date.now()) {
+    return cachedToken.value
   }
 
-  const sign = signParams(params)
-  const body = new URLSearchParams({ ...params, sign })
+  const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
 
   try {
-    const res = await fetch(API_URL, {
+    const res = await fetch('https://api.ebay.com/identity/v1/oauth2/token', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8' },
-      body,
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Authorization: `Basic ${credentials}`,
+      },
+      body: new URLSearchParams({
+        grant_type: 'client_credentials',
+        scope: 'https://api.ebay.com/oauth/api_scope',
+      }),
     })
 
     if (!res.ok) {
-      console.error('[AliExpress] Errore HTTP:', res.status, await res.text())
+      console.error('[Affiliates/eBay] Errore ottenimento token:', res.status)
+      return null
+    }
+
+    const data = await res.json()
+    cachedToken = {
+      value: data.access_token,
+      expiresAt: Date.now() + (data.expires_in - 60) * 1000,
+    }
+    return cachedToken.value
+  } catch (err) {
+    console.error('[Affiliates/eBay] Errore rete durante ottenimento token:', err)
+    return null
+  }
+}
+
+function applyCampaignId(url: string, campaignId: string): string {
+  try {
+    const u = new URL(url)
+    u.searchParams.set('campid', campaignId)
+    return u.toString()
+  } catch {
+    return url
+  }
+}
+
+export async function fetchEbayProducts(query: string): Promise<AffiliateProduct[]> {
+  const campaignId = process.env.EBAY_CAMPAIGN_ID
+  const token = await getEbayAccessToken()
+
+  if (!token || !campaignId) {
+    return []
+  }
+
+  try {
+    const res = await fetch(
+      `https://api.ebay.com/buy/browse/v1/item_summary/search?q=${encodeURIComponent(query)}&limit=10`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'X-EBAY-C-MARKETPLACE-ID': 'EBAY_IT',
+        },
+      }
+    )
+
+    if (!res.ok) {
+      console.error('[Affiliates/eBay] Risposta non ok:', res.status, await res.text())
       return []
     }
 
     const data = await res.json()
+    const items = data?.itemSummaries || []
 
-    // Il gateway TOP risponde comunque con status HTTP 200 anche in caso di
-    // errore applicativo (chiave sbagliata, firma non valida, ecc.) - il
-    // vero esito va controllato nel campo "error_response" del corpo.
-    if (data?.error_response) {
-      console.error('[AliExpress] Errore API:', data.error_response)
-      return []
-    }
-
-    const items =
-      data?.aliexpress_affiliate_product_query_response?.resp_result?.result?.products?.product || []
-
-    return items
-      .map((item: any): AffiliateProduct => ({
-        title: item.product_title || 'Prodotto AliExpress',
-        price: parseFloat(item.target_sale_price || item.sale_price || '0'),
-        currency: item.target_sale_price_currency || item.sale_price_currency || 'EUR',
-        imageUrl: item.product_main_image_url || '',
-        affiliateUrl: item.promotion_link || item.product_detail_url || '',
-        platform: 'AliExpress',
-      }))
-      .filter((p: AffiliateProduct) => p.affiliateUrl)
+    return items.map((item: any): AffiliateProduct => ({
+      title: item?.title || 'Prodotto eBay',
+      price: parseFloat(item?.price?.value ?? '0'),
+      currency: item?.price?.currency || 'EUR',
+      imageUrl: item?.image?.imageUrl || '',
+      affiliateUrl: applyCampaignId(item?.itemWebUrl || '', campaignId),
+      platform: 'eBay',
+    }))
   } catch (err) {
-    console.error('[AliExpress] Richiesta fallita:', err)
+    console.error('[Affiliates/eBay] Errore chiamata API:', err)
     return []
   }
 }

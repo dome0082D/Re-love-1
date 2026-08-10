@@ -1,20 +1,21 @@
 // lib/affiliates/index.ts
-import { searchAmazon } from './amazon'
-import { searchEbay } from './ebay'
-import { searchAliExpress } from './aliexpress'
+// Funzione "manager": interroga le tre piattaforme IN PARALLELO e unisce i
+// risultati in un unico array. Usa Promise.allSettled così, se una fonte va
+// in errore o le credenziali non sono configurate, le altre due continuano
+// a funzionare normalmente.
+
+import { fetchAmazonProducts } from './amazon'
+import { fetchEbayProducts } from './ebay'
+import { fetchAliexpressProducts } from './aliexpress'
 import type { AffiliateProduct } from './types'
 
 export type { AffiliateProduct }
 
-// Esegue le tre ricerche in parallelo con Promise.allSettled: se una fonte
-// fallisce (credenziali non ancora attive, API momentaneamente giù, timeout),
-// le altre due continuano a restituire risultati regolarmente invece di
-// bloccare l'intera ricerca.
 export async function fetchAffiliateProducts(query: string): Promise<AffiliateProduct[]> {
   const results = await Promise.allSettled([
-    searchAmazon(query),
-    searchEbay(query),
-    searchAliExpress(query),
+    fetchAmazonProducts(query),
+    fetchEbayProducts(query),
+    fetchAliexpressProducts(query),
   ])
 
   const products: AffiliateProduct[] = []
