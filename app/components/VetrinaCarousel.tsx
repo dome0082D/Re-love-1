@@ -153,7 +153,7 @@ export default function VetrinaCarousel() {
                       )}
                     </div>
                     <div className="px-1.5 py-1">
-                      <p className="text-[9px] font-black text-rose-600 truncate">€ {Number(item.price).toFixed(0)}</p>
+                      <p className="text-[9px] font-black text-rose-600 truncate">€ {Number(item.price).toFixed(2)}</p>
                     </div>
                   </a>
                 ))}
