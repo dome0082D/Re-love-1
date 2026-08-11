@@ -24,64 +24,19 @@ export default function ChatPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [hiddenPairs, setHiddenPairs] = useState<Set<string>>(new Set())
   const [showEmojis, setShowEmojis] = useState(false)
-  
+
   const scrollRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
-  
+
   const IS_STAFF = user?.email === 'dome0082@gmail.com';
 
-  useEffect(() => { 
-    loadInitialData() 
-  }, [])
-
-  useEffect(() => {
-    if (!user) return;
-
-    const appendMessageDedup = (incoming: any) => {
-      setMessages((current) => {
-        if (current.some((m) => m.id === incoming.id)) return current
-        return [...current, incoming]
-      })
-      if (!IS_STAFF && incoming.sender_id && incoming.sender_id !== user.id) {
-        setHiddenPairs((prev) => {
-          if (!prev.has(incoming.sender_id)) return prev
-          const next = new Set(prev)
-          next.delete(incoming.sender_id)
-          return next
-        })
-      }
-    }
-
-    try {
-      let channelBuilder = supabase.channel(`chat-messages-${user.id}`)
-
-      if (IS_STAFF) {
-        channelBuilder = channelBuilder.on('postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'messages' },
-          (payload) => appendMessageDedup(payload.new)
-        )
-      } else {
-        channelBuilder = channelBuilder
-          .on('postgres_changes',
-            { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${user.id}` },
-            (payload) => appendMessageDedup(payload.new)
-          )
-          .on('postgres_changes',
-            { event: 'INSERT', schema: 'public', table: 'messages', filter: `sender_id=eq.${user.id}` },
-            (payload) => appendMessageDedup(payload.new)
-          )
-      }
-
-      const channel = channelBuilder.subscribe()
-      return () => { supabase.removeChannel(channel) }
-    } catch (err) {
-      console.warn("Realtime non avviato:", err)
-    }
-  }, [user, IS_STAFF])
-
-  useEffect(() => {
-    scrollRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, activeChatPair])
+  // NOTA: le funzioni sotto sono dichiarate PRIMA degli useEffect che le
+  // richiamano - non solo per ordine estetico, ma perché una regola più
+  // recente di ESLint/Next (react-hooks) segnala come ERRORE vero e
+  // proprio l'uso di una funzione dentro un useEffect quando è definita
+  // più in basso nel componente, anche se in JavaScript funzionerebbe lo
+  // stesso grazie al "hoisting". Questo errore rischiava di bloccare la
+  // build su Vercel, come già successo altre volte con questo progetto.
 
   async function loadInitialData() {
     try {
@@ -90,7 +45,7 @@ export default function ChatPage() {
       if (!currentUser) { router.push('/login'); return }
       setUser(currentUser)
 
-      const { data: profs, error: profsError } = await supabase.from('profiles').select('id, first_name, user_serial_id, email')
+      const { data: profs } = await supabase.from('profiles').select('id, first_name, user_serial_id, email')
       const pMap: Record<string, any> = {}
       if (profs) profs.forEach(p => pMap[p.id] = p)
       setProfilesMap(pMap)
@@ -100,9 +55,9 @@ export default function ChatPage() {
       if (!isStaffUser) {
          query = query.or(`sender_id.eq.${currentUser.id},receiver_id.eq.${currentUser.id}`)
       }
-      
+
       const { data: msgs, error: msgsError } = await query
-      
+
       if (msgsError) throw msgsError
       if (msgs) setMessages(msgs)
 
@@ -126,7 +81,7 @@ export default function ChatPage() {
 
   async function sendMessage() {
     if (!newMessage.trim() || !activeChatPair) return
-    
+
     const textToCheck = newMessage.toLowerCase();
     const phoneRegex = /(?:\+?\d{1,3}[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)?\d{3}[-.\s]?\d{4,}/;
     const emailRegex = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i;
@@ -141,21 +96,21 @@ export default function ChatPage() {
 
     const usersInChat = activeChatPair.split('_')
     const receiverId = usersInChat.find(u => u !== user.id) || usersInChat[0]
-    
+
     const messageContent = newMessage;
-    setShowEmojis(false) 
+    setShowEmojis(false)
 
     try {
-      const { error: sendError } = await supabase.from('messages').insert([{ 
-          content: messageContent, 
-          sender_id: user.id, 
-          receiver_id: receiverId 
+      const { error: sendError } = await supabase.from('messages').insert([{
+          content: messageContent,
+          sender_id: user.id,
+          receiver_id: receiverId
       }])
 
       if (sendError) throw sendError
 
       setNewMessage('')
-      
+
       if (receiverId !== user.id) {
         try {
           const senderName = profilesMap[user.id]?.first_name || 'Un utente';
@@ -233,6 +188,59 @@ export default function ChatPage() {
     }
   }
 
+  useEffect(() => {
+    loadInitialData()
+  }, [])
+
+  useEffect(() => {
+    if (!user) return;
+
+    const appendMessageDedup = (incoming: any) => {
+      setMessages((current) => {
+        if (current.some((m) => m.id === incoming.id)) return current
+        return [...current, incoming]
+      })
+      if (!IS_STAFF && incoming.sender_id && incoming.sender_id !== user.id) {
+        setHiddenPairs((prev) => {
+          if (!prev.has(incoming.sender_id)) return prev
+          const next = new Set(prev)
+          next.delete(incoming.sender_id)
+          return next
+        })
+      }
+    }
+
+    try {
+      let channelBuilder = supabase.channel(`chat-messages-${user.id}`)
+
+      if (IS_STAFF) {
+        channelBuilder = channelBuilder.on('postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'messages' },
+          (payload) => appendMessageDedup(payload.new)
+        )
+      } else {
+        channelBuilder = channelBuilder
+          .on('postgres_changes',
+            { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${user.id}` },
+            (payload) => appendMessageDedup(payload.new)
+          )
+          .on('postgres_changes',
+            { event: 'INSERT', schema: 'public', table: 'messages', filter: `sender_id=eq.${user.id}` },
+            (payload) => appendMessageDedup(payload.new)
+          )
+      }
+
+      const channel = channelBuilder.subscribe()
+      return () => { supabase.removeChannel(channel) }
+    } catch (err) {
+      console.warn("Realtime non avviato:", err)
+    }
+  }, [user, IS_STAFF])
+
+  useEffect(() => {
+    scrollRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, activeChatPair])
+
   const conversations: Record<string, any[]> = {}
   messages.forEach(m => {
      if (!m.sender_id || !m.receiver_id) return
@@ -296,7 +304,7 @@ export default function ChatPage() {
                   <div key={pairKey} onClick={() => setActiveChatPair(pairKey)} className="group bg-white p-5 rounded-2xl border border-stone-100 shadow-sm hover:border-rose-300 hover:shadow-md transition-all cursor-pointer flex justify-between items-center">
                      <div>
                         <h3 className="text-sm font-bold text-stone-800 uppercase">{otherName}</h3>
-                        <p className="text-xs text-stone-500 truncate italic mt-1 group-hover:text-rose-600 transition-colors">"{lastMsg.content}"</p>
+                        <p className="text-xs text-stone-500 truncate italic mt-1 group-hover:text-rose-600 transition-colors">&quot;{lastMsg.content}&quot;</p>
                      </div>
                      <div className="w-10 h-10 bg-rose-50 rounded-full flex items-center justify-center text-rose-500 group-hover:scale-110 transition-transform">
                        💬
@@ -314,8 +322,8 @@ export default function ChatPage() {
               return (
                 <div key={m.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                   <div className="relative max-w-[80%] flex items-center gap-2">
-                    {IS_STAFF && isMe && (
-                      <button onClick={() => handleDeleteMessage(m.id)} title="Elimina messaggio (Staff)" className="order-first text-stone-300 hover:text-red-500 transition-colors shrink-0">
+                    {isMe && (
+                      <button onClick={() => handleDeleteMessage(m.id)} title="Elimina messaggio" className="order-first text-stone-300 hover:text-red-500 transition-colors shrink-0">
                         <Trash2 size={14} />
                       </button>
                     )}
@@ -339,14 +347,14 @@ export default function ChatPage() {
       {activeChatPair && (
         <div className="p-4 bg-white border-t border-stone-200 fixed bottom-0 w-full left-0 z-20 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
           <div className="max-w-3xl mx-auto relative">
-            
+
             {showEmojis && (
               <div className="absolute bottom-[calc(100%+10px)] left-0 bg-white border border-stone-200 shadow-xl rounded-2xl p-4 z-30 animate-in slide-in-from-bottom-2 fade-in">
                 <div className="grid grid-cols-6 sm:grid-cols-8 gap-3">
                   {POPULAR_EMOJIS.map(emoji => (
-                    <button 
-                      key={emoji} 
-                      type="button" 
+                    <button
+                      key={emoji}
+                      type="button"
                       onClick={() => handleEmojiClick(emoji)}
                       className="text-2xl hover:scale-125 transition-transform cursor-pointer"
                     >
@@ -358,24 +366,24 @@ export default function ChatPage() {
             )}
 
             <div className="flex gap-3 items-center">
-              <button 
-                type="button" 
-                onClick={() => setShowEmojis(!showEmojis)} 
+              <button
+                type="button"
+                onClick={() => setShowEmojis(!showEmojis)}
                 className={`text-2xl transition-all ${showEmojis ? 'text-rose-500 scale-110' : 'text-stone-400 hover:text-rose-400'}`}
               >
                 😊
               </button>
-              
-              <input 
-                value={newMessage} 
-                onKeyDown={(e) => e.key === 'Enter' && sendMessage()} 
-                onChange={e => setNewMessage(e.target.value)} 
-                type="text" 
-                placeholder="Scrivi un messaggio..." 
-                className="flex-grow p-4 bg-stone-50 border border-stone-200 rounded-2xl text-xs font-medium outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all" 
+
+              <input
+                value={newMessage}
+                onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+                onChange={e => setNewMessage(e.target.value)}
+                type="text"
+                placeholder="Scrivi un messaggio..."
+                className="flex-grow p-4 bg-stone-50 border border-stone-200 rounded-2xl text-xs font-medium outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all"
               />
-              <button 
-                onClick={sendMessage} 
+              <button
+                onClick={sendMessage}
                 className="bg-gradient-to-r from-rose-500 to-orange-400 text-white px-6 md:px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-md hover:scale-105 transition-all"
               >
                 Invia
