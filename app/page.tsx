@@ -1005,7 +1005,7 @@ function HomePageContent() {
                  {Array.from({ length: 5 }).map((_, i) => <SkeletonCard key={`top-skel-${i}`} isTop={true} />)}
                </div>
             ) : topItems.length === 0 ? (
-               <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest text-center my-10 bg-white rounded-2xl py-6">Nessun oggetto TOP trovato con questi filtri.</p>
+               <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest text-center my-10 bg-white rounded-2xl py-6">Nessun oggetto NUOVO tra i risultati (qui compaiono solo articoli mai usati - guarda "Tutti gli Annunci" qui sotto per usato, baratto e regalo).</p>
             ) : (
               <div className="grid grid-cols-2 lg:grid-cols-5 gap-6">
                 {topItems.map(item => (
