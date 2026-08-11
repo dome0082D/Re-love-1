@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Trash2 } from 'lucide-react'
 import { pushNotify } from '@/lib/pushNotify'
+import { containsForbiddenContact, reportChatViolation } from '@/lib/chatSecurity'
 
 const POPULAR_EMOJIS = [
   '😀', '😂', '🥰', '😎', '🤔', '😢', '😡', '😱',
@@ -82,20 +83,23 @@ export default function ChatPage() {
   async function sendMessage() {
     if (!newMessage.trim() || !activeChatPair) return
 
-    const textToCheck = newMessage.toLowerCase();
-    const phoneRegex = /(?:\+?\d{1,3}[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)?\d{3}[-.\s]?\d{4,}/;
-    const emailRegex = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i;
-    const linkRegex = /(https?:\/\/[^\s]+)|(www\.[^\s]+)|(wa\.me\/\d+)|(t\.me\/[a-z0-9_]+)/i;
-    const suspiciousWords = ['numero', 'cell', 'cellulare', 'chiamami', 'scrivimi su', 'whatsapp', 'watsapp', 'telegram', 'insta', 'instagram', 'mail', 'chiocciola'];
-    const containsSuspiciousWord = suspiciousWords.some(word => textToCheck.includes(word));
-
-    if (phoneRegex.test(textToCheck) || emailRegex.test(textToCheck) || linkRegex.test(textToCheck) || containsSuspiciousWord) {
-       alert("⚠️ RE-LOVE SECURITY:\nPer la tua sicurezza e per rispettare il regolamento della piattaforma, non è consentito scambiare numeri di telefono, email, link esterni o invitare a chattare fuori da Re-love.\n\nTutte le trattative devono concludersi qui.");
-       return;
-    }
-
     const usersInChat = activeChatPair.split('_')
     const receiverId = usersInChat.find(u => u !== user.id) || usersInChat[0]
+
+    // FIX: prima, rilevare un link/numero di telefono bloccava SOLO
+    // l'invio del messaggio, con un avviso - l'utente poteva riprovare
+    // quante volte voleva. Su richiesta, ora il sistema blocca DAVVERO
+    // entrambi gli account coinvolti (chi scrive e chi riceve) e apre una
+    // segnalazione per lo staff, che puo' sbloccarli dal pannello quando
+    // vuole. La regola di rilevamento e' condivisa (lib/chatSecurity.ts)
+    // con la chat pubblica della Home, cosi' e' identica ovunque.
+    if (containsForbiddenContact(newMessage)) {
+       await reportChatViolation(user.id, receiverId, newMessage)
+       alert("ATTENZIONE - RE-LOVE SECURITY:\nHai tentato di scambiare un contatto esterno (link o numero di telefono). Per la sicurezza della community, il tuo account e quello dell'altro utente sono stati SOSPESI in attesa di verifica da parte dello staff.\n\nSe pensi si tratti di un errore, contatta lo staff.")
+       setNewMessage('')
+       window.location.reload()
+       return
+    }
 
     const messageContent = newMessage;
     setShowEmojis(false)
@@ -120,8 +124,6 @@ export default function ChatPage() {
             message: `💬 Nuovo messaggio da ${senderName}: "${anteprima}"`,
             is_read: false
           }])
-          // Notifica push VERA in aggiunta a quella in-app - arriva anche
-          // se chi la riceve ha il sito chiuso o il telefono bloccato.
           pushNotify(receiverId, 'Nuovo messaggio 💬', `${senderName}: ${anteprima}`, '/chat')
         } catch (notifErr) {
           console.warn("Notifica di nuovo messaggio non inviata:", notifErr)
@@ -130,13 +132,10 @@ export default function ChatPage() {
 
     } catch (e: any) {
       console.error("Errore invio:", e)
-      if (typeof e?.message === 'string' && e.message.includes('MESSAGE_BLOCKED')) {
-        alert("⚠️ RE-LOVE SECURITY:\nPer la tua sicurezza e per rispettare il regolamento della piattaforma, non è consentito scambiare numeri di telefono, email, link esterni o invitare a chattare fuori da Re-love.\n\nTutte le trattative devono concludersi qui.")
-      } else {
-        alert("Messaggio non inviato. Il testo è rimasto nel campo, riprova.")
-      }
+      alert("Messaggio non inviato. Il testo e' rimasto nel campo, riprova.")
     }
   }
+
 
   const handleEmojiClick = (emoji: string) => {
     setNewMessage(prev => prev + emoji)

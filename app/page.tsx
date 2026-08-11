@@ -11,6 +11,7 @@ import { toast } from 'sonner'
 import GalacticOutpost from './components/minigame/GalacticOutpost'
 import VetrinaCarousel from './components/VetrinaCarousel'
 import ExternalResultsFallback from './components/ExternalResultsFallback'
+import { containsForbiddenContact } from '@/lib/chatSecurity'
 
 // --- RILEVAMENTO ANDROID (solo lato client, per adattare l'hero) ---
 function useIsAndroid() {
@@ -341,17 +342,23 @@ function HomePageContent() {
     }
   }
 
+  // FIX: prima riconosceva SOLO i numeri di telefono - ora usa la stessa
+  // regola condivisa (lib/chatSecurity.ts) gia' in uso nella chat privata,
+  // che riconosce anche link esterni, email e frasi sospette del tipo
+  // "scrivimi su whatsapp". NOTA: qui non blocchiamo gli account (a
+  // differenza della chat privata) perche' questa e' una chat PUBBLICA -
+  // non esiste un secondo utente specifico con cui accoppiare una
+  // sospensione, il messaggio viene semplicemente impedito.
   const containsPhoneNumber = (text: string) => {
-    const digitsOnly = text.replace(/\D/g, '')
-    return digitsOnly.length >= 9
+    return containsForbiddenContact(text)
   }
 
   const handleSendChat = async () => {
-    if (!user) return toast.error("Devi accedere per scrivere in chat! 🔑")
+    if (!user) return toast.error("Devi accedere per scrivere in chat!")
     if (!newChatMessage.trim()) return
 
-    if (containsPhoneNumber(newChatMessage)) {
-      return toast.error("⚠️ Non è consentito inviare numeri di telefono in chat pubblica!")
+    if (containsForbiddenContact(newChatMessage)) {
+      return toast.error("Non e' consentito condividere link, numeri di telefono o altri contatti esterni in chat pubblica.")
     }
 
     const content = newChatMessage
@@ -632,7 +639,18 @@ function HomePageContent() {
   }
 
   const filteredData = announcements.filter(item => {
-    const titleMatch = item.title.toLowerCase().includes(mainSearch.toLowerCase())
+    // FIX: prima la ricerca testuale guardava SOLO il titolo. Chi scriveva
+    // il nome di una categoria nella casella di ricerca (senza sapere il
+    // titolo esatto di nessun annuncio) non trovava mai nulla, anche
+    // avendo pubblicato un annuncio proprio in quella categoria. Ora la
+    // ricerca guarda anche descrizione e categoria - stessa estensione
+    // già fatta nella pagina /cerca.
+    const testoRicerca = mainSearch.toLowerCase()
+    const titleMatch =
+      item.title.toLowerCase().includes(testoRicerca) ||
+      (item.description || '').toLowerCase().includes(testoRicerca) ||
+      (item.category || '').toLowerCase().includes(testoRicerca) ||
+      (item.category_id || '').toString().toLowerCase().includes(testoRicerca)
     const categoryMatch = catFilter ? item.category_id?.toString() === catFilter : (searchCategory === 'all' || item.category === searchCategory)
     const conditionMatch = condition === 'all' || item.condition === condition
     const typeMatch = !typeFilter || item.type === typeFilter

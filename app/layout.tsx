@@ -3,6 +3,7 @@ import './globals.css'
 import Navbar from '@/components/Navbar'
 import Script from 'next/script'
 import RealtimeNotifications from '@/components/RealtimeNotifications'
+import BanGate from '@/components/BanGate'
 import { Toaster } from 'sonner' // <-- ECCO L'IMPORTAZIONE DEI TOAST ELEGANTI!
 
 // FIX: senza metadataBase, Next.js risolve gli URL relativi nelle immagini
@@ -85,6 +86,13 @@ export default function RootLayout({
             pagine. Nella Home, page.tsx aggiunge un pannello opaco che lo
             copre esclusivamente dietro l'hero, così lì non si vede. */}
         <div className="site-fixed-background" aria-hidden="true" />
+
+        {/* NUOVO: blocca l'intero sito (con schermata a tutto schermo, non
+            solo un avviso) se l'utente collegato risulta sospeso dallo
+            staff o dal sistema automatico anti-scambio-contatti. Va PRIMA
+            di Navbar/children apposta: se scatta, deve coprire tutto il
+            resto senza lasciare nulla di utilizzabile sotto. */}
+        <BanGate />
 
         <Navbar />
         

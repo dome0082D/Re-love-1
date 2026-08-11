@@ -10,11 +10,6 @@ import { pushNotify } from '@/lib/pushNotify'
 import { useCartStore } from '@/store/cartStore'
 import type { User } from '@supabase/supabase-js'
 
-// FIX (ESLint "Unexpected any"): tipi precisi al posto di "any", costruiti
-// leggendo esattamente quali campi il file usa davvero (controllato campo
-// per campo, non un tipo generico indovinato). "User" è il tipo VERO già
-// fornito dalla libreria Supabase per l'utente autenticato - non ce n'era
-// bisogno di inventarne uno.
 interface Announcement {
   id: string
   title: string
@@ -72,10 +67,6 @@ function AnnouncementContent() {
   const [actionLoading, setActionLoading] = useState(false)
   const [selectedQuantity, setSelectedQuantity] = useState(1)
 
-  // FIX: il carrello esisteva (store + interfaccia completa nella Navbar con
-  // tanto di checkout Stripe) ma NESSUNA pagina ci aggiungeva mai nulla -
-  // restava quindi vuoto per sempre. Questa è l'unica pagina dove si vede un
-  // prodotto, quindi è qui che serve il pulsante.
   const { addItem, openCart } = useCartStore()
 
   const [usePickup, setUsePickup] = useState(false)
@@ -86,19 +77,13 @@ function AnnouncementContent() {
   const [submittingReview, setSubmittingReview] = useState(false)
   const [visibleReviews, setVisibleReviews] = useState(3)
 
-  // STATI PER "FAI UNA PROPOSTA" O "RILANCIO ASTA"
   const [showOfferModal, setShowOfferModal] = useState(false)
   const [offerPrice, setOfferPrice] = useState<string>('')
   const [submittingOffer, setSubmittingOffer] = useState(false)
   const [existingOffer, setExistingOffer] = useState<Offer | null>(null)
 
-  // FIX ANDROID: la mappa incorporata cattura i gesti di trascinamento per il
-  // proprio pan/zoom interno. Se è subito interattiva, un utente che prova a
-  // scorrere la pagina passando col dito sopra la mappa la vede "bloccarsi"
-  // lì invece di continuare a scorrere.
   const [mapActive, setMapActive] = useState(false)
 
-  // STATI ESCLUSIVI PER LE ASTE TEMPORIZZATE ⏳
   const [timeLeft, setTimeLeft] = useState('')
   const [isAuctionEnded, setIsAuctionEnded] = useState(false)
   const [currentBid, setCurrentBid] = useState(0)
@@ -124,7 +109,6 @@ function AnnouncementContent() {
           checkExistingOffer(currentUser.id, data.id) 
         }
 
-        // Registra visualizzazione
         await supabase.from('page_views').insert([{ 
           announcement_id: data.id, 
           viewer_id: currentUser?.id || null 
@@ -135,11 +119,9 @@ function AnnouncementContent() {
     if (id) fetchData()
   }, [id])
 
-  // --- MOTORE IN TEMPO REALE PER L'ASTA ⏳ ---
   useEffect(() => {
     if (!ann?.is_auction || !ann?.auction_end) return;
 
-    // 1. Calcolo del Timer (scatta ogni secondo)
     const interval = setInterval(() => {
       const now = new Date().getTime()
       const end = new Date(ann.auction_end).getTime()
@@ -158,11 +140,6 @@ function AnnouncementContent() {
       }
     }, 1000)
 
-    // 2. Sincronizzazione Live dei Rilanci
-    // FIX: il canale aveva un nome FISSO ('auction_updates'). Aprendo due
-    // aste diverse (anche solo in due schede del browser) finivano a
-    // contendersi lo stesso canale, con aggiornamenti che potevano arrivare
-    // all'asta sbagliata. Ora il nome è legato all'annuncio specifico.
     const channel = supabase.channel(`auction_${ann.id}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'announcements', filter: `id=eq.${ann.id}` }, (payload) => {
          if (payload.new.current_bid) {
@@ -200,13 +177,6 @@ function AnnouncementContent() {
       .select('id')
       .eq('buyer_id', buyerId)
       .eq('announcement_id', annId)
-      // FIX: prima cercava SOLO lo stato 'Pagato'. Ma il flusso reale degli
-      // ordini è Pagato -> Spedito -> Ricevuto -> Concluso: appena il
-      // venditore segnava l'ordine come spedito, questo controllo tornava
-      // falso e il modulo per lasciare la recensione SPARIVA dalla pagina.
-      // In pratica si poteva recensire solo nella finestrella tra pagamento
-      // e spedizione, cioè quando non si era ancora ricevuto niente da
-      // recensire. Ora vale per tutti gli stati successivi all'acquisto.
       .in('status', ['Pagato', 'Spedito', 'Ricevuto', 'Concluso'])
       .limit(1)
     if (data && data.length > 0) setHasPurchased(true)
@@ -224,16 +194,10 @@ function AnnouncementContent() {
     if (data) setExistingOffer(data)
   }
 
-  // --- AGGIUNTA AL CARRELLO ---
   const handleAddToCart = () => {
     if (!user) { toast.error("Devi accedere per usare il carrello."); return; }
     if (user.id === ann.user_id) { toast.error("Non puoi comprare un tuo stesso oggetto."); return; }
 
-    // Calcolato qui invece di usare la variabile "maxQty" più in basso:
-    // quella è dichiarata dopo questa funzione e, pur funzionando (la
-    // funzione parte solo al click, quando ormai esiste), dipendere
-    // dall'ordine di dichiarazione è fragile e si rompe facilmente al
-    // primo spostamento di codice.
     const disponibili = ann.quantity !== undefined ? ann.quantity : 1
 
     addItem({
@@ -249,29 +213,30 @@ function AnnouncementContent() {
     openCart()
   }
 
+  // FIX: prima, per oggetti "Nuovo" o "Usato", questo pulsante bloccava
+  // sempre la chat con un avviso ("devi prima completare l'acquisto o
+  // vincere l'asta") - su richiesta, questa restrizione è stata tolta:
+  // ora si può sempre scrivere al venditore di qualsiasi annuncio, di
+  // qualunque condizione, senza dover prima comprare nulla.
   const handleContact = () => {
     if (!user) { toast.error("Devi accedere per continuare!"); return; }
     if (user.id === ann.user_id) { toast.error("Questo è il tuo annuncio."); return; }
 
-    if (ann.condition === 'Nuovo' || ann.condition === 'Usato') {
-      toast.error("Per sbloccare la chat, devi prima completare l'acquisto o vincere l'asta.");
-    } else {
-      const startChat = async () => {
-        setActionLoading(true);
-        const { error } = await supabase.from('messages').insert([{
-          content: `Ciao! Sono interessato al tuo annuncio in ${ann.condition}: "${ann.title}".`,
-          sender_id: user.id,
-          receiver_id: ann.user_id
-        }]);
-        setActionLoading(false);
-        if (error) {
-          toast.error("Errore nell'invio del messaggio. Riprova.");
-          return;
-        }
-        router.push('/chat');
-      };
-      startChat();
-    }
+    const startChat = async () => {
+      setActionLoading(true);
+      const { error } = await supabase.from('messages').insert([{
+        content: `Ciao! Sono interessato al tuo annuncio: "${ann.title}".`,
+        sender_id: user.id,
+        receiver_id: ann.user_id
+      }]);
+      setActionLoading(false);
+      if (error) {
+        toast.error("Errore nell'invio del messaggio. Riprova.");
+        return;
+      }
+      router.push('/chat');
+    };
+    startChat();
   }
 
   const handleSecureBuy = async () => {
@@ -311,7 +276,6 @@ function AnnouncementContent() {
       if (data.error) { toast.error(data.error); setActionLoading(false); return; }
       if (data.url) {
         window.location.href = data.url
-        // actionLoading resta volutamente "true": la pagina sta per navigare via
       }
     } catch (err) {
       console.error('Checkout error:', err)
@@ -320,7 +284,6 @@ function AnnouncementContent() {
     }
   }
 
-  // --- LOGICA PROPOSTA NORMALE ---
   const submitOffer = async () => {
     if (!offerPrice || isNaN(Number(offerPrice)) || Number(offerPrice) <= 0) {
       toast.error("Inserisci una cifra valida."); return;
@@ -355,7 +318,6 @@ function AnnouncementContent() {
     setSubmittingOffer(false)
   }
 
-  // --- LOGICA RILANCIO ASTA ---
   const submitBid = async () => {
     if (!offerPrice || isNaN(Number(offerPrice)) || Number(offerPrice) <= currentBid) {
       toast.error(`Devi rilanciare con una cifra maggiore di €${currentBid.toFixed(2)}!`); return;
@@ -363,15 +325,6 @@ function AnnouncementContent() {
 
     setSubmittingOffer(true)
     
-    // 1. Aggiorna il prezzo attuale dell'annuncio
-    // FIX IMPORTANTE: prima questa scrittura non aveva NESSUNA condizione.
-    // Se due persone rilanciavano nello stesso istante - cioè esattamente
-    // quello che succede negli ultimi secondi di un'asta - la seconda
-    // scrittura sovrascriveva la prima anche quando era PIÙ BASSA,
-    // cancellando di fatto l'offerta più alta. Il ".lt(...)" qui sotto dice
-    // al database: applica questo rilancio SOLO se quello attualmente
-    // salvato è davvero inferiore. Stessa protezione già usata per lo
-    // sblocco fondi degli ordini.
     const { data: annData, error: annError } = await supabase.from('announcements')
       .update({ current_bid: Number(offerPrice) })
       .eq('id', ann.id)
@@ -384,15 +337,12 @@ function AnnouncementContent() {
       return
     }
 
-    // Nessuna riga aggiornata = qualcun altro ha rilanciato più in alto
-    // nell'istante esatto in cui stavi rilanciando tu.
     if (!annData || annData.length === 0) {
       toast.error("Qualcuno ha rilanciato prima di te! Ricarica la pagina e riprova con una cifra più alta.")
       setSubmittingOffer(false)
       return
     }
 
-    // 2. Salva lo storico del rilancio nella tabella bids
     await supabase.from('bids').insert([{
       announcement_id: ann.id,
       bidder_id: user.id,
@@ -404,7 +354,6 @@ function AnnouncementContent() {
     setShowOfferModal(false)
     setOfferPrice('')
 
-    // Avvisa il venditore
     await supabase.from('notifications').insert([{
       user_id: ann.user_id,
       message: `🔥 Nuovo rilancio di €${offerPrice} per la tua asta "${ann.title}"!`,
@@ -449,7 +398,6 @@ function AnnouncementContent() {
     <div className="min-h-screen bg-transparent p-4 md:p-10 font-sans pb-32">
       <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
         
-        {/* COLONNA SINISTRA */}
         <div className="lg:col-span-7 space-y-6">
           <div className="bg-white/20 backdrop-blur-md p-3 rounded-[2.5rem] shadow-xl border border-white/30 relative">
              {ann.is_sponsored && (
@@ -499,7 +447,6 @@ function AnnouncementContent() {
           </div>
         </div>
 
-        {/* COLONNA DESTRA */}
         <div className="lg:col-span-5 space-y-6">
           <div className="bg-white/20 backdrop-blur-md p-8 rounded-[3rem] shadow-2xl border border-white/30 relative overflow-hidden">
             <div className="flex justify-between items-start mb-6">
@@ -532,7 +479,6 @@ function AnnouncementContent() {
                 </div>
             </Link>
 
-            {/* SEZIONE PREZZO O TIMER ASTA */}
             <div className="mb-8">
                {ann.condition === 'Baratto' ? (
                  <div className="bg-blue-500/20 border border-blue-400/30 p-5 rounded-2xl backdrop-blur-sm">
@@ -570,7 +516,6 @@ function AnnouncementContent() {
                )}
             </div>
 
-            {/* SELEZIONE QUANTITÀ E SPEDIZIONE (Nascosta se è un'Asta) */}
             {ann.condition !== 'Baratto' && ann.condition !== 'Regalo' && !ann.is_auction && (
               <div className="space-y-6 mb-10">
                  <div className="space-y-2">
@@ -604,7 +549,6 @@ function AnnouncementContent() {
               </div>
             )}
 
-            {/* BOTTONI D'AZIONE (COMPRA / CARRELLO / RILANCIA) */}
             <div className="space-y-3 pt-6 border-t border-white/20">
                {user?.id !== ann.user_id ? (
                  <>
@@ -622,8 +566,6 @@ function AnnouncementContent() {
                           {actionLoading ? 'In corso...' : 'Acquista Ora'}
                        </button>
 
-                       {/* NUOVO: aggiunta al carrello. Utile per comprare più
-                           oggetti insieme invece di pagare uno alla volta. */}
                        <button onClick={handleAddToCart} disabled={actionLoading || maxQty <= 0} className="w-full bg-white/40 border-2 border-stone-900/20 text-stone-900 p-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-white/80 transition-all disabled:opacity-30 flex items-center justify-center gap-2">
                           <ShoppingCart size={16} /> Aggiungi al Carrello
                        </button>
@@ -639,6 +581,15 @@ function AnnouncementContent() {
                            💡 Fai una Proposta
                          </button>
                        )}
+
+                       {/* NUOVO: prima, per gli oggetti Nuovo/Usato, non
+                           c'era ALCUN modo di scrivere al venditore prima
+                           di comprare - su richiesta, questo pulsante
+                           permette di farlo sempre, per qualsiasi tipo di
+                           annuncio. */}
+                       <button onClick={handleContact} disabled={actionLoading} className="w-full text-stone-900 font-black text-xs underline hover:text-rose-600 transition-all mt-2">
+                         💬 Scrivi al venditore
+                       </button>
                      </div>
                    ) : (
                      <button onClick={handleContact} disabled={actionLoading} className="w-full bg-rose-500 text-white p-5 rounded-2xl font-black uppercase text-sm tracking-[0.1em] shadow-xl hover:bg-stone-900 transition-all disabled:opacity-30">
@@ -655,14 +606,6 @@ function AnnouncementContent() {
                     <div className="p-4 bg-white/40 rounded-2xl text-center border border-white/50">
                       <p className="text-[10px] font-black uppercase text-stone-900">Questo è il tuo annuncio</p>
                     </div>
-                    {/* Il pulsante qui sotto avviava il VECCHIO sistema di
-                        sponsorizzazione (/api/stripe/sponsor), in parallelo
-                        alla Vetrina che nel frattempo abbiamo costruito e
-                        che - come mi hai confermato - è la stessa identica
-                        cosa, solo ripensata e rinominata. Ora porta al
-                        flusso della Vetrina con questo annuncio già
-                        preselezionato, esattamente come il pulsante gemello
-                        nella dashboard "Gestione Annunci". */}
                     {!ann.is_sponsored && (
                       <Link
                         href={`/vetrina?create=interna&ad_id=${ann.id}`}
@@ -726,7 +669,6 @@ function AnnouncementContent() {
         </div>
       </div>
 
-      {/* --- MODALE UNIFICATA (PROPOSTA / RILANCIO ASTA) --- */}
       {showOfferModal && (
         <div className="fixed inset-0 z-[15000] flex items-center justify-center p-4 bg-stone-900/80 backdrop-blur-md">
           <div className="bg-white max-w-sm w-full rounded-[3rem] p-10 shadow-2xl text-center border-t-8 border-rose-500 animate-in zoom-in">

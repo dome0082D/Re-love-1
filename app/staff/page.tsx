@@ -40,6 +40,8 @@ interface Profile {
   stripe_account_id?: string;
   role?: string;
   nickname?: string;
+  is_banned?: boolean;
+  banned_reason?: string;
 }
 
 interface Review {
@@ -52,6 +54,19 @@ interface Review {
   reviewed?: { email: string };
 }
 
+interface ChatViolation {
+  id: string;
+  sender_id: string;
+  receiver_id: string;
+  message_content: string;
+  reviewed: boolean;
+  created_at: string;
+  senderEmail?: string;
+  receiverEmail?: string;
+  senderBanned?: boolean;
+  receiverBanned?: boolean;
+}
+
 export default function AdminDashboard() {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [profiles, setProfiles] = useState<Profile[]>([])
@@ -59,6 +74,9 @@ export default function AdminDashboard() {
   
   // STATO PER IL TRIBUNALE E SUPPORTO
   const [disputes, setDisputes] = useState<any[]>([])
+
+  // NUOVO: segnalazioni automatiche di scambio contatti in chat
+  const [violations, setViolations] = useState<ChatViolation[]>([])
 
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
@@ -105,6 +123,13 @@ export default function AdminDashboard() {
       if (dispError) console.error("Errore controversie:", dispError)
       else if (dispData) setDisputes(dispData)
 
+      // 5. NUOVO: recupero segnalazioni chat non ancora esaminate
+      const { data: violData, error: violError } = await supabase
+        .from('chat_violations')
+        .select('*')
+        .order('created_at', { ascending: false })
+      if (violError) console.error("Errore segnalazioni chat:", violError)
+
       let loadedProfiles: Profile[] = []
       if (profs) {
         loadedProfiles = profs as Profile[]
@@ -129,6 +154,25 @@ export default function AdminDashboard() {
           reviewed: { email: loadedProfiles.find(p => p.id === r.reviewed_user_id)?.email || 'N/D' }
         }))
         setReviews(enrichedRevs as unknown as Review[])
+      }
+
+      // NUOVO: arricchiamo le segnalazioni chat con email e stato blocco
+      // dei due utenti coinvolti, per non dover cercarli a mano.
+      if (violData && loadedProfiles.length > 0) {
+        const enrichedViol = violData.map((v: any) => {
+          const senderP = loadedProfiles.find(p => p.id === v.sender_id)
+          const receiverP = loadedProfiles.find(p => p.id === v.receiver_id)
+          return {
+            ...v,
+            senderEmail: senderP?.email || 'N/D',
+            receiverEmail: receiverP?.email || 'N/D',
+            senderBanned: senderP?.is_banned || false,
+            receiverBanned: receiverP?.is_banned || false,
+          }
+        })
+        setViolations(enrichedViol)
+      } else if (violData) {
+        setViolations(violData as ChatViolation[])
       }
 
     } catch (err) {
@@ -272,11 +316,43 @@ export default function AdminDashboard() {
     setActionLoading(false)
   }
 
+  // --- NUOVO: LOGICA SEGNALAZIONI CHAT (blocco / sblocco / archivia) ---
+  const toggleBan = async (userId: string, currentlyBanned: boolean) => {
+    const azione = currentlyBanned ? 'sbloccare' : 'bloccare'
+    if (!confirm(`Vuoi ${azione} questo utente?`)) return
+    setActionLoading(true)
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        is_banned: !currentlyBanned,
+        banned_reason: !currentlyBanned ? 'Bloccato manualmente dallo staff.' : null,
+        banned_at: !currentlyBanned ? new Date().toISOString() : null,
+      })
+      .eq('id', userId)
+    if (error) {
+      alert("Errore durante l'operazione: " + error.message)
+    } else {
+      checkAdminAndFetchData()
+    }
+    setActionLoading(false)
+  }
+
+  const markViolationReviewed = async (violationId: string) => {
+    const { error } = await supabase.from('chat_violations').update({ reviewed: true }).eq('id', violationId)
+    if (error) {
+      alert("Errore: " + error.message)
+      return
+    }
+    checkAdminAndFetchData()
+  }
+
 
   // --- CALCOLI DASHBOARD ---
   const earnings = transactions
     .filter(t => t.status === 'Ricevuto' || t.status === 'Concluso')
     .reduce((acc, t) => acc + ((t.announcements?.price || 0) * 0.10), 0)
+
+  const pendingViolations = violations.filter(v => !v.reviewed)
 
   if (loading && transactions.length === 0) return <div className="min-h-screen bg-stone-900 flex items-center justify-center font-black uppercase text-rose-500 tracking-widest animate-pulse">Caricamento Hub Re-love Staff...</div>
 
@@ -307,6 +383,59 @@ export default function AdminDashboard() {
             <h3 className="text-[10px] font-black uppercase text-stone-500 tracking-widest mb-2">👤 Utenti Registrati</h3>
             <p className="text-5xl font-black text-white italic">{profiles.length}</p>
           </div>
+        </div>
+
+        {/* ---------------- NUOVO: SEGNALAZIONI CHAT AUTOMATICHE ---------------- */}
+        <div className="bg-stone-800/40 p-8 rounded-[2.5rem] border border-orange-900/50 mb-12 shadow-2xl">
+          <div className="flex justify-between items-center mb-8 border-b border-stone-800 pb-4">
+            <h2 className="text-lg font-black uppercase italic text-orange-400 tracking-tighter flex items-center gap-3">
+              <span className="text-2xl">🚨</span> Segnalazioni Chat (Scambio Contatti)
+            </h2>
+            {pendingViolations.length > 0 && (
+              <span className="bg-orange-500 text-white text-[10px] font-black uppercase px-3 py-1.5 rounded-full">
+                {pendingViolations.length} da esaminare
+              </span>
+            )}
+          </div>
+
+          {violations.length === 0 ? (
+            <p className="text-center text-xs font-bold text-stone-500 uppercase py-10">Nessuna segnalazione. Nessuno ha ancora provato a scambiarsi contatti fuori dal sito.</p>
+          ) : (
+            <div className="space-y-4">
+              {violations.map(v => (
+                <div key={v.id} className={`p-6 rounded-3xl border ${v.reviewed ? 'border-[#333] bg-[#1f1f1f] opacity-60' : 'border-orange-900/50 bg-[#2a2418]'} flex flex-col md:flex-row justify-between items-start md:items-center gap-6`}>
+                  <div className="flex-1">
+                    <span className={`px-3 py-1 rounded-md text-[9px] font-black uppercase tracking-widest ${v.reviewed ? 'bg-[#333] text-stone-400' : 'bg-orange-500 text-white'}`}>
+                      {v.reviewed ? 'Esaminata' : 'Da esaminare'} · {new Date(v.created_at).toLocaleString('it-IT')}
+                    </span>
+                    <p className="text-xs text-stone-300 mt-3 italic font-medium">Messaggio bloccato: "{v.message_content}"</p>
+                    <div className="flex flex-col sm:flex-row gap-4 mt-3">
+                      <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">
+                        Da: <span className="text-stone-200">{v.senderEmail}</span> {v.senderBanned && <span className="text-rose-500">(Bloccato)</span>}
+                      </p>
+                      <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">
+                        A: <span className="text-stone-200">{v.receiverEmail}</span> {v.receiverBanned && <span className="text-rose-500">(Bloccato)</span>}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-2 w-full md:w-56 min-w-[220px]">
+                    <button onClick={() => toggleBan(v.sender_id, !!v.senderBanned)} disabled={actionLoading} className={`py-3 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg ${v.senderBanned ? 'bg-emerald-600 hover:bg-emerald-500 text-white' : 'bg-rose-600 hover:bg-rose-500 text-white'}`}>
+                      {v.senderBanned ? 'Sblocca mittente' : 'Blocca mittente'}
+                    </button>
+                    <button onClick={() => toggleBan(v.receiver_id, !!v.receiverBanned)} disabled={actionLoading} className={`py-3 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg ${v.receiverBanned ? 'bg-emerald-600 hover:bg-emerald-500 text-white' : 'bg-rose-600 hover:bg-rose-500 text-white'}`}>
+                      {v.receiverBanned ? 'Sblocca destinatario' : 'Blocca destinatario'}
+                    </button>
+                    {!v.reviewed && (
+                      <button onClick={() => markViolationReviewed(v.id)} disabled={actionLoading} className="bg-stone-700 hover:bg-stone-600 text-stone-300 py-2 px-4 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all mt-1">
+                        Segna come esaminata
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* ---------------- SEZIONE: TRIBUNALE E SUPPORTO ---------------- */}
@@ -452,18 +581,30 @@ export default function AdminDashboard() {
               {profiles.map(p => (
                 <div key={p.id} className="p-6 border-b border-stone-800/50 flex justify-between items-center hover:bg-white/[0.02] transition-colors">
                   <div>
-                    <p className="font-black text-white text-sm">{p.email}</p>
+                    <p className="font-black text-white text-sm flex items-center gap-2">
+                      {p.email}
+                      {p.is_banned && <span className="bg-rose-500 text-white text-[8px] font-black uppercase px-2 py-0.5 rounded-md">Bloccato</span>}
+                    </p>
                     <p className="text-[10px] text-stone-500 font-bold uppercase tracking-widest">{p.city || 'Città non impostata'}</p>
                   </div>
-                  {/* FIX: prima apriva un popup dentro questa stessa pagina.
-                      Ora porta a una pagina dedicata (/staff/users/[id]),
-                      su richiesta - con dentro anche gli annunci
-                      dell'utente (prima assenti) e le chat raggruppate per
-                      conversazione con eliminazione per singolo messaggio
-                      (prima solo un elenco piatto in sola lettura). */}
-                  <Link href={`/staff/users/${p.id}`} className="bg-blue-500/10 border border-blue-500/40 text-blue-400 hover:bg-blue-500 hover:text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase transition-all">
-                    Ispeziona
-                  </Link>
+                  <div className="flex gap-2 items-center">
+                    <button
+                      onClick={() => toggleBan(p.id, !!p.is_banned)}
+                      disabled={actionLoading}
+                      className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase transition-all ${p.is_banned ? 'bg-emerald-500/10 border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500 hover:text-white' : 'bg-rose-500/10 border border-rose-500/40 text-rose-400 hover:bg-rose-500 hover:text-white'}`}
+                    >
+                      {p.is_banned ? 'Sblocca' : 'Blocca'}
+                    </button>
+                    {/* FIX: prima apriva un popup dentro questa stessa pagina.
+                        Ora porta a una pagina dedicata (/staff/users/[id]),
+                        su richiesta - con dentro anche gli annunci
+                        dell'utente (prima assenti) e le chat raggruppate per
+                        conversazione con eliminazione per singolo messaggio
+                        (prima solo un elenco piatto in sola lettura). */}
+                    <Link href={`/staff/users/${p.id}`} className="bg-blue-500/10 border border-blue-500/40 text-blue-400 hover:bg-blue-500 hover:text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase transition-all">
+                      Ispeziona
+                    </Link>
+                  </div>
                 </div>
               ))}
             </div>

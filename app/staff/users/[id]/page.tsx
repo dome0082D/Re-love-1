@@ -65,6 +65,33 @@ export default function StaffUserInspectPage() {
     }
   }
 
+  // NUOVO: blocca/sblocca l'account direttamente da qui, senza dover
+  // tornare alla lista generale in app/staff/page.tsx.
+  async function handleToggleBan() {
+    if (!profile) return
+    const azione = profile.is_banned ? 'sbloccare' : 'bloccare'
+    if (!confirm(`Vuoi ${azione} questo utente?`)) return
+    setActionLoading(true)
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          is_banned: !profile.is_banned,
+          banned_reason: !profile.is_banned ? 'Bloccato manualmente dallo staff.' : null,
+          banned_at: !profile.is_banned ? new Date().toISOString() : null,
+        })
+        .eq('id', id)
+      if (error) throw error
+      setProfile((prev: any) => ({ ...prev, is_banned: !prev.is_banned }))
+      toast.success(profile.is_banned ? 'Utente sbloccato.' : 'Utente bloccato.')
+    } catch (err: any) {
+      console.error('Errore blocco/sblocco:', err)
+      toast.error("Errore durante l'operazione.")
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
   async function handleDeleteAnnouncement(annId: string, title: string) {
     if (!confirm(`Eliminare definitivamente l'annuncio "${title}"?`)) return
     setActionLoading(true)
@@ -150,8 +177,6 @@ export default function StaffUserInspectPage() {
     }
   }
 
-  // Raggruppa i messaggi per conversazione - stessa identica logica già
-  // usata in app/chat/page.tsx, così i due posti restano coerenti tra loro.
   const conversations: Record<string, any[]> = {}
   messages.forEach(m => {
     if (!m.sender_id || !m.receiver_id) return
@@ -188,16 +213,33 @@ export default function StaffUserInspectPage() {
           ← Torna alla Stanza dei Bottoni
         </Link>
 
-        <div className="mb-10">
-          <span className="bg-rose-500 text-white px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.2em] mb-4 inline-block shadow-lg shadow-rose-500/20">
-            Profilo Sotto Lente
-          </span>
-          <h1 className="text-3xl md:text-4xl font-black uppercase italic text-white tracking-tighter break-all">
-            {profile.email || 'Nessuna Email'}
-          </h1>
+        <div className="mb-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
+          <div>
+            <span className={`px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.2em] mb-4 inline-block shadow-lg ${profile.is_banned ? 'bg-rose-600 text-white shadow-rose-500/20' : 'bg-rose-500 text-white shadow-rose-500/20'}`}>
+              {profile.is_banned ? 'Account Bloccato' : 'Profilo Sotto Lente'}
+            </span>
+            <h1 className="text-3xl md:text-4xl font-black uppercase italic text-white tracking-tighter break-all">
+              {profile.email || 'Nessuna Email'}
+            </h1>
+          </div>
+
+          {/* NUOVO: blocco/sblocco diretto da qui */}
+          <button
+            onClick={handleToggleBan}
+            disabled={actionLoading}
+            className={`px-6 py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all shadow-xl disabled:opacity-50 ${profile.is_banned ? 'bg-emerald-600 hover:bg-emerald-500 text-white' : 'bg-rose-600 hover:bg-rose-500 text-white'}`}
+          >
+            {profile.is_banned ? '✅ Sblocca Utente' : '⛔ Blocca Utente'}
+          </button>
         </div>
 
-        {/* DATI PROFILO */}
+        {profile.is_banned && profile.banned_reason && (
+          <div className="mb-10 p-5 bg-rose-950/40 border border-rose-900/50 rounded-2xl">
+            <p className="text-[9px] font-black uppercase text-rose-400 tracking-widest mb-1">Motivo del blocco</p>
+            <p className="text-sm font-bold text-stone-200">{profile.banned_reason}</p>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-14">
           {[
             { l: '📧 Indirizzo Email', v: profile.email || '⚠️ Vuota' },
@@ -217,7 +259,6 @@ export default function StaffUserInspectPage() {
           ))}
         </div>
 
-        {/* ANNUNCI - PRIMA ASSENTI DAL VECCHIO POPUP, ORA CON ELIMINAZIONE SINGOLA */}
         <div className="mb-14">
           <h3 className="text-[11px] font-black uppercase text-orange-400 tracking-[0.3em] mb-6 flex items-center gap-3">
             <span className="w-10 h-[1px] bg-orange-500/30"></span>
@@ -258,10 +299,6 @@ export default function StaffUserInspectPage() {
           )}
         </div>
 
-        {/* CHAT RAGGRUPPATE PER CONVERSAZIONE - prima era un unico elenco
-            piatto e in sola lettura; ora ogni gruppo è separato, con
-            eliminazione sia per singolo messaggio che per l'intera
-            conversazione. */}
         <div className="mb-14">
           <h3 className="text-[11px] font-black uppercase text-blue-400 tracking-[0.3em] mb-6 flex items-center gap-3">
             <span className="w-10 h-[1px] bg-blue-500/30"></span>
@@ -321,7 +358,6 @@ export default function StaffUserInspectPage() {
           )}
         </div>
 
-        {/* AZIONI NUCLEARI - invariate rispetto a prima */}
         <div className="pt-10 border-t border-stone-800 flex flex-wrap gap-4">
           <button onClick={handleSvuotaChat} disabled={actionLoading} className="bg-orange-500/10 border border-orange-500/40 text-orange-500 hover:bg-orange-500 hover:text-white px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50">
             🔥 Svuota Tutte le Chat

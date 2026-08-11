@@ -48,10 +48,18 @@ function CercaContent() {
       // testo. Le togliamo prima di usarle nella ricerca.
       const pulita = query.replace(/[,()]/g, ' ').trim()
 
+      // FIX: prima la ricerca guardava SOLO titolo e descrizione - scrivere
+      // il nome esatto di una categoria (es. "Elettronica e Informatica")
+      // nella barra di ricerca non trovava mai nulla, anche se esistevano
+      // annunci pubblicati proprio con quella categoria, perché il campo
+      // "category" non veniva mai controllato. Ora la ricerca guarda anche
+      // dentro la categoria, la condizione (Nuovo/Usato/Regalo/Baratto) e
+      // la città - così scrivere una parola qualsiasi collegata
+      // all'annuncio (non solo il suo titolo) lo fa comunque comparire.
       const { data, error } = await supabase
         .from('announcements')
         .select('*')
-        .or(`title.ilike.%${pulita}%,description.ilike.%${pulita}%`)
+        .or(`title.ilike.%${pulita}%,description.ilike.%${pulita}%,category.ilike.%${pulita}%,condition.ilike.%${pulita}%,city.ilike.%${pulita}%`)
         .order('created_at', { ascending: false })
 
       if (error) throw error
