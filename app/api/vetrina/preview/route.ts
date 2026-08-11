@@ -2,20 +2,17 @@
 // Riceve un link esterno e prova a leggerne titolo, descrizione e immagine
 // reali.
 //
-// STRATEGIA A DUE LIVELLI:
-// 1. Prima proviamo a leggere noi la pagina direttamente (veloce, nessuna
-//    dipendenza esterna) - funziona per la maggior parte dei siti.
-// 2. Se il sito blocca la richiesta (es. Amazon riconosce e respinge le
-//    richieste provenienti da server/datacenter come Vercel), ripieghiamo
-//    su microlink.io: un servizio pubblico che apre la pagina con un vero
-//    browser headless, riuscendo a leggere anteprime anche dove il nostro
-//    tentativo diretto viene bloccato. Nessuna chiave richiesta per il
-//    volume di richieste di un sito come questo.
-//
-// NOTA: le spese di spedizione NON vengono recuperate qui - non esiste un
-// modo affidabile per leggerle da una pagina prodotto (dipendono da
-// indirizzo, metodo di consegna, soglie di spedizione gratuita, ecc.).
-// Restano sempre da inserire a mano nel form.
+// STRATEGIA:
+// 0. Se il link è un accorciatore (amzn.eu, amzn.to...), lo risolviamo
+//    PRIMA seguendo i redirect fino all'indirizzo vero e completo del
+//    prodotto. Necessario perché questi accorciatori spesso mostrano una
+//    schermata intermedia (scelta paese, cookie) che non ha metadati del
+//    prodotto - leggere quella invece della pagina vera produce un
+//    risultato "vuoto ma senza errori", esattamente il sintomo osservato.
+// 1. Proviamo a leggere noi la pagina (risolta) direttamente.
+// 2. Se il sito blocca la richiesta (es. Amazon riconosce le richieste da
+//    datacenter come Vercel), ripieghiamo su microlink.io, che apre la
+//    pagina con un vero browser headless.
 
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -50,9 +47,6 @@ function estraiTitoloFallback(html: string): string | null {
 }
 
 function decodificaEntitaHtml(testo: string): string {
-  // I meta tag arrivano spesso con entità HTML codificate (&amp;, &#39;,
-  // ecc.) - le più comuni le sistemiamo qui senza tirare in ballo una
-  // libreria in più solo per questo.
   return testo
     .replace(/&amp;/g, '&')
     .replace(/&quot;/g, '"')
@@ -60,6 +54,34 @@ function decodificaEntitaHtml(testo: string): string {
     .replace(/&apos;/g, "'")
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
+}
+
+/**
+ * Se l'URL è un accorciatore Amazon (amzn.eu, amzn.to), lo risolve
+ * seguendo i redirect fino all'indirizzo finale e completo. Per qualsiasi
+ * altro sito restituisce l'URL originale invariato.
+ */
+async function risolviLinkAccorciato(parsedUrl: URL): Promise<URL> {
+  const accorciatori = ['amzn.eu', 'amzn.to']
+  const isAccorciato = accorciatori.some(d => parsedUrl.hostname === d || parsedUrl.hostname.endsWith('.' + d))
+
+  if (!isAccorciato) return parsedUrl
+
+  try {
+    const res = await fetch(parsedUrl.toString(), {
+      method: 'GET',
+      headers: { 'User-Agent': USER_AGENT },
+      redirect: 'follow',
+    })
+    // "res.url" e' l'indirizzo finale dopo tutti i redirect seguiti da fetch.
+    if (res.url) {
+      return new URL(res.url)
+    }
+    return parsedUrl
+  } catch (err) {
+    console.warn('[Vetrina/Preview] Impossibile risolvere il link accorciato, uso quello originale:', err)
+    return parsedUrl
+  }
 }
 
 async function provaLetturaDiretta(parsedUrl: URL): Promise<Anteprima | null> {
@@ -103,7 +125,7 @@ async function provaLetturaDiretta(parsedUrl: URL): Promise<Anteprima | null> {
 async function provaViaMicrolink(parsedUrl: URL): Promise<Anteprima | null> {
   try {
     const res = await fetch(
-      `https://api.microlink.io/?url=${encodeURIComponent(parsedUrl.toString())}`,
+      `https://api.microlink.io/?url=${encodeURIComponent(parsedUrl.toString())}&headers.userAgent=${encodeURIComponent(USER_AGENT)}`,
       { headers: { Accept: 'application/json' } }
     )
 
@@ -142,10 +164,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Indirizzo non valido.' }, { status: 400 })
     }
 
-    let risultato = await provaLetturaDiretta(parsedUrl)
+    // Passo 0: risolvi eventuali link accorciati PRIMA di tutto, così sia
+    // il tentativo diretto sia microlink lavorano sull'indirizzo vero e
+    // completo del prodotto, non su una schermata intermedia.
+    const urlRisolto = await risolviLinkAccorciato(parsedUrl)
+
+    let risultato = await provaLetturaDiretta(urlRisolto)
 
     if (!risultato) {
-      risultato = await provaViaMicrolink(parsedUrl)
+      risultato = await provaViaMicrolink(urlRisolto)
     }
 
     if (!risultato) {
