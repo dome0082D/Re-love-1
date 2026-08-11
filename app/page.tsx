@@ -971,7 +971,13 @@ function HomePageContent() {
           </div>
 
           <section className="mb-20 max-w-[1300px] mx-auto px-2">
-            <div className="flex justify-between items-end mb-8 border-b border-stone-300 pb-4">
+            {/* FIX: questo titolo prima era scritto "nudo", senza nessuno
+                sfondo dietro - sopra l'illustrazione fissa del sito, il suo
+                testo si sovrapponeva a quello disegnato nell'immagine,
+                rendendo entrambi illeggibili. Stesso trattamento già usato
+                per le card (bg-white qui diventa semi-trasparente e sfocato
+                grazie alla regola in globals.css), applicato anche qui. */}
+            <div className="flex justify-between items-end mb-8 border-b border-stone-300 pb-4 bg-white rounded-2xl px-4 py-3">
               <h2 className="text-[14px] font-black uppercase tracking-[0.4em] text-stone-900">Vetrina Top Nuovo</h2>
               <Link href="/?condition=Nuovo" className="text-[10px] font-black uppercase text-rose-600 hover:text-stone-900 transition-colors">Vedi tutti →</Link>
             </div>
@@ -981,7 +987,7 @@ function HomePageContent() {
                  {Array.from({ length: 5 }).map((_, i) => <SkeletonCard key={`top-skel-${i}`} isTop={true} />)}
                </div>
             ) : topItems.length === 0 ? (
-               <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest text-center my-10">Nessun oggetto TOP trovato con questi filtri.</p>
+               <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest text-center my-10 bg-white rounded-2xl py-6">Nessun oggetto TOP trovato con questi filtri.</p>
             ) : (
               <div className="grid grid-cols-2 lg:grid-cols-5 gap-6">
                 {topItems.map(item => (
@@ -1008,7 +1014,10 @@ function HomePageContent() {
           </section>
 
           <section className="mb-20 max-w-[1300px] mx-auto px-2">
-            <div className="flex justify-between items-end mb-8 border-b border-stone-300 pb-4">
+            {/* FIX: stesso identico problema del titolo "Vetrina Top Nuovo"
+                qui sopra - testo senza sfondo, sovrapposto all'illustrazione
+                fissa del sito. */}
+            <div className="flex justify-between items-end mb-8 border-b border-stone-300 pb-4 bg-white rounded-2xl px-4 py-3">
               <h2 className="text-[14px] font-black uppercase tracking-[0.4em] text-stone-900 opacity-50">Tutti gli Annunci</h2>
             </div>
             

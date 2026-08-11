@@ -58,9 +58,6 @@ export default function VetrinaCarousel() {
         return
       }
 
-      // Una sola richiesta per i nomi di TUTTI i venditori coinvolti, non
-      // una per ciascuno - importante qui perché il carosello può mostrare
-      // decine di venditori diversi in una volta sola.
       const idVenditori = Array.from(new Set(tutti.map(t => t.userId)))
       const { data: profili } = await supabase.from('profiles').select('id, first_name').in('id', idVenditori)
       const mappaNomi: Record<string, string> = {}
@@ -75,8 +72,6 @@ export default function VetrinaCarousel() {
       const risultato = Object.entries(mappaGruppi).map(([userId, items]) => ({
         userId,
         nome: mappaNomi[userId] || 'Utente',
-        // Al massimo 4 oggetti per riquadro, il resto si vede aprendo la
-        // vetrina completa di quel venditore.
         items: items.slice(0, 4),
       }))
 
@@ -93,19 +88,21 @@ export default function VetrinaCarousel() {
     try {
       await supabase.rpc('increment_vetrina_click', { item_id: itemId })
     } catch (err) {
-      // Non blocchiamo mai l'apertura del link per un errore nel solo
-      // conteggio dei click - stessa scelta già fatta dentro /vetrina.
       console.error('Errore tracciamento click:', err)
     }
   }
 
-  // Niente da mostrare: la sezione semplicemente non compare, invece di
-  // lasciare un riquadro vuoto sulla Home.
   if (!loading && gruppi.length === 0) return null
 
   return (
     <section className="mb-12 max-w-[1300px] mx-auto px-2">
-      <div className="flex items-center justify-between mb-6">
+      {/* FIX: questo titolo, come "Vetrina Top Nuovo" e "Tutti gli Annunci"
+          in page.tsx, era scritto senza nessuno sfondo dietro - sopra
+          l'illustrazione fissa del sito il testo si sovrapponeva a quello
+          disegnato nell'immagine, rendendo entrambi illeggibili. Le singole
+          card sotto (bg-white) erano già protette; mancava solo questo
+          titolo. */}
+      <div className="flex items-center justify-between mb-6 bg-white rounded-2xl px-4 py-3">
         <div className="flex items-center gap-3">
           <Sparkles size={16} className="text-rose-500" />
           <h2 className="text-[14px] font-black uppercase tracking-[0.4em] text-stone-900">Vetrine della Community</h2>
