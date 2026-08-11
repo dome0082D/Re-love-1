@@ -785,26 +785,6 @@ function HomePageContent() {
         </aside>
 
         <main className="flex-1 w-full overflow-hidden order-1 lg:order-2">
-          
-          <div className="w-full max-w-[1170px] mx-auto mt-8 mb-8 px-2">
-            {/* FIX: il video riempie ora il 96% del riquadro (era molto più
-                piccolo), restando perfettamente centrato in entrambe le
-                direzioni. Il riquadro NON cambia dimensione: resta h-[210px]
-                come prima, è solo il video dentro a crescere.
-                "object-cover" invece di "contain" fa sì che riempia davvero
-                tutto lo spazio del 96% senza lasciare bande vuote ai lati. */}
-            <div className="w-full rounded-[2rem] overflow-hidden border border-stone-200 shadow-md bg-[#f5efdf] flex items-center justify-center h-[210px]">
-              <video 
-                src="/hero-video.mp4" 
-                className="w-[96%] h-[96%] object-cover block rounded-[1.5rem]"
-                autoPlay 
-                muted 
-                loop 
-                playsInline
-              />
-            </div>
-          </div>
-
 
           <section className="mb-12 max-w-[1300px] mx-auto px-2">
             <div className="bg-white p-6 rounded-[2.5rem] shadow-md border border-stone-200 flex flex-col gap-8">
@@ -966,6 +946,29 @@ function HomePageContent() {
               </Tooltip>
             </div>
           )}
+
+          {/* VIDEO HERO - spostato qui su richiesta: prima stava in cima alla
+              pagina, sopra la barra di ricerca; ora sta subito sotto i
+              quattro riquadri Nuovo/Usato/Regalo/Baratto. Nessuna modifica
+              al video in sé, solo alla sua posizione nella pagina. */}
+          <div className="w-full max-w-[1170px] mx-auto mt-8 mb-8 px-2">
+            {/* FIX: il video riempie ora il 96% del riquadro (era molto più
+                piccolo), restando perfettamente centrato in entrambe le
+                direzioni. Il riquadro NON cambia dimensione: resta h-[210px]
+                come prima, è solo il video dentro a crescere.
+                "object-cover" invece di "contain" fa sì che riempia davvero
+                tutto lo spazio del 96% senza lasciare bande vuote ai lati. */}
+            <div className="w-full rounded-[2rem] overflow-hidden border border-stone-200 shadow-md bg-[#f5efdf] flex items-center justify-center h-[210px]">
+              <video 
+                src="/hero-video.mp4" 
+                className="w-[96%] h-[96%] object-cover block rounded-[1.5rem]"
+                autoPlay 
+                muted 
+                loop 
+                playsInline
+              />
+            </div>
+          </div>
 
           <section className="mb-20 max-w-[1300px] mx-auto px-2">
             <div className="flex justify-between items-end mb-8 border-b border-stone-300 pb-4">
