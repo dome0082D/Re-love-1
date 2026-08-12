@@ -88,16 +88,19 @@ export default function ChatPage() {
 
     // FIX: prima, rilevare un link/numero di telefono bloccava SOLO
     // l'invio del messaggio, con un avviso - l'utente poteva riprovare
-    // quante volte voleva. Su richiesta, ora il sistema blocca DAVVERO
-    // entrambi gli account coinvolti (chi scrive e chi riceve) e apre una
-    // segnalazione per lo staff, che puo' sbloccarli dal pannello quando
-    // vuole. La regola di rilevamento e' condivisa (lib/chatSecurity.ts)
-    // con la chat pubblica della Home, cosi' e' identica ovunque.
+    // quante volte voleva. Su richiesta, ora il sistema registra il caso
+    // e concede qualche giorno di tempo: se tra i due utenti risulta poi
+    // una vendita/scambio VERO concluso su Re-love, non succede nulla. Se
+    // il tempo scade senza che sia successo nulla, a quel punto (e solo
+    // a quel punto) entrambi gli account vengono bloccati - il controllo
+    // gira automaticamente una volta al giorno (vedi
+    // app/api/cron/check-suspicious-exchanges). La regola di rilevamento
+    // e' condivisa (lib/chatSecurity.ts) con la chat pubblica della Home,
+    // cosi' e' identica ovunque.
     if (containsForbiddenContact(newMessage)) {
        await reportChatViolation(user.id, receiverId, newMessage)
-       alert("ATTENZIONE - RE-LOVE SECURITY:\nHai tentato di scambiare un contatto esterno (link o numero di telefono). Per la sicurezza della community, il tuo account e quello dell'altro utente sono stati SOSPESI in attesa di verifica da parte dello staff.\n\nSe pensi si tratti di un errore, contatta lo staff.")
+       alert("ATTENZIONE - RE-LOVE SECURITY:\nQuesto messaggio contiene un contatto esterno o un riferimento a un pagamento fuori dalla piattaforma, e non e' stato inviato.\n\nSe tu e l'altro utente non concludete uno scambio vero su Re-love entro 30 giorni, i vostri account potrebbero essere sospesi.")
        setNewMessage('')
-       window.location.reload()
        return
     }
 
