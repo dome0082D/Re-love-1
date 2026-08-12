@@ -75,12 +75,6 @@ export default function Navbar() {
             icon: '/usato.png' 
           } as any);
         } else {
-          // FIX ANDROID: su Chrome Android (e su Android in generale) il costruttore
-          // `new Notification()` non è supportato ed è previsto che lanci un errore -
-          // l'unico modo per mostrare notifiche è ServiceWorkerRegistration.showNotification(),
-          // usato nel ramo sopra. Senza questo try/catch, ogni volta che il service worker
-          // non risultava ancora pronto (es. primo avvio dell'app), qui si generava
-          // un'eccezione non gestita su ogni telefono Android.
           try {
             new Notification('🔔 Re-love', { body: message });
           } catch {
@@ -137,10 +131,6 @@ export default function Navbar() {
         if (currentUser) {
           await fetchNotifications(currentUser.id)
 
-          // Ascoltiamo l'evento inoltrato da RealtimeNotifications.tsx invece
-          // di aprire una nostra sottoscrizione Supabase parallela agli
-          // stessi identici INSERT (due connessioni WebSocket per lo stesso
-          // evento significherebbero doppio consumo di banda e batteria).
           notificationHandler = (e: Event) => {
             const detail = (e as CustomEvent).detail
             fetchNotifications(currentUser.id)
@@ -194,11 +184,6 @@ export default function Navbar() {
     setIsQuickMenuOpen(false);
 
     if (!isNotifOpen && notifications > 0 && user) {
-      // FIX: l'esito di questo aggiornamento non veniva controllato - se
-      // falliva (regole del database, rete instabile), il pallino rosso
-      // spariva comunque dallo schermo ma le notifiche restavano "non
-      // lette" nel database: riaprendo la pagina il pallino sarebbe
-      // ricomparso, dando l'impressione di notifiche che tornano da sole.
       const { error } = await supabase
         .from('notifications')
         .update({ is_read: true })
@@ -264,8 +249,6 @@ export default function Navbar() {
   };
 
   const handleRadar = () => {
-    // Evita di accumulare più timer se l'utente tocca "Radar" più volte di fila
-    // (facile su touchscreen Android con tap ravvicinati)
     if (radarTimeoutRef.current) {
       clearTimeout(radarTimeoutRef.current)
     }
@@ -280,7 +263,6 @@ export default function Navbar() {
     }, 3000);
   }
 
-  // Ferma il timer del radar se il componente si smonta prima che scada
   useEffect(() => {
     return () => {
       if (radarTimeoutRef.current) clearTimeout(radarTimeoutRef.current)
@@ -299,12 +281,6 @@ export default function Navbar() {
 
   return (
     <>
-      {/* FIX: sfondo bianco pieno forzato tramite "style". Quando abbiamo reso
-          semi-trasparenti tutti i riquadri per far vedere l'immagine di sfondo
-          del sito, la regola globale ha preso ANCHE questa barra, che infatti
-          risultava trasparente e lasciava intravedere il cielo
-          dell'illustrazione dietro le icone. Lo "style" ha la precedenza sulla
-          regola globale, quindi qui torna bianca piena come deve essere. */}
       <nav
         style={{ backgroundColor: '#ffffff', backdropFilter: 'none', WebkitBackdropFilter: 'none' }}
         className="border-b border-rose-100 sticky top-0 z-[5000] shadow-sm flex justify-between items-center h-20 md:h-24 px-4 md:px-8 transition-colors"
@@ -363,14 +339,6 @@ export default function Navbar() {
               )}
             </button>
             
-            {/* FIX (POPUP TAGLIATO): questo pannello è largo 320px e si
-                allineava al bordo destro della CAMPANELLA - che però non è
-                l'ultima icona della fila (dopo ci sono i tre puntini e il
-                carrello). Il pannello si estendeva quindi verso sinistra
-                uscendo dallo schermo, e su telefono la prima lettera di ogni
-                riga finiva tagliata fuori ("essuna" invece di "Nessuna").
-                Ora su telefono si ancora ai due bordi dello schermo, quindi
-                non può più uscire; da tablet in su resta esattamente com'era. */}
             {isNotifOpen && (
               <div className="fixed left-4 right-4 top-24 sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-3 sm:w-80 bg-white border border-stone-200 rounded-3xl shadow-2xl p-5 z-[6000]">
                 <div className="flex justify-between items-center border-b border-stone-100 pb-3 mb-4">
@@ -406,8 +374,6 @@ export default function Navbar() {
             }} className="p-3 text-stone-500 hover:bg-rose-50 hover:text-rose-500 rounded-full transition-all">
               <MoreVertical size={28} strokeWidth={2} />
             </button>
-            {/* Stessa correzione del pannello notifiche: su telefono si ancora
-                ai bordi dello schermo invece di poterne uscire. */}
             {isQuickMenuOpen && (
               <div className="fixed left-auto right-4 top-24 w-56 sm:absolute sm:right-0 sm:top-auto sm:mt-3 bg-white border border-stone-100 shadow-2xl rounded-2xl p-3 z-[6000]">
                 <Link href="/profile" onClick={() => setIsQuickMenuOpen(false)} className="flex items-center gap-3 p-4 text-base font-medium text-stone-700 hover:bg-rose-50 hover:text-rose-600 rounded-xl transition-all">
@@ -447,21 +413,11 @@ export default function Navbar() {
         </div>
       </nav>
 
-      {/* OVERLAY SFONDO GLOBALE (Sidebar, Carrello, ecc) */}
       {(isSidebarOpen || isCartOpen || showSecurityModal || showAiModal || showMapModal) && (
         <div className="fixed inset-0 bg-stone-900/60 backdrop-blur-sm z-[9998] transition-opacity" 
              onClick={() => { setIsSidebarOpen(false); closeCart(); setIsQuickMenuOpen(false); setIsNotifOpen(false); setShowSecurityModal(false); setShowAiModal(false); setShowMapModal(false); }} />
       )}
 
-      {/* OVERLAY INVISIBILE PER CHIUDERE I MENU A TENDINA (🔔 e ⋮).
-          FIX: aveva priorità 5500, cioè PIÙ ALTA della barra in alto (5000) -
-          e siccome i menu vivono dentro la barra, restavano confinati sotto
-          quel valore. Risultato: questo pannello si piazzava SOPRA i menu e
-          intercettava ogni tocco, quindi toccando "Impostazioni", "Seller
-          Hub" o "Aiuto" il menu si chiudeva e basta, senza mai aprire la
-          pagina. A 4999 resta sotto la barra: continua a chiudere i menu
-          quando tocchi il resto della pagina, ma non ruba più i tocchi
-          destinati alle voci del menu. */}
       {(isQuickMenuOpen || isNotifOpen) && (
         <div 
           className="fixed inset-0 z-[4999]" 
@@ -501,6 +457,17 @@ export default function Navbar() {
                     </Link>
                     <Link href="/dashboard/annunci" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-4 p-4 text-base font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all">
                       <FileText size={20} className="text-stone-500" /> Gestione Annunci
+                    </Link>
+                    {/* NUOVO: link al sistema "Curatore Locale" - su richiesta,
+                        prima le pagine (/curatore, /curatore/nuovo,
+                        /curatore/scansiona) esistevano ma non c'era nessun
+                        ingresso visibile nel sito. Va qui, dentro l'Area
+                        Riservata, perché sia creare un mandato che
+                        approvarne uno richiedono comunque di essere
+                        autenticati - stessa logica già usata per Seller
+                        Hub e Gestione Annunci qui sopra. */}
+                    <Link href="/curatore" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-4 p-4 text-base font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all">
+                      <Handshake size={20} className="text-stone-500" /> Curatore Locale
                     </Link>
                     <Link href="/dashboard/acquisti" onClick={() => setIsSidebarOpen(false)} className="flex justify-between items-center p-4 text-base font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all">
                       <div className="flex items-center gap-4"><Package size={20} className="text-stone-500" /> Ordini e Resi</div> 
@@ -659,11 +626,6 @@ export default function Navbar() {
                 <p className="text-sm font-bold text-purple-800 leading-relaxed">{aiResult}</p>
               </div>
             )}
-            {/* NOTA: questa valutazione NON usa una vera intelligenza
-                artificiale - genera un numero casuale tra 10 e 60 euro,
-                indipendente da cosa scrivi. Se vuoi renderla reale, si può
-                collegare alla stessa route che già usi per generare le
-                descrizioni (/api/generate-description). */}
             <button onClick={handleAiValuation} disabled={loading || !aiItemName} className="w-full bg-purple-600 text-white py-4 rounded-xl font-black uppercase tracking-widest text-sm hover:bg-purple-700 transition-all disabled:opacity-50 shadow-md">
               {loading ? 'Elaborazione...' : 'Calcola Valore'}
             </button>

@@ -965,6 +965,38 @@ function HomePageContent() {
             </div>
           )}
 
+          {/* NUOVO: riquadro dedicato al sistema "Curatore Locale" - su
+              richiesta, l'ingresso visibile mancava del tutto: le pagine
+              (/curatore, /curatore/nuovo, /curatore/scansiona) esistevano
+              gia' e funzionavano, ma nessun link nel sito ci portava. */}
+          <section className="mb-20 max-w-[1300px] mx-auto px-2">
+            <div className="bg-white rounded-[2.5rem] border border-stone-200 shadow-md p-8 md:p-10 flex flex-col md:flex-row items-center gap-8">
+              <div className="shrink-0 text-6xl">🤝</div>
+              <div className="flex-1 text-center md:text-left">
+                <span className="inline-block bg-stone-900 text-white text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full mb-3">Novità</span>
+                <h2 className="text-xl md:text-2xl font-black uppercase italic text-stone-900 tracking-tight">Curatore Locale</h2>
+                <p className="text-stone-500 font-bold text-xs mt-2 max-w-xl">
+                  Gestisci la vendita degli oggetti di amici e vicini che non hanno tempo per l&apos;app.
+                  Guadagni una commissione reale su ogni scambio concluso, in totale trasparenza col Proprietario.
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-3 shrink-0 w-full md:w-auto">
+                <Link
+                  href="/curatore"
+                  className="bg-stone-900 text-white px-6 py-4 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-rose-600 transition-all shadow-md text-center whitespace-nowrap"
+                >
+                  Scopri di più
+                </Link>
+                <Link
+                  href="/curatore/nuovo"
+                  className="bg-rose-600 text-white px-6 py-4 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-stone-900 transition-all shadow-md text-center whitespace-nowrap"
+                >
+                  + Nuovo Mandato
+                </Link>
+              </div>
+            </div>
+          </section>
+
           <section className="mb-20 max-w-[1300px] mx-auto px-2">
             {/* FIX: questo titolo prima era scritto "nudo", senza nessuno
                 sfondo dietro - sopra l'illustrazione fissa del sito, il suo
