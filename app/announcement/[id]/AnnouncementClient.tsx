@@ -21,6 +21,10 @@ interface Announcement {
   image_url?: string
   image_urls?: string[]
   user_id: string
+  // NUOVO: presente solo se questo annuncio e' gestito da un Curatore
+  // Locale - il vero Proprietario, diverso da user_id (che resta il
+  // Curatore). Vuoto per un annuncio normale.
+  owner_id?: string
   shipping_cost?: number
   quantity?: number
   allow_local_pickup?: boolean
@@ -312,6 +316,24 @@ function AnnouncementContent() {
         is_read: false
       }]);
       pushNotify(ann.user_id, 'Nuova proposta 💡', `€${offerPrice} per "${ann.title}"`, `/announcement/${ann.id}`)
+
+      // NUOVO: se questo annuncio ha un Proprietario diverso dal Curatore
+      // (sistema "Curatore Locale"), lo avvisiamo anche a lui - la
+      // trasparenza sugli eventi chiave e' un requisito esplicito del
+      // sistema, anche se resta il Curatore a occuparsi di rispondere in
+      // chat. Non blocchiamo mai il resto per un errore qui.
+      if (ann.owner_id && ann.owner_id !== ann.user_id) {
+        try {
+          await supabase.from('notifications').insert([{
+            user_id: ann.owner_id,
+            message: `💡 Il tuo Curatore ha ricevuto una proposta di €${offerPrice} per "${ann.title}".`,
+            is_read: false
+          }])
+          pushNotify(ann.owner_id, 'Proposta sul tuo oggetto 💡', `€${offerPrice} per "${ann.title}"`, `/announcement/${ann.id}`)
+        } catch (ownerNotifErr) {
+          console.warn('Notifica al Proprietario non inviata:', ownerNotifErr)
+        }
+      }
     } else {
       toast.error("Errore database: " + error.message)
     }
@@ -360,6 +382,21 @@ function AnnouncementContent() {
       is_read: false
     }]);
     pushNotify(ann.user_id, 'Nuovo rilancio 🔨', `€${offerPrice} per "${ann.title}"`, `/announcement/${ann.id}`)
+
+    // NUOVO: stessa trasparenza verso il Proprietario, anche per i
+    // rilanci d'asta.
+    if (ann.owner_id && ann.owner_id !== ann.user_id) {
+      try {
+        await supabase.from('notifications').insert([{
+          user_id: ann.owner_id,
+          message: `🔨 Nuovo rilancio di €${offerPrice} per la tua asta "${ann.title}", gestita dal tuo Curatore.`,
+          is_read: false
+        }])
+        pushNotify(ann.owner_id, 'Rilancio sul tuo oggetto 🔨', `€${offerPrice} per "${ann.title}"`, `/announcement/${ann.id}`)
+      } catch (ownerNotifErr) {
+        console.warn('Notifica al Proprietario non inviata:', ownerNotifErr)
+      }
+    }
 
     setSubmittingOffer(false)
   }

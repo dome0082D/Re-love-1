@@ -14,14 +14,11 @@ export default function ControversiePage() {
   const [user, setUser] = useState<any>(null)
   const router = useRouter()
 
-  // STATI PER IL MODULO NUOVA SEGNALAZIONE
   const [showModal, setShowModal] = useState(false)
   const [selectedTx, setSelectedTx] = useState('')
   const [reason, setReason] = useState('Oggetto non ricevuto')
   const [description, setDescription] = useState('')
   const [submitting, setSubmitting] = useState(false)
-
-  const ADMIN_EMAIL = 'dome0082@gmail.com'
 
   useEffect(() => {
     fetchData()
@@ -31,11 +28,6 @@ export default function ControversiePage() {
     setLoading(true)
     setLoadError(false)
     const { data: { user: currentUser } } = await supabase.auth.getUser()
-    // FIX: prima, chi non era loggato vedeva la pagina restare bloccata per
-    // sempre su "Caricamento pratiche..." - il "return" qui usciva dalla
-    // funzione PRIMA di raggiungere il setLoading(false) finale. In più
-    // mancava il reindirizzamento al login, presente in tutte le altre
-    // pagine dell'area riservata.
     if (!currentUser) {
       router.push('/login')
       return
@@ -48,16 +40,17 @@ export default function ControversiePage() {
       .or(`buyer_id.eq.${currentUser.id},seller_id.eq.${currentUser.id}`)
       .order('created_at', { ascending: false })
 
+    // NUOVO: selezioniamo anche "mandate_id" (gia' presente nella tabella
+    // transactions) - serve per capire, quando l'utente apre una nuova
+    // segnalazione, se l'oggetto era gestito da un Curatore e con quale
+    // tipo di custodia, per assegnare in automatico un suggerimento di
+    // responsabilita' allo staff.
     const { data: purchData, error: purchError } = await supabase
       .from('transactions')
       .select('*, announcements(*)')
       .eq('buyer_id', currentUser.id)
       .order('created_at', { ascending: false })
 
-    // FIX: prima un errore di caricamento veniva ignorato in silenzio - la
-    // pagina mostrava "Tutto tranquillo, nessuna controversia aperta",
-    // identico a come appare quando davvero non ce ne sono - fuorviante
-    // proprio su una pagina che si visita perché preoccupati per un ordine.
     if (dispError || purchError) {
       console.error('Errore caricamento controversie/acquisti:', dispError || purchError)
       setLoadError(true)
@@ -69,7 +62,9 @@ export default function ControversiePage() {
 
     if (purchData) {
       setPurchases(purchData)
-      if (purchData.length > 0) setSelectedTx(purchData[0].id)
+      if (purchData.length > 0) {
+        setSelectedTx(purchData[0].id)
+      }
     }
 
     setLoading(false)
@@ -82,12 +77,34 @@ export default function ControversiePage() {
     }
     setSubmitting(true)
 
-    // FIX: aggiunto try/catch - senza, un fallimento di rete (Android
-    // instabile) durante l'invio lasciava il pulsante bloccato su "Invio in
-    // corso..." per sempre.
     try {
       const tx = purchases.find(p => p.id === selectedTx)
       const sellerId = tx?.announcements?.user_id || null
+
+      // NUOVO: se questa transazione riguarda un oggetto delegato (sistema
+      // "Curatore Locale"), recuperiamo il tipo di custodia concordato nel
+      // mandato per calcolare in automatico su chi ricade la
+      // responsabilita' secondo la regola concordata:
+      //   - "In Custodia" (l'oggetto era fisicamente dal Curatore) -> Curatore
+      //   - "In Sede" (l'oggetto era rimasto dal Proprietario) -> Proprietario
+      // Resta comunque un SUGGERIMENTO salvato per contesto: lo staff
+      // decide sempre lui come risolvere il caso, questo campo lo aiuta
+      // solo a non doverlo ricostruire a mano.
+      let custodyTypeAtTime: string | null = null
+      let liableParty: 'owner' | 'curator' | null = null
+
+      if (tx?.mandate_id) {
+        const { data: mandate } = await supabase
+          .from('curator_mandates')
+          .select('custody_type')
+          .eq('id', tx.mandate_id)
+          .single()
+
+        if (mandate) {
+          custodyTypeAtTime = mandate.custody_type
+          liableParty = mandate.custody_type === 'in_custodia' ? 'curator' : 'owner'
+        }
+      }
 
       const { error } = await supabase.from('disputes').insert([{
         transaction_id: selectedTx || null,
@@ -95,7 +112,9 @@ export default function ControversiePage() {
         seller_id: sellerId,
         reason: reason,
         description: description,
-        status: 'Aperta'
+        status: 'Aperta',
+        custody_type_at_time: custodyTypeAtTime,
+        liable_party: liableParty,
       }])
 
       if (error) {
@@ -105,21 +124,10 @@ export default function ControversiePage() {
 
       alert("Segnalazione inviata allo Staff con successo! I fondi sono stati congelati.")
 
-      // 1. Notifica al Venditore
       if (sellerId) {
         await supabase.from('notifications').insert([{
           user_id: sellerId,
-          message: `⚠️ L'acquirente ha aperto una controversia. Lo Staff interverrà a breve.`,
-          is_read: false
-        }])
-      }
-
-      // 2. NOTIFICA ALL'ADMIN!
-      const { data: adminData } = await supabase.from('profiles').select('id').eq('email', ADMIN_EMAIL).single()
-      if (adminData) {
-        await supabase.from('notifications').insert([{
-          user_id: adminData.id,
-          message: `🚨 TRIBUNALE: Nuova controversia aperta da ${user.email}.`,
+          message: `⚠️ L'acquirente ha aperto una controversia per "${tx?.announcements?.title || 'un ordine'} ". Lo Staff interverrà a breve.`,
           is_read: false
         }])
       }
@@ -136,7 +144,7 @@ export default function ControversiePage() {
   }
 
   return (
-    <div className="min-h-screen font-sans text-stone-900 pb-32">
+    <div className="min-h-screen bg-white font-sans text-stone-900 pb-32">
       <div className="w-full py-16 bg-rose-50 border-b border-rose-100 flex items-center justify-center relative overflow-hidden">
          <div className="absolute top-0 right-0 p-8 opacity-10 text-8xl">⚖️</div>
          <div className="text-center max-w-2xl px-6 relative z-10">
@@ -148,7 +156,11 @@ export default function ControversiePage() {
       <div className="max-w-5xl mx-auto px-4 mt-12">
         <div className="flex flex-col md:flex-row justify-between items-center mb-8 border-b border-stone-100 pb-4 gap-4">
           <h2 className="text-sm font-black uppercase text-stone-400 tracking-widest">Le tue pratiche attive</h2>
-          <button onClick={() => setShowModal(true)} className="bg-stone-900 text-white px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-rose-500 transition-all shadow-md">
+          
+          <button 
+            onClick={() => setShowModal(true)} 
+            className="bg-stone-900 text-white px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-rose-500 transition-all shadow-md"
+          >
             + Apri Segnalazione
           </button>
         </div>
@@ -184,6 +196,11 @@ export default function ControversiePage() {
                   <p className="text-[10px] font-bold text-stone-500 mt-1 uppercase tracking-widest">
                     Ordine: {dispute.transaction?.announcements?.title || 'Segnalazione Generica'}
                   </p>
+                  {dispute.liable_party && (
+                    <p className="text-[9px] font-bold text-stone-400 uppercase tracking-widest mt-1">
+                      Oggetto gestito da un Curatore ({dispute.custody_type_at_time === 'in_custodia' ? 'in custodia' : 'in sede'})
+                    </p>
+                  )}
                 </div>
                 <div className="bg-stone-50 px-4 py-3 rounded-xl border border-stone-100 text-[10px] font-bold text-stone-400 uppercase tracking-widest">
                   In attesa dello Staff
@@ -205,6 +222,7 @@ export default function ControversiePage() {
             </div>
             
             <div className="space-y-4">
+              
               <div>
                 <label className="text-[10px] font-black uppercase text-stone-400 tracking-widest ml-2">Quale ordine ha un problema?</label>
                 <select value={selectedTx} onChange={(e) => setSelectedTx(e.target.value)} className="w-full p-4 bg-stone-50 border border-stone-200 rounded-xl font-bold text-sm outline-none mt-1 focus:border-rose-400">
@@ -243,6 +261,7 @@ export default function ControversiePage() {
               <button onClick={handleSubmit} disabled={submitting} className="w-full bg-rose-600 text-white py-4 rounded-xl font-black uppercase tracking-widest text-xs hover:bg-stone-900 transition-all disabled:opacity-50 mt-4 shadow-md">
                 {submitting ? 'Invio in corso...' : 'Invia allo Staff'}
               </button>
+              
             </div>
           </div>
         </div>

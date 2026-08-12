@@ -468,6 +468,19 @@ export default function AdminDashboard() {
                           📦 Ordine: {dispute.transaction.announcements?.title} (€{dispute.transaction.amount})
                         </p>
                       )}
+
+                      {/* NUOVO: se l'oggetto era gestito da un Curatore
+                          Locale, mostriamo qui il suggerimento automatico
+                          di responsabilità calcolato in base al tipo di
+                          custodia concordato nel mandato (In Custodia ->
+                          Curatore, In Sede -> Proprietario). Resta solo un
+                          suggerimento: lo staff decide sempre lui come
+                          risolvere il caso qui sotto. */}
+                      {dispute.liable_party && (
+                        <p className="text-[9px] font-black uppercase tracking-widest mt-2 inline-block bg-amber-500/10 text-amber-400 border border-amber-500/30 px-3 py-1.5 rounded-lg">
+                          🤝 Curatore Locale ({dispute.custody_type_at_time === 'in_custodia' ? 'In Custodia' : 'In Sede'}) - Responsabilità suggerita: {dispute.liable_party === 'curator' ? 'Curatore' : 'Proprietario'}
+                        </p>
+                      )}
                       
                       <div className="flex gap-4 mt-3">
                         <p className="text-[9px] font-bold text-stone-500 uppercase tracking-widest">Da Utente: <span className="text-stone-300">{dispute.buyer_id.slice(0,8)}</span></p>
