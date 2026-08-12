@@ -219,24 +219,21 @@ body {
   esattamente come richiesto ("l'app si muove sull'immagine, non viceversa").
   - z-index molto negativo: resta sempre dietro a qualunque altro contenuto,
     anche se quel contenuto non dichiara esplicitamente il proprio z-index.
-  - background-size: contain (non "cover") per non tagliare mai nessuna
-    parte dell'illustrazione - "non sfumata" e "ben leggibile" richiedono che
-    resti visibile per intero, comprese le scritte, non ritagliata ai bordi.
-  - background-color di riserva: il colore del cielo dell'illustrazione,
-    così dove "contain" lascia dello spazio vuoto (sopra/sotto su schermi
-    larghi, ai lati su schermi stretti) non compare un bordo bianco brusco.
   - pointer-events: none - un elemento "fixed" a schermo intero altrimenti
     intercetterebbe i tocchi/click destinati al contenuto vero sopra di lui.
+
+  AGGIORNAMENTO (su richiesta): tolta l'illustrazione di sfondo
+  (relove-background.png). Al suo posto un gradiente diagonale nei colori
+  del brand già usati altrove nel sito - la crema #f5efdf (gli stessi
+  titoli di sezione), un rosa chiarissimo e un pesca chiaro, che richiamano
+  la stessa palette rosa-arancio dei pulsanti e dei loghi, senza
+  l'illustrazione.
 */
 .site-fixed-background {
   position: fixed;
   inset: 0;
   z-index: -10;
-  background-image: url('/relove-background.png');
-  background-size: contain;
-  background-position: center center;
-  background-repeat: no-repeat;
-  background-color: #fafaf9;
+  background: linear-gradient(135deg, #f5efdf 0%, #fdf2f4 50%, #fff7ed 100%);
   pointer-events: none;
 }
 
@@ -276,7 +273,7 @@ body {
 .rounded-bl-sm { border-bottom-left-radius: 0.125rem; }
 
 /*
-  RIQUADRI LEGGIBILI SOPRA L'IMMAGINE DI SFONDO (richiesta: "bianco sfumato,
+  RIQUADRI LEGGIBILI SOPRA LO SFONDO (richiesta: "bianco sfumato,
   non accavallare le scritte con l'immagine"). Da quando i riquadri sono
   diventati trasparenti per lasciar vedere lo sfondo fisso, in alcuni punti
   il testo finiva scritto direttamente sopra l'illustrazione, poco leggibile.
@@ -286,6 +283,11 @@ body {
   resta sempre leggibile. Si applica automaticamente a ogni riquadro/card
   di tutta l'app che usa questi due sfondi, i più diffusi nel progetto.
   "-webkit-" è il prefisso richiesto da Chrome/Safari per questa proprietà.
+
+  NOTA: questo effetto resta valido anche ora che lo sfondo è un gradiente
+  di colore invece di un'illustrazione - i riquadri restano leggermente
+  trasparenti e sfocati sopra il gradiente, con lo stesso risultato
+  visivo morbido, solo senza dettagli di un'immagine sotto da sfocare.
 */
 .bg-white {
   background-color: rgba(255, 255, 255, 0.82);
