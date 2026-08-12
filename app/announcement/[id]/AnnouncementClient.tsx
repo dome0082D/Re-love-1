@@ -36,6 +36,11 @@ interface Announcement {
   is_auction?: boolean
   auction_end?: string
   current_bid?: number
+  // NUOVO: presenti solo per un annuncio del sistema "Curatore Locale" -
+  // per un annuncio normale restano vuoti.
+  curator_id?: string
+  owner_id?: string
+  mandate_id?: string
 }
 
 interface SellerProfile {
@@ -317,6 +322,19 @@ function AnnouncementContent() {
       }]);
       pushNotify(ann.user_id, 'Nuova proposta 💡', `€${offerPrice} per "${ann.title}"`, `/announcement/${ann.id}`)
 
+      // NUOVO: se questo e' un annuncio delegato (Curatore Locale), il
+      // Proprietario deve essere informato degli eventi chiave anche se
+      // lascia al Curatore l'onere di rispondere in chat - qui l'evento e'
+      // "ricezione di un'offerta".
+      if (ann.owner_id && ann.owner_id !== ann.user_id) {
+        await supabase.from('notifications').insert([{
+          user_id: ann.owner_id,
+          message: `💡 Il Curatore ha ricevuto una proposta di €${offerPrice} per il tuo oggetto "${ann.title}".`,
+          is_read: false
+        }]);
+        pushNotify(ann.owner_id, 'Nuova proposta sul tuo oggetto 💡', `€${offerPrice} per "${ann.title}"`, `/announcement/${ann.id}`)
+      }
+
       // NUOVO: se questo annuncio ha un Proprietario diverso dal Curatore
       // (sistema "Curatore Locale"), lo avvisiamo anche a lui - la
       // trasparenza sugli eventi chiave e' un requisito esplicito del
@@ -382,6 +400,16 @@ function AnnouncementContent() {
       is_read: false
     }]);
     pushNotify(ann.user_id, 'Nuovo rilancio 🔨', `€${offerPrice} per "${ann.title}"`, `/announcement/${ann.id}`)
+
+    // NUOVO: stessa trasparenza verso il Proprietario, per un'asta delegata.
+    if (ann.owner_id && ann.owner_id !== ann.user_id) {
+      await supabase.from('notifications').insert([{
+        user_id: ann.owner_id,
+        message: `🔨 Nuovo rilancio di €${offerPrice} sulla tua asta "${ann.title}", gestita dal Curatore.`,
+        is_read: false
+      }]);
+      pushNotify(ann.owner_id, 'Nuovo rilancio sulla tua asta 🔨', `€${offerPrice} per "${ann.title}"`, `/announcement/${ann.id}`)
+    }
 
     // NUOVO: stessa trasparenza verso il Proprietario, anche per i
     // rilanci d'asta.

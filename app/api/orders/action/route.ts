@@ -91,8 +91,59 @@ export async function POST(req: Request) {
 
       // Se l'oggetto aveva un prezzo maggiore di 0, sblocchiamo i fondi su Stripe
       if (transaction.amount > 0 && transaction.seller_id) {
-        
-        // Cerchiamo l'ID Stripe del venditore
+
+        // NUOVO: se questa transazione riguarda un annuncio delegato (vedi
+        // "Curatore Locale"), invece di UN trasferimento al venditore ne
+        // servono DUE: uno al Proprietario, uno al Curatore, secondo le
+        // percentuali concordate al momento dell'acquisto. Il restante 10%
+        // (commissione ReLove) non viene mai trasferito, esattamente come
+        // per una vendita normale - resta sul conto della piattaforma.
+        if (transaction.mandate_id && transaction.curator_id) {
+          const [ownerProfileRes, curatorProfileRes] = await Promise.all([
+            supabaseAdmin.from('profiles').select('stripe_account_id').eq('id', transaction.seller_id).single(),
+            supabaseAdmin.from('profiles').select('stripe_account_id').eq('id', transaction.curator_id).single(),
+          ])
+
+          const ownerStripeId = ownerProfileRes.data?.stripe_account_id
+          const curatorStripeId = curatorProfileRes.data?.stripe_account_id
+
+          if (!ownerStripeId || !curatorStripeId) {
+            console.error(`Mandato ${transaction.mandate_id}: Proprietario o Curatore senza stripe_account_id - transazione ${transactionId} confermata ma fondi NON trasferiti.`);
+            return NextResponse.json({ error: "Il Proprietario o il Curatore non hanno un conto Stripe collegato. Contatta lo staff." }, { status: 400 });
+          }
+
+          const ownerPct = transaction.owner_percentage_snapshot ?? 70
+          const curatorPct = transaction.curator_percentage_snapshot ?? 20
+
+          const ownerShareCents = Math.round((transaction.amount * (ownerPct / 100)) * 100)
+          const curatorShareCents = Math.round((transaction.amount * (curatorPct / 100)) * 100)
+
+          try {
+            // Due trasferimenti separati, entrambi collegati allo stesso
+            // pagamento originale tramite transfer_group - stessa tecnica
+            // già in uso per il trasferimento singolo qui sotto.
+            await stripe.transfers.create({
+              amount: ownerShareCents,
+              currency: 'eur',
+              destination: ownerStripeId,
+              transfer_group: transaction.announcement_id,
+            })
+            await stripe.transfers.create({
+              amount: curatorShareCents,
+              currency: 'eur',
+              destination: curatorStripeId,
+              transfer_group: transaction.announcement_id,
+            })
+            console.log(`Fondi sbloccati (Curatore Locale): €${ownerShareCents / 100} al Proprietario, €${curatorShareCents / 100} al Curatore.`)
+          } catch (stripeErr: any) {
+            console.error(`Errore sblocco fondi Stripe (mandato) per transazione ${transactionId} (stato già 'Ricevuto', richiede controllo manuale):`, stripeErr);
+            return NextResponse.json({ error: "Errore durante il trasferimento dei fondi. Lo staff è stato avvisato." }, { status: 500 });
+          }
+
+          return NextResponse.json({ success: true, message: "Pacco confermato! I fondi sono stati divisi tra Proprietario e Curatore." });
+        }
+
+        // Percorso normale (nessun mandato) - invariato rispetto a prima.
         const { data: seller } = await supabaseAdmin
           .from('profiles')
           .select('stripe_account_id')

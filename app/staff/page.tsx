@@ -460,25 +460,25 @@ export default function AdminDashboard() {
                       <span className={`px-3 py-1 rounded-md text-[9px] font-black uppercase tracking-widest ${isClosed ? 'bg-[#333] text-stone-400' : isSupport ? 'bg-blue-500 text-white' : 'bg-rose-500 text-white'}`}>
                         {dispute.status}
                       </span>
+                      {/* NUOVO: se questa contestazione riguarda un
+                          oggetto delegato (Curatore Locale), mostriamo
+                          subito su chi ricadrebbe la responsabilità
+                          secondo la regola concordata al momento della
+                          delega (In Custodia -> Curatore, In Sede ->
+                          Proprietario) - resta comunque lo Staff a
+                          decidere davvero come chiudere la pratica, qui è
+                          solo un suggerimento con contesto immediato. */}
+                      {dispute.liable_party && (
+                        <span className="ml-2 px-3 py-1 rounded-md text-[9px] font-black uppercase tracking-widest bg-orange-500/20 text-orange-400">
+                          Responsabile secondo il mandato: {dispute.liable_party === 'curator' ? 'Curatore' : 'Proprietario'} ({dispute.custody_type_at_time === 'in_custodia' ? 'In Custodia' : 'In Sede'})
+                        </span>
+                      )}
                       <h4 className="text-white font-black mt-3 uppercase text-sm">{dispute.reason}</h4>
                       <p className="text-xs text-stone-300 mt-2 italic font-medium">"{dispute.description}"</p>
                       
                       {!isSupport && dispute.transaction && (
                         <p className="text-[10px] font-bold text-stone-400 mt-3 uppercase tracking-widest bg-black/20 p-2 rounded-lg inline-block border border-black/10">
                           📦 Ordine: {dispute.transaction.announcements?.title} (€{dispute.transaction.amount})
-                        </p>
-                      )}
-
-                      {/* NUOVO: se l'oggetto era gestito da un Curatore
-                          Locale, mostriamo qui il suggerimento automatico
-                          di responsabilità calcolato in base al tipo di
-                          custodia concordato nel mandato (In Custodia ->
-                          Curatore, In Sede -> Proprietario). Resta solo un
-                          suggerimento: lo staff decide sempre lui come
-                          risolvere il caso qui sotto. */}
-                      {dispute.liable_party && (
-                        <p className="text-[9px] font-black uppercase tracking-widest mt-2 inline-block bg-amber-500/10 text-amber-400 border border-amber-500/30 px-3 py-1.5 rounded-lg">
-                          🤝 Curatore Locale ({dispute.custody_type_at_time === 'in_custodia' ? 'In Custodia' : 'In Sede'}) - Responsabilità suggerita: {dispute.liable_party === 'curator' ? 'Curatore' : 'Proprietario'}
                         </p>
                       )}
                       

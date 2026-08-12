@@ -40,11 +40,9 @@ export default function ControversiePage() {
       .or(`buyer_id.eq.${currentUser.id},seller_id.eq.${currentUser.id}`)
       .order('created_at', { ascending: false })
 
-    // NUOVO: selezioniamo anche "mandate_id" (gia' presente nella tabella
-    // transactions) - serve per capire, quando l'utente apre una nuova
-    // segnalazione, se l'oggetto era gestito da un Curatore e con quale
-    // tipo di custodia, per assegnare in automatico un suggerimento di
-    // responsabilita' allo staff.
+    // NUOVO: prendiamo anche mandate_id e curator_id dalle transazioni, per
+    // capire subito se un ordine riguarda un oggetto delegato quando lo si
+    // seleziona nel modulo di segnalazione qui sotto.
     const { data: purchData, error: purchError } = await supabase
       .from('transactions')
       .select('*, announcements(*)')
@@ -81,15 +79,13 @@ export default function ControversiePage() {
       const tx = purchases.find(p => p.id === selectedTx)
       const sellerId = tx?.announcements?.user_id || null
 
-      // NUOVO: se questa transazione riguarda un oggetto delegato (sistema
-      // "Curatore Locale"), recuperiamo il tipo di custodia concordato nel
-      // mandato per calcolare in automatico su chi ricade la
-      // responsabilita' secondo la regola concordata:
-      //   - "In Custodia" (l'oggetto era fisicamente dal Curatore) -> Curatore
-      //   - "In Sede" (l'oggetto era rimasto dal Proprietario) -> Proprietario
-      // Resta comunque un SUGGERIMENTO salvato per contesto: lo staff
-      // decide sempre lui come risolvere il caso, questo campo lo aiuta
-      // solo a non doverlo ricostruire a mano.
+      // NUOVO: se l'ordine riguarda un oggetto delegato (Curatore Locale),
+      // calcoliamo subito su chi ricade la responsabilità secondo la
+      // regola concordata: "In Custodia" -> Curatore, "In Sede" ->
+      // Proprietario. Resta comunque lo staff a decidere davvero come
+      // chiudere la pratica - questo è solo un suggerimento automatico
+      // salvato per dargli il contesto subito, senza doverlo ricostruire
+      // a mano ogni volta.
       let custodyTypeAtTime: string | null = null
       let liableParty: 'owner' | 'curator' | null = null
 
@@ -130,6 +126,27 @@ export default function ControversiePage() {
           message: `⚠️ L'acquirente ha aperto una controversia per "${tx?.announcements?.title || 'un ordine'} ". Lo Staff interverrà a breve.`,
           is_read: false
         }])
+      }
+
+      // Se l'ordine era delegato, avvisiamo anche il Curatore (o il
+      // Proprietario, chiunque non fosse già "seller_id") - entrambi
+      // devono sapere che è stata aperta una contestazione sul loro
+      // oggetto in comune.
+      if (tx?.mandate_id) {
+        const { data: mandateProfiles } = await supabase
+          .from('curator_mandates')
+          .select('curator_id, owner_id')
+          .eq('id', tx.mandate_id)
+          .single()
+
+        const altroCoinvolto = [mandateProfiles?.curator_id, mandateProfiles?.owner_id].find(id => id && id !== sellerId)
+        if (altroCoinvolto) {
+          await supabase.from('notifications').insert([{
+            user_id: altroCoinvolto,
+            message: `⚠️ È stata aperta una controversia su "${tx?.announcements?.title || 'un oggetto'}" gestito in delega. Lo Staff interverrà a breve.`,
+            is_read: false
+          }])
+        }
       }
 
       setShowModal(false)
@@ -192,15 +209,18 @@ export default function ControversiePage() {
                   <span className={`px-3 py-1 rounded-md text-[9px] font-black uppercase tracking-widest ${dispute.status === 'Aperta' ? 'bg-orange-100 text-orange-600' : 'bg-emerald-100 text-emerald-600'}`}>
                     {dispute.status}
                   </span>
+                  {/* NUOVO: se questa contestazione riguarda un oggetto
+                      delegato, mostriamo subito su chi ricade la
+                      responsabilità secondo la regola concordata. */}
+                  {dispute.liable_party && (
+                    <span className="ml-2 px-3 py-1 rounded-md text-[9px] font-black uppercase tracking-widest bg-stone-100 text-stone-600">
+                      Responsabilità: {dispute.liable_party === 'curator' ? 'Curatore' : 'Proprietario'}
+                    </span>
+                  )}
                   <h4 className="text-sm font-black text-stone-900 mt-2 uppercase">{dispute.reason}</h4>
                   <p className="text-[10px] font-bold text-stone-500 mt-1 uppercase tracking-widest">
                     Ordine: {dispute.transaction?.announcements?.title || 'Segnalazione Generica'}
                   </p>
-                  {dispute.liable_party && (
-                    <p className="text-[9px] font-bold text-stone-400 uppercase tracking-widest mt-1">
-                      Oggetto gestito da un Curatore ({dispute.custody_type_at_time === 'in_custodia' ? 'in custodia' : 'in sede'})
-                    </p>
-                  )}
                 </div>
                 <div className="bg-stone-50 px-4 py-3 rounded-xl border border-stone-100 text-[10px] font-bold text-stone-400 uppercase tracking-widest">
                   In attesa dello Staff

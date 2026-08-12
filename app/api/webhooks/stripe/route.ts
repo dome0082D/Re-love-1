@@ -99,22 +99,6 @@ export async function POST(req: Request) {
          curator_percentage_snapshot: isDelegated ? curatorPercentage : null,
        }]);
 
-       // NUOVO: se l'oggetto è gestito da un Curatore Locale, avvisiamo
-       // ENTRAMBI (Proprietario e Curatore) che lo scambio è partito -
-       // questo è il punto più affidabile per farlo, perché scatta solo
-       // quando il pagamento è davvero avvenuto (non prima, come sarebbe
-       // stato affidarsi a un click lato client).
-       if (isDelegated && curatorId && sellerId) {
-         try {
-           await supabaseAdmin.from('notifications').insert([
-             { user_id: sellerId, message: '🛒 Il tuo oggetto è stato acquistato! Lo scambio è avviato su Re-love.', is_read: false },
-             { user_id: curatorId, message: '🛒 Un tuo oggetto delegato è stato acquistato! Gestisci la spedizione dalla dashboard ordini.', is_read: false },
-           ])
-         } catch (notifErr) {
-           console.error('[Webhook] Notifica avvio scambio (Curatore Locale) non inviata:', notifErr)
-         }
-       }
-
        // Scala la quantità
        const { data: ann } = await supabaseAdmin
          .from('announcements')
@@ -128,6 +112,20 @@ export async function POST(req: Request) {
            .from('announcements')
            .update({ quantity: nuovaQuantita })
            .eq('id', announcementId);
+       }
+
+       // NUOVO: se questa vendita riguarda un annuncio delegato (Curatore
+       // Locale), avvisiamo il Proprietario che lo scambio e' partito -
+       // "sellerId" nei metadata e' gia' il suo id per una vendita
+       // delegata (vedi app/api/stripe/checkout), quindi basta notificare
+       // quello. Per una vendita normale "sellerId" e' comunque chi ha
+       // pubblicato l'annuncio, quindi non cambia nulla per lui.
+       if (isDelegated && sellerId) {
+         await supabaseAdmin.from('notifications').insert([{
+           user_id: sellerId,
+           message: `🛒 Il tuo oggetto e' stato acquistato tramite il Curatore! Lo scambio e' avviato.`,
+           is_read: false,
+         }])
        }
     }
   }
