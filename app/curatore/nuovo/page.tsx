@@ -1,7 +1,7 @@
 'use client'
 export const dynamic = 'force-dynamic'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
@@ -13,6 +13,13 @@ import Link from 'next/link'
 // né annuncio pubblico esiste ancora a questo punto - solo dopo che il
 // Proprietario approva (vedi app/curatore/scansiona), l'annuncio viene
 // creato per davvero.
+//
+// FIX: il campo immagine NON è più un indirizzo web da incollare a mano -
+// ora è un vero allegato caricato dal telefono/PC, con anteprima
+// immediata, esattamente come nella pagina "Inserisci Annuncio" normale
+// (app/add). Il file viene caricato su Supabase Storage solo al momento
+// della creazione del mandato, nello stesso bucket già usato per gli
+// annunci normali.
 
 export default function NuovoMandatoPage() {
   const router = useRouter()
@@ -21,14 +28,59 @@ export default function NuovoMandatoPage() {
   const [description, setDescription] = useState('')
   const [price, setPrice] = useState('')
   const [condition, setCondition] = useState('Usato')
-  const [imageUrl, setImageUrl] = useState('')
   const [custodyType, setCustodyType] = useState<'in_sede' | 'in_custodia'>('in_sede')
   const [ownerPercentage, setOwnerPercentage] = useState('70')
   const [curatorPercentage, setCuratorPercentage] = useState('20')
 
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null)
+
   const [creating, setCreating] = useState(false)
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
   const [qrExpiresAt, setQrExpiresAt] = useState<string | null>(null)
+
+  // FIX ANDROID: le URL create con URL.createObjectURL() restano allocate
+  // in memoria finché non vengono revocate esplicitamente - stessa
+  // precauzione già presa in app/add per evitare di accumulare memoria non
+  // liberata su telefoni con RAM limitata.
+  const imagePreviewUrlRef = useRef<string | null>(null)
+  useEffect(() => { imagePreviewUrlRef.current = imagePreviewUrl }, [imagePreviewUrl])
+  useEffect(() => {
+    return () => {
+      if (imagePreviewUrlRef.current) URL.revokeObjectURL(imagePreviewUrlRef.current)
+    }
+  }, [])
+
+  function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl)
+    setImageFile(file)
+    setImagePreviewUrl(URL.createObjectURL(file))
+  }
+
+  function removeImage() {
+    if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl)
+    setImageFile(null)
+    setImagePreviewUrl(null)
+  }
+
+  // Stesso identico meccanismo di ripetizione già usato in app/add: un
+  // blip di rete transitorio non deve costringere l'utente a rifare tutto
+  // da capo.
+  async function uploadWithRetry(file: File, filePath: string, attempts = 2) {
+    let lastError: any = null
+    for (let i = 0; i < attempts; i++) {
+      const { error } = await supabase.storage.from('announcements').upload(filePath, file)
+      if (!error) return
+      lastError = error
+      if (i < attempts - 1) {
+        await new Promise(resolve => setTimeout(resolve, 800))
+      }
+    }
+    throw lastError
+  }
 
   async function handleCreate() {
     if (!title.trim() || !price || Number(price) <= 0) {
@@ -69,6 +121,22 @@ export default function NuovoMandatoPage() {
         return
       }
 
+      // NUOVO: caricamento vero della foto allegata, solo ora che sappiamo
+      // che il mandato sarà davvero creato - se manca la foto, il mandato
+      // viene comunque creato senza immagine (il Proprietario la vedrà
+      // comunque nell'anteprima con un placeholder).
+      let uploadedImageUrl: string | null = null
+      if (imageFile) {
+        const fileExt = imageFile.name.split('.').pop()
+        const fileName = `${Math.random()}.${fileExt}`
+        const filePath = `${user.id}/curatore-${fileName}`
+
+        await uploadWithRetry(imageFile, filePath)
+
+        const { data: publicUrlData } = supabase.storage.from('announcements').getPublicUrl(filePath)
+        uploadedImageUrl = publicUrlData.publicUrl
+      }
+
       const { data: mandate, error } = await supabase
         .from('curator_mandates')
         .insert([{
@@ -80,7 +148,7 @@ export default function NuovoMandatoPage() {
           draft_description: description.trim() || null,
           draft_price: Number(price),
           draft_condition: condition,
-          draft_image_url: imageUrl.trim() || null,
+          draft_image_url: uploadedImageUrl,
         }])
         .select()
         .single()
@@ -107,6 +175,14 @@ export default function NuovoMandatoPage() {
     }
   }
 
+  function resetForm() {
+    setQrDataUrl(null)
+    setTitle('')
+    setDescription('')
+    setPrice('')
+    removeImage()
+  }
+
   if (qrDataUrl) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6 font-sans">
@@ -126,11 +202,6 @@ export default function NuovoMandatoPage() {
             {qrExpiresAt && ` Valido per 30 minuti.`}
           </p>
 
-          {/* NUOVO: link al modulo cartaceo di responsabilità - questo è
-              il momento giusto per proporlo, perché Curatore e
-              Proprietario sono fisicamente insieme proprio ora, mentre si
-              scambiano il QR. Il modulo integra (ma non sostituisce)
-              l'approvazione digitale. */}
           <a
             href="/documenti/Modulo-Responsabilita-Curatore-Locale.docx"
             download
@@ -141,7 +212,7 @@ export default function NuovoMandatoPage() {
 
           <div className="flex flex-col gap-3">
             <button
-              onClick={() => { setQrDataUrl(null); setTitle(''); setDescription(''); setPrice(''); setImageUrl('') }}
+              onClick={resetForm}
               className="w-full bg-stone-900 text-white py-4 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-rose-600 transition-all"
             >
               Crea un altro mandato
@@ -189,15 +260,28 @@ export default function NuovoMandatoPage() {
             />
           </div>
 
+          {/* NUOVO: vero allegato invece di un indirizzo web da incollare -
+              stessa identica esperienza già usata in "Inserisci Annuncio". */}
           <div>
-            <label className="text-[10px] font-black uppercase text-stone-400 tracking-widest ml-2">Indirizzo immagine</label>
-            <input
-              type="text"
-              value={imageUrl}
-              onChange={(e) => setImageUrl(e.target.value)}
-              placeholder="https://..."
-              className="w-full p-4 bg-stone-50 border border-stone-200 rounded-xl font-bold text-sm outline-none mt-1 focus:border-rose-400"
-            />
+            <label className="text-[10px] font-black uppercase text-stone-400 tracking-widest ml-2">Foto dell'oggetto</label>
+            {imagePreviewUrl ? (
+              <div className="relative w-32 h-32 mt-1 rounded-2xl overflow-hidden border-2 border-stone-100 group">
+                <img src={imagePreviewUrl} className="w-full h-full object-cover" alt="Anteprima" />
+                <button
+                  type="button"
+                  onClick={removeImage}
+                  className="absolute top-2 right-2 bg-stone-900/80 text-white w-6 h-6 rounded-full text-xs flex items-center justify-center hover:bg-rose-500 transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
+            ) : (
+              <label className="w-32 h-32 mt-1 rounded-2xl border-2 border-dashed border-stone-200 flex flex-col items-center justify-center text-stone-400 hover:border-rose-400 hover:text-rose-500 hover:bg-rose-50 transition-all cursor-pointer">
+                <span className="text-2xl mb-1">+</span>
+                <span className="text-[9px] font-black uppercase tracking-widest">Allega foto</span>
+                <input type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
+              </label>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">

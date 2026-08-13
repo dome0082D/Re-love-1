@@ -6,7 +6,6 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { User } from '@supabase/supabase-js'
 
-// 1. DEFINIAMO I TIPI AGGIUNGENDO I NUOVI CAMPI (Privacy e Profilo)
 interface ProfileData {
   first_name?: string;
   last_name?: string;
@@ -54,7 +53,6 @@ function ProfileContent() {
   })
   const [saving, setSaving] = useState(false)
 
-  // LE TUE VETRINE ORIGINALI
   const [myAds, setMyAds] = useState<AdItem[]>([])
   const [soldAds, setSoldAds] = useState<AdItem[]>([])
   const [boughtAds, setBoughtAds] = useState<AdItem[]>([])
@@ -92,7 +90,6 @@ function ProfileContent() {
       })
     }
 
-    // --- CARICAMENTO ANNUNCI E ACQUISTI (LA TUA LOGICA ORIGINALE) ---
     const { data: ads } = await supabase
       .from('announcements')
       .select('*')
@@ -124,7 +121,6 @@ function ProfileContent() {
     setLoading(false)
   }
 
-  // AGGIUNTA: Funzione per caricare la foto profilo
   const uploadAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -134,7 +130,6 @@ function ProfileContent() {
     const fileName = `${Math.random()}.${fileExt}`
     const filePath = `avatars/${fileName}`
 
-    // 🚨 ECCO LA CORREZIONE: Ora invia al bucket 'avatars' invece che 'announcements'
     const { error: uploadError } = await supabase.storage
       .from('avatars') 
       .upload(filePath, file)
@@ -148,7 +143,6 @@ function ProfileContent() {
     setSaving(false)
   }
 
-  // --- FUNZIONE GEOLOCALIZZAZIONE AUTOMATICA DA NOME CITTÀ ---
   async function getCoordinatesFromCity(city: string): Promise<{ lat: number, lon: number } | null> {
     try {
       const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(city + ', Italy')}`)
@@ -171,7 +165,6 @@ function ProfileContent() {
 
     setSaving(true)
     try {
-      // 1. Calcola le coordinate in background basate sulla città
       let lat = null;
       let lon = null;
       if (editForm.city) {
@@ -182,7 +175,6 @@ function ProfileContent() {
         }
       }
 
-      // 2. Salva su Supabase (inclusi latitudine e longitudine)
       const { error } = await supabase
         .from('profiles')
         .update({
@@ -258,7 +250,6 @@ function ProfileContent() {
     }
   }
 
-  // IL TUO RENDERGRID ORIGINALE CON STILE RE-LOVE
   const renderGrid = (items: AdItem[], emptyMessage: string, isOwner: boolean = false) => {
     if (items.length === 0) return <p className="text-[10px] font-bold text-stone-400 italic py-4">{emptyMessage}</p>
     return (
@@ -304,7 +295,6 @@ function ProfileContent() {
     <div className="min-h-screen bg-stone-50 p-4 md:p-10 font-sans text-stone-900 pb-20">
       <div className="max-w-2xl mx-auto space-y-6">
         
-        {/* DATI PERSONALI E PROFILO PUBBLICO */}
         <div className="bg-white rounded-[2.5rem] p-8 border border-stone-200 shadow-sm relative overflow-hidden">
           <div className="flex justify-between items-center mb-8 border-b border-stone-100 pb-4">
             <h1 className="text-2xl font-black uppercase italic text-transparent bg-clip-text bg-gradient-to-r from-rose-500 to-orange-400">Il mio profilo</h1>
@@ -317,11 +307,23 @@ function ProfileContent() {
               </div>
             )}
           </div>
-          
+
+          {/* NUOVO: riquadro fisso ben visibile, richiesto esplicitamente -
+              sempre nel flusso normale della pagina (mai "absolute"), con
+              margine proprio sopra e sotto, quindi non si sovrappone mai a
+              nessun campo o pulsante, su nessuna risoluzione. */}
+          <div className="bg-gradient-to-br from-rose-50 to-orange-50 border border-rose-200 rounded-2xl px-5 py-4 mb-6">
+            <p className="text-xs font-black uppercase tracking-widest text-rose-700">
+              📋 Inserire i propri dati
+            </p>
+            <p className="text-[10px] font-bold text-stone-600 mt-1 leading-relaxed">
+              Nickname, città e indirizzo sono obbligatori per poter vendere e ricevere pacchi correttamente.
+            </p>
+          </div>
+
           <div className="space-y-6">
             {isEditing ? (
               <div className="space-y-4">
-                {/* EDIT MODE: FOTO E NICKNAME */}
                 <div className="flex items-center gap-4 border-b border-stone-100 pb-6">
                   <div className="w-16 h-16 bg-stone-100 rounded-full overflow-hidden relative group shadow-sm flex-shrink-0">
                     <img src={editForm.avatar_url || `https://ui-avatars.com/api/?name=${editForm.nickname || 'U'}`} className="w-full h-full object-cover" alt="avatar" />
@@ -336,7 +338,6 @@ function ProfileContent() {
                   </div>
                 </div>
                 
-                {/* EDIT MODE: BIO E TELEFONO */}
                 <div className="space-y-1">
                   <p className="text-[8px] font-black uppercase text-stone-400 ml-1">Bio / A proposito di me</p>
                   <textarea value={editForm.bio} onChange={(e) => setEditForm({...editForm, bio: e.target.value})} className="w-full p-3 bg-stone-50 border border-stone-100 rounded-xl text-xs font-bold outline-none focus:border-rose-400 min-h-[80px]" placeholder="Racconta chi sei agli acquirenti..." />
@@ -347,7 +348,6 @@ function ProfileContent() {
                   <input type="text" value={editForm.phone} onChange={(e) => setEditForm({...editForm, phone: e.target.value})} className="w-full p-3 bg-stone-50 border border-stone-100 rounded-xl text-xs font-bold outline-none focus:border-rose-400" placeholder="+39 ..." />
                 </div>
 
-                {/* EDIT MODE: NOME E INDIRIZZO */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <p className="text-[8px] font-black uppercase text-stone-400 ml-1">Nome Reale (Privato)</p>
@@ -369,7 +369,6 @@ function ProfileContent() {
               </div>
             ) : (
               <div className="space-y-8">
-                {/* VIEW MODE: INTESTAZIONE PROFILO */}
                 <div className="flex items-center gap-6">
                   <div className="w-20 h-20 bg-stone-100 rounded-full overflow-hidden border-2 border-stone-100 shadow-sm flex-shrink-0">
                     <img src={profile?.avatar_url || `https://ui-avatars.com/api/?name=${profile?.nickname || 'U'}`} className="w-full h-full object-cover" />
@@ -421,7 +420,6 @@ function ProfileContent() {
           </div>
         </div>
 
-        {/* STRIPE SECTION */}
         <div className="bg-white rounded-[2.5rem] p-8 border border-stone-200 shadow-sm">
           <h2 className="text-lg font-black uppercase italic text-stone-900 mb-2">Ricezione pagamenti</h2>
           {(isOnboardingSuccess || profile?.stripe_account_id) ? (
@@ -442,7 +440,6 @@ function ProfileContent() {
           )}
         </div>
 
-        {/* PULSANTI RAPIDI */}
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-white rounded-[2rem] p-6 border border-stone-100 shadow-sm text-center flex flex-col items-center justify-center group cursor-pointer hover:border-rose-300 transition-all">
             <span className="text-2xl mb-2 group-hover:scale-110 transition-transform">📦</span>
@@ -454,7 +451,6 @@ function ProfileContent() {
           </div>
         </div>
 
-        {/* VETRINA ANNUNCI IN VENDITA */}
         <div className="bg-white rounded-[2.5rem] p-8 border border-stone-200 shadow-sm">
           <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 mb-6 flex items-center gap-2">
             <span className="w-2 h-2 bg-rose-500 rounded-full"></span> IN VENDITA
@@ -462,7 +458,6 @@ function ProfileContent() {
           {renderGrid(myAds, "Non hai ancora inserito nessun annuncio.", true)}
         </div>
 
-        {/* VETRINA OGGETTI ACQUISTATI */}
         <div className="bg-white rounded-[2.5rem] p-8 border border-stone-200 shadow-sm">
           <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 mb-6 flex items-center gap-2">
             <span className="w-2 h-2 bg-orange-400 rounded-full"></span> OGGETTI ACQUISTATI

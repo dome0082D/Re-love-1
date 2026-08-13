@@ -21,14 +21,9 @@ function VetrinaContent() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
 
-  // --- NASTRO VENDITORI SCORREVOLE ---
-  // Mappa user_id -> profilo, per mostrare nomi reali nel nastro e nelle
-  // card. Il filtro per venditore vive nell'indirizzo (?venditore=...), così
-  // si può anche condividere un link diretto "vetrina di questa persona".
   const [sellerProfiles, setSellerProfiles] = useState<Record<string, any>>({})
   const selectedSeller = searchParams.get('venditore')
 
-  // --- MODALE DI CREAZIONE ---
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [createType, setCreateType] = useState<'interna' | 'esterna'>('interna')
   const [myListings, setMyListings] = useState<any[]>([])
@@ -41,20 +36,12 @@ function VetrinaContent() {
   const [extShipping, setExtShipping] = useState('')
   const [fetchingPreview, setFetchingPreview] = useState(false)
   const [paying, setPaying] = useState(false)
-  // URL in attesa di conferma prima di uscire da Re-love - vedi la modale
-  // condivisa ExternalLinkConfirmModal.
   const [pendingUrl, setPendingUrl] = useState<string | null>(null)
 
   useEffect(() => {
     init()
   }, [])
 
-  // Gestisce il ritorno da Stripe. IMPORTANTE: non attiviamo MAI una voce
-  // qui in base al parametro "success" nell'indirizzo - quel parametro è
-  // scrivibile a mano da chiunque e non prova che un pagamento sia davvero
-  // avvenuto (stesso errore già corretto in dashboard/annunci/page.tsx).
-  // L'unica cosa che attiva davvero una voce è il webhook Stripe lato
-  // server. Qui ci limitiamo a un messaggio e a ricaricare i dati.
   useEffect(() => {
     if (searchParams.get('success') === 'true') {
       toast.success('Pagamento riuscito! La tua voce comparirà in Vetrina a breve.')
@@ -80,8 +67,6 @@ function VetrinaContent() {
     fetchVetrina()
   }
 
-  // Potere staff: elimina QUALSIASI voce della Vetrina, di qualunque
-  // utente, direttamente da qui - non serve passare da altre dashboard.
   async function handleDeleteVetrinaItem(id: string, titolo: string) {
     if (!confirm(`Eliminare definitivamente "${titolo}" dalla Vetrina?`)) return
     try {
@@ -123,9 +108,6 @@ function VetrinaContent() {
     setInternaItems(interna || [])
     setEsternaItems(esterna || [])
 
-    // Profili dei venditori presenti in Vetrina Interna, per il nastro
-    // scorrevole e per i nomi mostrati nelle card. Una sola richiesta per
-    // tutti i venditori distinti, non una per ciascuno.
     const idVenditori = Array.from(new Set((interna || []).map((i: any) => i.user_id).filter(Boolean)))
     if (idVenditori.length > 0) {
       const { data: profili } = await supabase
@@ -229,8 +211,6 @@ function VetrinaContent() {
       })
       const data = await res.json()
 
-      // Vetrina gratuita: la voce e' gia' pubblicata, non c'e' nessun
-      // pagamento da fare. Chiudiamo il modulo e ricarichiamo l'elenco.
       if (data.gratuita) {
         toast.success('Pubblicato in Vetrina!')
         setShowCreateModal(false)
@@ -258,22 +238,15 @@ function VetrinaContent() {
     try {
       await supabase.rpc('increment_vetrina_click', { item_id: itemId })
     } catch (err) {
-      // Non blocchiamo mai l'apertura del link per un errore nel solo
-      // conteggio dei click - è un dato accessorio, non deve rovinare
-      // l'esperienza di chi sta solo cercando di visitare il link.
       console.error('Errore tracciamento click:', err)
     }
   }
 
-  // Se è stato scelto un venditore dal nastro scorrevole, mostriamo solo i
-  // suoi annunci in Vetrina Interna; altrimenti tutti.
   const internaFiltrata = selectedSeller
     ? internaItems.filter(item => item.user_id === selectedSeller)
     : internaItems
   const items = activeTab === 'interna' ? internaFiltrata : esternaItems
 
-  // Elenco dei venditori distinti presenti in Vetrina Interna, nell'ordine
-  // in cui compare la loro voce più recente.
   const venditoriDistinti = Array.from(
     new Map(internaItems.map(item => [item.user_id, item])).values()
   )
@@ -313,10 +286,16 @@ function VetrinaContent() {
           </button>
         </div>
 
-        {/* NASTRO VENDITORI SCORREVOLE - solo se ci sono venditori in
-            Vetrina Interna da mostrare. Toccando un nome si filtra la lista
-            sotto a quel solo venditore, senza cambiare pagina; il tondino
-            "Tutti" toglie il filtro. */}
+        {/* NUOVO: riquadro informativo fisso, richiesto esplicitamente -
+            spiega la logica di posizionamento della Vetrina. Sempre nel
+            flusso normale della pagina (mai "absolute"), quindi non può
+            mai sovrapporsi a bottoni o testi, su nessuna risoluzione. */}
+        <div className="bg-white border border-rose-100 rounded-2xl px-5 py-4 mb-8 shadow-sm">
+          <p className="text-[11px] font-bold text-stone-600 leading-relaxed">
+            <span className="font-black text-rose-600">Come funziona il posizionamento:</span> le voci più recenti compaiono per prime in entrambe le sezioni. La Vetrina è sempre gratuita e resta visibile finché la lasci attiva - non esistono slot a pagamento o posizioni premium acquistabili.
+          </p>
+        </div>
+
         {venditoriDistinti.length > 0 && (
           <div className="flex gap-3 overflow-x-auto pb-3 mb-6 custom-scrollbar">
             <button
@@ -456,7 +435,6 @@ function VetrinaContent() {
         )}
       </div>
 
-      {/* --- MODALE CREAZIONE VOCE VETRINA --- */}
       {showCreateModal && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-stone-900/80 backdrop-blur-sm">
           <div className="bg-white rounded-[2rem] shadow-2xl max-w-lg w-full max-h-[90vh] overscroll-contain overflow-y-auto relative animate-in zoom-in duration-200">
@@ -565,9 +543,16 @@ function VetrinaContent() {
                       placeholder="Il prezzo che vuoi mostrare tu"
                       className="w-full p-4 bg-stone-50 border border-stone-200 rounded-xl font-bold text-sm outline-none mt-1 focus:border-rose-400"
                     />
-                    <p className="text-[9px] font-bold text-stone-400 uppercase tracking-widest mt-2 ml-2">
-                      Questo è il prezzo che vedranno gli utenti - non viene mai preso dal sito collegato.
-                    </p>
+                    {/* NUOVO: riquadro fisso col testo esatto richiesto -
+                        non più una semplice riga di aiuto grigia, ma un
+                        box a contrasto alto nei colori del brand, ben
+                        distinto dal resto del modulo tramite margini e
+                        sfondo dedicato. */}
+                    <div className="mt-2 bg-gradient-to-br from-rose-50 to-orange-50 border border-rose-200 rounded-xl px-4 py-3">
+                      <p className="text-[10px] font-bold text-rose-700 leading-relaxed">
+                        ⚠️ Il prezzo originale non viene importato: è obbligatorio inserire il proprio prezzo manualmente.
+                      </p>
+                    </div>
                   </div>
 
                   <div>

@@ -12,6 +12,14 @@ import Link from 'next/link'
 // l'app (non rimanda al browser/fotocamera di sistema), legge il QR
 // generato dal Curatore, mostra un'anteprima di cosa sta per approvare, e
 // solo dopo un tap esplicito conferma il mandato.
+//
+// FIX: la fotocamera NON parte più da sola all'apertura della pagina
+// (era uno useEffect automatico). Su una PWA installata (schermata Home),
+// Android a volte blocca in silenzio l'accesso alla fotocamera se la
+// richiesta non parte da un tocco diretto dell'utente - nessun permesso
+// chiesto, nessun errore, il video resta vuoto. Ora la fotocamera si
+// avvia SOLO al tocco del pulsante "Attiva Fotocamera", garantendo che la
+// richiesta parta sempre da un gesto reale dell'utente.
 
 interface Anteprima {
   title: string
@@ -33,18 +41,28 @@ export default function ScansionaMandatoPage() {
   const scanningRef = useRef(true)
   const animationFrameRef = useRef<number | null>(null)
 
+  const [cameraStarted, setCameraStarted] = useState(false)
   const [cameraError, setCameraError] = useState<string | null>(null)
   const [qrToken, setQrToken] = useState<string | null>(null)
   const [preview, setPreview] = useState<Anteprima | null>(null)
   const [loadingPreview, setLoadingPreview] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
+  function stopCamera() {
+    scanningRef.current = false
+    if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current)
+    streamRef.current?.getTracks().forEach(track => track.stop())
+  }
+
+  // Fermiamo comunque la fotocamera se l'utente lascia la pagina mentre è
+  // attiva - questo effetto NON avvia nulla, si limita a pulire.
   useEffect(() => {
-    startCamera()
     return () => stopCamera()
   }, [])
 
   async function startCamera() {
+    setCameraError(null)
+    setCameraStarted(true)
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment' },
@@ -60,12 +78,6 @@ export default function ScansionaMandatoPage() {
       console.error('Errore accesso fotocamera:', err)
       setCameraError("Impossibile accedere alla fotocamera. Controlla di aver dato il permesso a Re-love nelle impostazioni del browser.")
     }
-  }
-
-  function stopCamera() {
-    scanningRef.current = false
-    if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current)
-    streamRef.current?.getTracks().forEach(track => track.stop())
   }
 
   function scanFrame() {
@@ -237,7 +249,22 @@ export default function ScansionaMandatoPage() {
           Inquadra il QR mostrato dal Curatore
         </p>
 
-        {cameraError ? (
+        {!cameraStarted ? (
+          // NUOVO: schermata iniziale con pulsante esplicito - la fotocamera
+          // parte SOLO da qui, mai in automatico all'apertura della pagina.
+          <div className="bg-stone-900 border border-stone-800 rounded-[2rem] p-10">
+            <span className="text-5xl block mb-4">📷</span>
+            <p className="text-xs font-bold text-stone-300 mb-6 leading-relaxed">
+              Per leggere il QR ci serve accedere alla tua fotocamera. Tocca il pulsante per attivarla.
+            </p>
+            <button
+              onClick={startCamera}
+              className="w-full bg-rose-600 text-white py-4 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-rose-700 transition-all"
+            >
+              Attiva Fotocamera
+            </button>
+          </div>
+        ) : cameraError ? (
           <div className="bg-stone-900 border border-rose-900/50 rounded-2xl p-8">
             <p className="text-sm font-bold text-rose-400 mb-4">{cameraError}</p>
             <button onClick={startCamera} className="bg-stone-800 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-stone-700 transition-all">

@@ -90,6 +90,11 @@ function HomePageContent() {
   const [showStaffButton, setShowStaffButton] = useState(false)
 
   const [courses, setCourses] = useState<any[]>([])
+
+  // NUOVO: oggetti in Arena da mostrare nel widget in cima alla Home -
+  // stato separato e indipendente dal resto, così un eventuale problema
+  // qui non tocca il caricamento degli annunci normali.
+  const [arenaItems, setArenaItems] = useState<any[]>([])
   
   const [newCourseTitle, setNewCourseTitle] = useState('')
   
@@ -106,6 +111,11 @@ function HomePageContent() {
     imageUrl: ''
   })
   const [creatingCourse, setCreatingCourse] = useState(false)
+  // NUOVO: foto del corso come vero allegato, non più un indirizzo web da
+  // incollare - stessa identica esperienza già usata per il Curatore
+  // Locale e per "Inserisci Annuncio".
+  const [courseImageFile, setCourseImageFile] = useState<File | null>(null)
+  const [courseImagePreviewUrl, setCourseImagePreviewUrl] = useState<string | null>(null)
 
   const [chatMessages, setChatMessages] = useState<any[]>([])
   const [newChatMessage, setNewChatMessage] = useState('')
@@ -288,6 +298,26 @@ function HomePageContent() {
     }
   }, [chatMessages])
 
+  // NUOVO: caricamento indipendente degli oggetti in Arena per il widget
+  // in Home - la funzione è dichiarata QUI DENTRO (non fuori, come
+  // funzione a parte) apposta per evitare lo stesso tipo di errore già
+  // capitato altre volte in questo progetto ("variabile usata prima di
+  // essere dichiarata").
+  useEffect(() => {
+    async function fetchArenaItems() {
+      const { data } = await supabase
+        .from('announcements')
+        .select('id, title, price, image_url')
+        .eq('is_arena', true)
+        .gt('quantity', 0)
+        .order('price', { ascending: false })
+        .limit(6)
+
+      if (data) setArenaItems(data)
+    }
+    fetchArenaItems()
+  }, [])
+
   async function fetchInitialData() {
     setLoading(true)
     const { data: { user: u } } = await supabase.auth.getUser()
@@ -402,6 +432,20 @@ function HomePageContent() {
     toast.success("Messaggio modificato.")
   }
 
+  function handleCourseImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (courseImagePreviewUrl) URL.revokeObjectURL(courseImagePreviewUrl)
+    setCourseImageFile(file)
+    setCourseImagePreviewUrl(URL.createObjectURL(file))
+  }
+
+  function removeCourseImage() {
+    if (courseImagePreviewUrl) URL.revokeObjectURL(courseImagePreviewUrl)
+    setCourseImageFile(null)
+    setCourseImagePreviewUrl(null)
+  }
+
   const handleCreateCourse = async () => {
     if (!user) {
       toast.error("Devi accedere per creare un corso! 🔑")
@@ -417,6 +461,26 @@ function HomePageContent() {
     if (creatingCourse) return
     setCreatingCourse(true)
 
+    // NUOVO: caricamento vero della foto allegata, solo ora che sappiamo
+    // che il corso sarà davvero creato.
+    let uploadedCourseImageUrl: string | null = null
+    if (courseImageFile) {
+      try {
+        const fileExt = courseImageFile.name.split('.').pop()
+        const fileName = `${Math.random()}.${fileExt}`
+        const filePath = `${user.id}/corso-${fileName}`
+        const { error: uploadError } = await supabase.storage.from('announcements').upload(filePath, courseImageFile)
+        if (uploadError) throw uploadError
+        const { data: publicUrlData } = supabase.storage.from('announcements').getPublicUrl(filePath)
+        uploadedCourseImageUrl = publicUrlData.publicUrl
+      } catch (uploadErr) {
+        console.error('Errore caricamento foto corso:', uploadErr)
+        toast.error('Errore nel caricamento della foto. Riprova.')
+        setCreatingCourse(false)
+        return
+      }
+    }
+
     const newCourseData = {
       title: titleToUse,
       category: courseForm.category || 'Riuso',
@@ -428,7 +492,7 @@ function HomePageContent() {
       event_date: courseForm.date || null,
       start_time: courseForm.startTime || null,
       end_time: courseForm.endTime || null,
-      image_url: courseForm.imageUrl || null
+      image_url: uploadedCourseImageUrl
     }
 
     try {
@@ -444,6 +508,7 @@ function HomePageContent() {
       
       setNewCourseTitle('')
       setCourseForm({ title: '', category: 'Riuso', description: '', date: '', startTime: '', endTime: '', location: '', price: '', imageUrl: '' })
+      removeCourseImage()
       setIsCreateModalOpen(false)
       fetchInitialData()
     } catch (err) {
@@ -803,6 +868,46 @@ function HomePageContent() {
         </aside>
 
         <main className="flex-1 w-full overflow-hidden order-1 lg:order-2">
+
+          {/* NUOVO: widget Arena ReLove, in cima al feed principale come
+              richiesto. Mostrato solo se c'è almeno un oggetto in Arena -
+              nessun riquadro vuoto quando l'Arena non ha ancora nulla. */}
+          {arenaItems.length > 0 && (
+            <section className="mb-8 max-w-[1300px] mx-auto px-2">
+              <div className="bg-gradient-to-br from-rose-600 to-orange-500 rounded-[2.5rem] p-6 md:p-8 shadow-lg relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-6 opacity-10 text-8xl">🏆</div>
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-5 relative z-10">
+                  <div>
+                    <h2 className="text-xl md:text-2xl font-black uppercase italic text-white tracking-tight">Arena ReLove</h2>
+                    <p className="text-white/80 font-bold text-[10px] uppercase tracking-[0.2em] mt-1">Promuovi e guadagna il 30%</p>
+                  </div>
+                  <Link
+                    href="/arena"
+                    className="bg-white text-rose-600 px-5 py-2.5 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-stone-900 hover:text-white transition-all shadow-md whitespace-nowrap"
+                  >
+                    Vai all'Arena →
+                  </Link>
+                </div>
+                <div className="flex gap-4 overflow-x-auto pb-1 custom-scrollbar relative z-10">
+                  {arenaItems.map(item => (
+                    <Link
+                      key={item.id}
+                      href={`/announcement/${item.id}`}
+                      className="shrink-0 w-32 bg-white rounded-2xl overflow-hidden shadow-md hover:scale-[1.03] transition-all"
+                    >
+                      <div className="w-full h-24 bg-stone-50">
+                        <img src={item.image_url || '/usato.png'} className="w-full h-full object-cover" alt={item.title} />
+                      </div>
+                      <div className="p-2.5">
+                        <p className="text-[9px] font-black uppercase text-stone-800 truncate">{item.title}</p>
+                        <p className="text-xs font-black text-rose-600 mt-0.5">€ {Number(item.price).toFixed(2)}</p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            </section>
+          )}
 
           <section className="mb-12 max-w-[1300px] mx-auto px-2">
             <div className="bg-white p-6 rounded-[2.5rem] shadow-md border border-stone-200 flex flex-col gap-8">
@@ -1376,6 +1481,15 @@ function HomePageContent() {
             </div>
 
             <div className="p-5 overflow-y-auto overscroll-contain flex-1 bg-stone-50/30">
+              {/* NUOVO: riquadro informativo fisso, richiesto esplicitamente -
+                  sempre nel flusso normale (mai "absolute"), con margine
+                  proprio sotto prima del modulo, quindi non si sovrappone
+                  mai ai campi. */}
+              <div className="bg-gradient-to-br from-rose-50 to-orange-50 border border-rose-200 rounded-xl px-4 py-3 mb-4">
+                <p className="text-[11px] font-bold text-rose-700 leading-relaxed">
+                  📚 Inserire i dettagli, le materie e gli orari del corso, passo dopo passo, nei campi qui sotto.
+                </p>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
                 <div className="md:col-span-2">
                   <label className="text-[10px] font-black uppercase text-stone-500 tracking-widest ml-2 block mb-1">Titolo del Corso</label>
@@ -1426,7 +1540,18 @@ function HomePageContent() {
 
                 <div className="md:col-span-2 pb-2">
                   <label className="text-[10px] font-black uppercase text-stone-500 tracking-widest ml-2 block mb-1">Immagine (URL o link)</label>
-                  <input type="text" value={courseForm.imageUrl} onChange={(e) => setCourseForm({...courseForm, imageUrl: e.target.value})} placeholder="https://..." className="w-full p-3 bg-white border border-stone-200 rounded-xl outline-none focus:border-rose-500 text-sm font-bold text-stone-900 shadow-sm" />
+                  {courseImagePreviewUrl ? (
+                    <div className="relative w-24 h-24 rounded-xl overflow-hidden border-2 border-stone-100 group">
+                      <img src={courseImagePreviewUrl} className="w-full h-full object-cover" alt="Anteprima" />
+                      <button type="button" onClick={removeCourseImage} className="absolute top-1 right-1 bg-stone-900/80 text-white w-5 h-5 rounded-full text-[10px] flex items-center justify-center hover:bg-rose-500 transition-colors">✕</button>
+                    </div>
+                  ) : (
+                    <label className="w-24 h-24 rounded-xl border-2 border-dashed border-stone-200 flex flex-col items-center justify-center text-stone-400 hover:border-rose-400 hover:text-rose-500 hover:bg-rose-50 transition-all cursor-pointer">
+                      <span className="text-xl mb-0.5">+</span>
+                      <span className="text-[8px] font-black uppercase tracking-widest">Allega foto</span>
+                      <input type="file" accept="image/*" onChange={handleCourseImageChange} className="hidden" />
+                    </label>
+                  )}
                 </div>
               </div>
             </div>

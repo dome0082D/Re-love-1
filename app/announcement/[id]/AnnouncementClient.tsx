@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { Timer, Gavel, ShoppingCart, Sparkles } from 'lucide-react'
@@ -21,10 +21,6 @@ interface Announcement {
   image_url?: string
   image_urls?: string[]
   user_id: string
-  // NUOVO: presente solo se questo annuncio e' gestito da un Curatore
-  // Locale - il vero Proprietario, diverso da user_id (che resta il
-  // Curatore). Vuoto per un annuncio normale.
-  owner_id?: string
   shipping_cost?: number
   quantity?: number
   allow_local_pickup?: boolean
@@ -37,10 +33,15 @@ interface Announcement {
   auction_end?: string
   current_bid?: number
   // NUOVO: presenti solo per un annuncio del sistema "Curatore Locale" -
-  // per un annuncio normale restano vuoti.
+  // per un annuncio normale restano vuoti. owner_id e' il vero
+  // Proprietario, diverso da user_id (che resta il Curatore).
   curator_id?: string
   owner_id?: string
   mandate_id?: string
+  // NUOVO: presenti solo per un oggetto del sistema "Arena ReLove" - per
+  // un annuncio normale restano vuoti/false.
+  is_arena?: boolean
+  arena_locked_until?: string
 }
 
 interface SellerProfile {
@@ -72,6 +73,14 @@ function AnnouncementContent() {
   const [ann, setAnn] = useState<Announcement | null>(null)
   const [seller, setSeller] = useState<SellerProfile | null>(null)
   const [user, setUser] = useState<User | null>(null)
+
+  // NUOVO: sistema "Arena ReLove" - il codice del link di promozione con
+  // cui si è arrivati su questa pagina (?arena=XXXX), e la propria
+  // eventuale promozione già esistente per questo oggetto.
+  const searchParams = useSearchParams()
+  const arenaCode = searchParams.get('arena')
+  const [myPromoCode, setMyPromoCode] = useState<string | null>(null)
+  const [promotingArena, setPromotingArena] = useState(false)
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
   const [selectedQuantity, setSelectedQuantity] = useState(1)
@@ -248,6 +257,60 @@ function AnnouncementContent() {
     startChat();
   }
 
+  // NUOVO: se l'oggetto è in Arena, controlliamo se l'utente ha già un
+  // proprio link di promozione per questo oggetto - così mostriamo subito
+  // "copia il tuo link" invece di "partecipa", senza fargli generare un
+  // secondo link inutile.
+  useEffect(() => {
+    async function loadMyPromotion() {
+      if (!user || !ann?.is_arena || user.id === ann.user_id) return
+      const { data } = await supabase
+        .from('arena_promotions')
+        .select('tracking_code')
+        .eq('announcement_id', ann.id)
+        .eq('promoter_id', user.id)
+        .maybeSingle()
+      if (data) setMyPromoCode(data.tracking_code)
+    }
+    loadMyPromotion()
+  }, [user, ann])
+
+  async function handlePromuoviArena() {
+    if (!user) {
+      toast.error('Devi accedere per promuovere questo oggetto.')
+      router.push('/login')
+      return
+    }
+    setPromotingArena(true)
+    try {
+      const res = await fetch('/api/arena/promote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ announcementId: ann.id, promoterId: user.id }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        toast.error(data.error || 'Errore durante la generazione del link.')
+        if (data.requiresPayoutSetup) router.push('/profile')
+        return
+      }
+      setMyPromoCode(data.trackingCode)
+      toast.success('Link generato!')
+    } catch (err) {
+      console.error('Errore promozione Arena:', err)
+      toast.error('Errore di connessione.')
+    } finally {
+      setPromotingArena(false)
+    }
+  }
+
+  function copiaLinkArena() {
+    if (!myPromoCode) return
+    const link = `${window.location.origin}/announcement/${ann.id}?arena=${myPromoCode}`
+    navigator.clipboard.writeText(link)
+    toast.success('Link copiato negli appunti!')
+  }
+
   const handleSecureBuy = async () => {
     if (!user) { toast.error("Devi accedere per acquistare."); return; }
     if (user.id === ann.user_id) { toast.error("Non puoi acquistare un tuo stesso oggetto."); return; }
@@ -278,7 +341,11 @@ function AnnouncementContent() {
               image_url: ann.image_url
           }],
           buyerId: user.id,
-          usePickup: usePickup
+          usePickup: usePickup,
+          // NUOVO: se questo è un oggetto in Arena e siamo arrivati tramite
+          // il link di un promotore, passiamo il suo codice - per un
+          // acquisto normale (o un'Arena senza link) resta null/assente.
+          arenaCode: arenaCode || undefined,
         })
       })
       const data = await res.json()
@@ -523,6 +590,7 @@ function AnnouncementContent() {
                </div>
                {ann.type === 'offered' && <span className="bg-rose-500 text-white text-[10px] font-black px-3 py-1 rounded-full uppercase shadow-lg shadow-rose-200">Gift</span>}
                {ann.is_auction && <span className="bg-rose-600 text-white text-[10px] font-black px-3 py-1 rounded-full uppercase shadow-lg shadow-rose-500/50 animate-pulse">Asta ⏳</span>}
+               {ann.is_arena && <span className="bg-gradient-to-r from-rose-600 to-orange-500 text-white text-[10px] font-black px-3 py-1 rounded-full uppercase shadow-lg">🏆 Arena</span>}
             </div>
 
             <Link href={`/seller/${ann.user_id}`} className="flex items-center justify-between bg-white/40 p-4 rounded-2xl border border-white/50 hover:bg-white/60 transition-all mb-8 group">
@@ -543,6 +611,47 @@ function AnnouncementContent() {
                   <span className="text-[10px] text-stone-600 font-bold">({reviews.length})</span>
                 </div>
             </Link>
+
+            {/* NUOVO: sistema "Arena ReLove" - riquadro sempre nel flusso
+                normale della pagina (mai "absolute"), quindi non si
+                sovrappone mai a nient'altro, su nessuna risoluzione. */}
+            {ann.is_arena && (
+              <div className="bg-gradient-to-br from-rose-50 to-orange-50 border border-rose-200 rounded-2xl p-5 mb-8">
+                {ann.arena_locked_until && new Date(ann.arena_locked_until) > new Date() ? (
+                  <div className="text-center">
+                    <p className="text-xs font-black uppercase text-orange-600 tracking-widest">⏳ In Trattativa</p>
+                    <p className="text-[10px] font-bold text-stone-500 mt-1">Un altro acquirente sta completando il pagamento. Riprova tra qualche minuto.</p>
+                  </div>
+                ) : user?.id === ann.user_id ? (
+                  <p className="text-[10px] font-bold text-stone-500 uppercase tracking-widest text-center">È il tuo oggetto in Arena</p>
+                ) : (
+                  <>
+                    {/* NUOVO: riquadro esplicativo fisso richiesto per i
+                        bottoni di partecipazione all'Arena - descrive
+                        direttamente cosa succede candidandosi. */}
+                    <p className="text-[10px] font-bold text-rose-700 leading-relaxed mb-3">
+                      🏆 Genera il tuo link personale: se porta a una vendita conclusa, ricevi il 30% dell&apos;incasso. Vince il primo link che completa l&apos;acquisto.
+                    </p>
+                    {myPromoCode ? (
+                      <button
+                        onClick={copiaLinkArena}
+                        className="w-full bg-emerald-600 text-white py-3 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-emerald-700 transition-all"
+                      >
+                        📋 Copia il tuo link
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handlePromuoviArena}
+                        disabled={promotingArena}
+                        className="w-full bg-stone-900 text-white py-3 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-rose-600 transition-all disabled:opacity-50"
+                      >
+                        {promotingArena ? 'Generazione...' : 'Partecipa e Promuovi'}
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
 
             <div className="mb-8">
                {ann.condition === 'Baratto' ? (
@@ -627,8 +736,8 @@ function AnnouncementContent() {
                      </button>
                    ) : ann.condition === 'Nuovo' || ann.condition === 'Usato' ? (
                      <div className="space-y-3 flex flex-col items-center">
-                       <button onClick={handleSecureBuy} disabled={actionLoading || maxQty <= 0} className="w-full bg-stone-900 text-white p-5 rounded-2xl font-black uppercase text-sm tracking-[0.1em] shadow-xl hover:bg-rose-500 transition-all disabled:opacity-30">
-                          {actionLoading ? 'In corso...' : 'Acquista Ora'}
+                       <button onClick={handleSecureBuy} disabled={actionLoading || maxQty <= 0 || (ann.is_arena && !!ann.arena_locked_until && new Date(ann.arena_locked_until) > new Date())} className="w-full bg-stone-900 text-white p-5 rounded-2xl font-black uppercase text-sm tracking-[0.1em] shadow-xl hover:bg-rose-500 transition-all disabled:opacity-30">
+                          {actionLoading ? 'In corso...' : (ann.is_arena && ann.arena_locked_until && new Date(ann.arena_locked_until) > new Date()) ? 'In Trattativa' : 'Acquista Ora'}
                        </button>
 
                        <button onClick={handleAddToCart} disabled={actionLoading || maxQty <= 0} className="w-full bg-white/40 border-2 border-stone-900/20 text-stone-900 p-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-white/80 transition-all disabled:opacity-30 flex items-center justify-center gap-2">
