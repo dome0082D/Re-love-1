@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
+import { verificaContoStripe, type StatoContoClient } from '@/lib/contoStripeClient'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { User } from '@supabase/supabase-js'
 import Link from 'next/link'
@@ -38,6 +39,9 @@ const SOGLIA_ARENA = 100
 function AddAnnouncementForm() {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<ProfileData | null>(null)
+  // Stato REALE del conto Stripe (chiesto a Stripe), non la semplice
+  // presenza di stripe_account_id sul profilo.
+  const [contoStripe, setContoStripe] = useState<StatoContoClient | null>(null)
   const [loadingUser, setLoadingUser] = useState(true)
 
   const router = useRouter()
@@ -96,6 +100,13 @@ function AddAnnouncementForm() {
       
       const { data } = await supabase.from('profiles').select('stripe_account_id, first_name, last_name, city, latitude, longitude').eq('id', user.id).single()
       setProfile(data)
+      // FIX: prima bastava che il profilo avesse "stripe_account_id" per
+      // poter pubblicare un annuncio in vendita. Quel campo viene pero'
+      // scritto appena si preme "Attiva ricezione pagamenti", PRIMA di
+      // compilare qualunque cosa su Stripe: si potevano quindi mettere in
+      // vendita oggetti senza poterne mai incassare il ricavato. Ora si
+      // chiede a Stripe se il conto e' davvero abilitato.
+      setContoStripe(await verificaContoStripe())
       setLoadingUser(false)
     }
     checkUser()
@@ -237,8 +248,10 @@ function AddAnnouncementForm() {
     e.preventDefault()
     if (!user) return
 
-    if (!profile?.stripe_account_id && condition !== 'Regalo' && condition !== 'Baratto') {
-      toast.error("Collega il tuo account Stripe per ricevere i pagamenti.")
+    if (!contoStripe?.pronto && condition !== 'Regalo' && condition !== 'Baratto') {
+      toast.error(contoStripe?.collegato
+        ? "Devi completare la configurazione del conto su Stripe prima di vendere."
+        : "Collega il tuo account Stripe per ricevere i pagamenti.")
       router.push('/profile')
       return
     }
@@ -382,10 +395,14 @@ function AddAnnouncementForm() {
 
         <div className="max-w-3xl mx-auto px-4 mt-12 relative z-20">
           
-          {(!profile?.stripe_account_id && modeParam !== 'gift' && modeParam !== 'barter') && (
+          {(!contoStripe?.pronto && modeParam !== 'gift' && modeParam !== 'barter') && (
             <div className="bg-orange-50 border border-orange-200 p-6 rounded-3xl mb-8 text-center shadow-sm">
               <h3 className="font-black uppercase text-orange-600 mb-2 text-sm">Attenzione</h3>
-              <p className="text-[10px] font-bold text-orange-500 mb-6 uppercase tracking-widest leading-relaxed">Devi collegare Stripe prima di poter incassare i pagamenti degli annunci in vendita.</p>
+              <p className="text-[10px] font-bold text-orange-500 mb-6 uppercase tracking-widest leading-relaxed">
+                {contoStripe?.collegato
+                  ? (contoStripe.mancante || "Hai iniziato la configurazione su Stripe ma non l'hai completata: finché non lo fai non puoi incassare.")
+                  : 'Devi collegare Stripe prima di poter incassare i pagamenti degli annunci in vendita.'}
+              </p>
               <Link href="/profile" className="inline-block bg-orange-500 text-white px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest shadow-md hover:bg-stone-900 transition-all">
                 Configura Portafoglio
               </Link>
@@ -635,7 +652,7 @@ function AddAnnouncementForm() {
             </div>
 
             <div className="pt-8">
-              <button disabled={uploading || (!profile?.stripe_account_id && condition !== 'Regalo' && condition !== 'Baratto')} type="submit" className={`w-full text-white py-6 rounded-2xl font-black uppercase text-sm tracking-[0.2em] shadow-lg transition-all disabled:opacity-50 ${isAuction ? 'bg-rose-500 hover:bg-rose-600' : isArena ? 'bg-gradient-to-r from-rose-600 to-orange-500 hover:opacity-90' : 'bg-stone-900 hover:bg-stone-800'}`}>
+              <button disabled={uploading || (!contoStripe?.pronto && condition !== 'Regalo' && condition !== 'Baratto')} type="submit" className={`w-full text-white py-6 rounded-2xl font-black uppercase text-sm tracking-[0.2em] shadow-lg transition-all disabled:opacity-50 ${isAuction ? 'bg-rose-500 hover:bg-rose-600' : isArena ? 'bg-gradient-to-r from-rose-600 to-orange-500 hover:opacity-90' : 'bg-stone-900 hover:bg-stone-800'}`}>
                 {uploading ? 'Pubblicazione in corso...' : (isAuction ? 'Avvia L\'Asta Ora ⏳' : isArena ? 'Metti in Arena 🏆' : 'Pubblica il tuo annuncio 🚀')}
               </button>
               <p className="text-center mt-6 text-[10px] font-bold uppercase text-stone-400 tracking-widest">

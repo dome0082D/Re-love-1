@@ -1,7 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { supabase } from '@/lib/supabase'; 
+import { supabase } from '@/lib/supabase';
+import { statoContoStripe } from '@/lib/stripeAccount';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
   apiVersion: '2026-03-25.dahlia',
@@ -154,8 +155,19 @@ export async function POST(req: Request) {
       const ownerStripeId = ownerProfileRes.data?.stripe_account_id || null
       const curatorStripeId = curatorProfileRes.data?.stripe_account_id || null
 
-      if (!ownerStripeId || !curatorStripeId) {
-        return NextResponse.json({ error: "Il Proprietario e il Curatore devono avere entrambi un conto configurato per ricevere pagamenti prima che questo oggetto possa essere venduto." }, { status: 400 })
+      // FIX: la sola presenza di stripe_account_id non significa che quel
+      // conto possa incassare - viene scritto sul profilo appena si preme
+      // "Attiva ricezione pagamenti", prima ancora della configurazione su
+      // Stripe. Senza questa verifica un acquirente pagava per un oggetto
+      // il cui venditore non poteva ricevere un centesimo, e i soldi
+      // restavano bloccati. Chiediamo a Stripe lo stato vero.
+      const [statoOwner, statoCurator] = await Promise.all([
+        statoContoStripe(ownerStripeId),
+        statoContoStripe(curatorStripeId),
+      ])
+
+      if (!statoOwner.pronto || !statoCurator.pronto) {
+        return NextResponse.json({ error: "Il Proprietario e il Curatore devono avere entrambi completato la configurazione del conto per ricevere pagamenti prima che questo oggetto possa essere venduto." }, { status: 400 })
       }
     } else {
       const { data: sellerProfile } = await supabase
@@ -164,8 +176,9 @@ export async function POST(req: Request) {
         .eq('id', announcement.user_id)
         .single();
 
-      if (!sellerProfile?.stripe_account_id) {
-        return NextResponse.json({ error: "Il venditore non ha ancora abilitato la ricezione dei pagamenti." }, { status: 400 });
+      const statoVenditore = await statoContoStripe(sellerProfile?.stripe_account_id)
+      if (!statoVenditore.pronto) {
+        return NextResponse.json({ error: "Il venditore non ha ancora completato la configurazione per ricevere i pagamenti." }, { status: 400 });
       }
     }
 

@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { verificaContoStripe } from '@/lib/contoStripeClient'
 import { toast } from 'sonner'
 import QRCode from 'qrcode'
 import Link from 'next/link'
@@ -32,11 +33,20 @@ export default function NuovoMandatoPage() {
   const [ownerPercentage, setOwnerPercentage] = useState('70')
   const [curatorPercentage, setCuratorPercentage] = useState('20')
 
+  // NUOVO: se l'oggetto è di chi sta compilando il modulo, non esiste
+  // nessun Proprietario da cui raccogliere il consenso: niente QR, niente
+  // approvazione, l'annuncio si pubblica subito (vedi la regola spiegata
+  // per esteso in app/api/curatore/self-mandate/route.ts).
+  const [oggettoMio, setOggettoMio] = useState(false)
+
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null)
 
   const [creating, setCreating] = useState(false)
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
+  // Il codice in chiaro serve come alternativa alla scansione: con un solo
+  // telefono a disposizione è impossibile fotografare il proprio schermo.
+  const [qrToken, setQrToken] = useState<string | null>(null)
   const [qrExpiresAt, setQrExpiresAt] = useState<string | null>(null)
 
   // FIX ANDROID: le URL create con URL.createObjectURL() restano allocate
@@ -91,8 +101,9 @@ export default function NuovoMandatoPage() {
     const ownerPct = Number(ownerPercentage)
     const curatorPct = Number(curatorPercentage)
     // La commissione ReLove resta fissa al 10%: le altre due percentuali
-    // devono sommare esattamente a 90.
-    if (ownerPct + curatorPct !== 90) {
+    // devono sommare esattamente a 90. Non serve controllarlo quando
+    // l'oggetto è di chi lo pubblica: non c'è niente da dividere.
+    if (!oggettoMio && ownerPct + curatorPct !== 90) {
       toast.error('Le percentuali di Proprietario e Curatore devono sommare a 90 (la commissione ReLove è fissa al 10%).')
       return
     }
@@ -107,16 +118,16 @@ export default function NuovoMandatoPage() {
       }
 
       // Il Curatore deve avere anche lui un conto pronto a ricevere
-      // pagamenti - stessa verifica già richiesta ai venditori normali,
-      // riusata qui invece di inventare un controllo nuovo.
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('stripe_account_id')
-        .eq('id', user.id)
-        .single()
-
-      if (!profile?.stripe_account_id) {
-        toast.error('Devi prima configurare il tuo conto per ricevere pagamenti, dal tuo profilo.')
+      // pagamenti - stessa verifica già richiesta ai venditori normali.
+      // FIX: prima bastava che "stripe_account_id" esistesse sul profilo,
+      // ma quel campo viene scritto appena si preme "Attiva ricezione
+      // pagamenti", PRIMA di compilare qualsiasi cosa su Stripe. Ora si
+      // chiede a Stripe se il conto è davvero abilitato a incassare.
+      const conto = await verificaContoStripe()
+      if (!conto.pronto) {
+        toast.error(conto.collegato
+          ? 'Devi completare la configurazione del conto su Stripe prima di poter pubblicare.'
+          : 'Devi prima configurare il tuo conto per ricevere pagamenti, dal tuo profilo.')
         setCreating(false)
         return
       }
@@ -137,6 +148,51 @@ export default function NuovoMandatoPage() {
         uploadedImageUrl = publicUrlData.publicUrl
       }
 
+      // NUOVO: oggetto proprio -> nessun consenso da raccogliere, nessun QR.
+      // L'annuncio viene pubblicato subito da una route server che ricontrolla
+      // tutto (vedi app/api/curatore/self-mandate/route.ts).
+      if (oggettoMio) {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session?.access_token) {
+          toast.error('Sessione scaduta: rientra e riprova.')
+          return
+        }
+        const res = await fetch('/api/curatore/self-mandate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            title: title.trim(),
+            description: description.trim() || null,
+            price: Number(price),
+            condition,
+            imageUrl: uploadedImageUrl,
+            custodyType,
+          }),
+        })
+        const data = await res.json()
+        if (!res.ok || data.error) {
+          toast.error(data.error || 'Errore durante la pubblicazione.')
+          if (data.requiresPayoutSetup) router.push('/profile')
+          return
+        }
+        toast.success('Oggetto tuo: nessuna delega da approvare, annuncio pubblicato!')
+        router.push(`/announcement/${data.announcementId}`)
+        return
+      }
+
+      // FIX: il token del QR e la sua scadenza venivano lasciati generare al
+      // database. Se quelle due colonne non hanno un valore predefinito
+      // impostato, "mandate.qr_token" torna vuoto e il QR generato qui sotto
+      // contiene la scritta "RELOVE_MANDATE:undefined": un codice a barre
+      // perfettamente leggibile ma che nessuna scansione potrà mai far
+      // corrispondere a un mandato reale. Li generiamo noi, esattamente come
+      // fa già la rigenerazione del QR in app/curatore/page.tsx.
+      const qrToken = crypto.randomUUID()
+      const qrExpiry = new Date(Date.now() + 30 * 60 * 1000).toISOString()
+
       const { data: mandate, error } = await supabase
         .from('curator_mandates')
         .insert([{
@@ -144,6 +200,8 @@ export default function NuovoMandatoPage() {
           custody_type: custodyType,
           owner_percentage: ownerPct,
           curator_percentage: curatorPct,
+          qr_token: qrToken,
+          qr_expires_at: qrExpiry,
           draft_title: title.trim(),
           draft_description: description.trim() || null,
           draft_price: Number(price),
@@ -162,10 +220,21 @@ export default function NuovoMandatoPage() {
       // Il QR contiene solo il token, con un prefisso per riconoscerlo
       // dallo scanner ed evitare di confonderlo con un QR qualsiasi
       // inquadrato per sbaglio.
-      const qrContent = `RELOVE_MANDATE:${mandate.qr_token}`
-      const dataUrl = await QRCode.toDataURL(qrContent, { width: 320, margin: 2 })
+      const tokenEffettivo = mandate.qr_token || qrToken
+      const qrContent = `RELOVE_MANDATE:${tokenEffettivo}`
+      // Correzione di livello alto e margine ampio: un QR con correzione
+      // bassa e bordo stretto è molto più difficile da leggere quando viene
+      // inquadrato da un secondo telefono sullo schermo di un altro (riflessi,
+      // moiré, messa a fuoco).
+      const dataUrl = await QRCode.toDataURL(qrContent, {
+        width: 420,
+        margin: 4,
+        errorCorrectionLevel: 'H',
+        color: { dark: '#000000', light: '#FFFFFF' },
+      })
       setQrDataUrl(dataUrl)
-      setQrExpiresAt(mandate.qr_expires_at)
+      setQrToken(tokenEffettivo)
+      setQrExpiresAt(mandate.qr_expires_at || qrExpiry)
       toast.success('Mandato creato! Fai scansionare il QR al Proprietario.')
     } catch (err) {
       console.error('Errore:', err)
@@ -177,6 +246,7 @@ export default function NuovoMandatoPage() {
 
   function resetForm() {
     setQrDataUrl(null)
+    setQrToken(null)
     setTitle('')
     setDescription('')
     setPrice('')
@@ -193,14 +263,47 @@ export default function NuovoMandatoPage() {
             Al Proprietario di "{title}"
           </p>
 
-          <div className="bg-stone-50 rounded-2xl p-6 border border-stone-200 mb-6">
+          {/* Sfondo bianco pieno e nessun bordo colorato attorno: un QR
+              stampato su fondo colorato o sotto un pannello traslucido è
+              molto più difficile da leggere per la fotocamera di un altro
+              telefono. */}
+          <div className="bg-white rounded-2xl p-4 border border-stone-200 mb-6">
             <img src={qrDataUrl} alt="QR di delega" className="w-full h-auto" />
           </div>
 
-          <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-8">
-            Il Proprietario apre Re-love sul suo telefono, va su "Approva Delega" e inquadra questo codice.
+          <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-6">
+            Il Proprietario apre Re-love sul suo telefono, va su &ldquo;Approva Delega&rdquo; e inquadra questo codice.
             {qrExpiresAt && ` Valido per 30 minuti.`}
           </p>
+
+          {/* NUOVO: alternativa alla scansione. Serve davvero: con un solo
+              telefono è fisicamente impossibile inquadrare il proprio
+              schermo, e su alcuni display (luminosità bassa, pellicola
+              opaca, riflessi) la lettura fallisce comunque. Il Proprietario
+              può digitare questo codice nella stessa pagina "Approva
+              Delega". Il codice non è un segreto in sé: da solo non
+              approva niente, va comunque confermato dal Proprietario
+              autenticato, e scade in 30 minuti. */}
+          {qrToken && (
+            <div className="bg-stone-50 border border-stone-200 rounded-2xl p-5 mb-8 text-left">
+              <p className="text-[9px] font-black uppercase text-stone-400 tracking-widest mb-2">
+                Non riesce a inquadrarlo? Codice da digitare
+              </p>
+              <p className="font-mono text-[11px] font-bold text-stone-900 break-all select-all bg-white border border-stone-200 rounded-lg p-3">
+                {qrToken}
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(qrToken)
+                  toast.success('Codice copiato.')
+                }}
+                className="w-full mt-3 bg-stone-900 text-white py-2.5 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-rose-600 transition-all"
+              >
+                Copia il codice
+              </button>
+            </div>
+          )}
 
           <a
             href="/documenti/Modulo-Responsabilita-Curatore-Locale.docx"
@@ -237,6 +340,27 @@ export default function NuovoMandatoPage() {
 
       <div className="max-w-xl mx-auto px-4 mt-10">
         <div className="bg-white rounded-[2rem] border border-stone-200 shadow-sm p-8 space-y-5">
+
+          {/* NUOVO: la delega serve solo quando l'oggetto è di un'ALTRA
+              persona. Se è tuo, non c'è nessun consenso da raccogliere e
+              nessun QR da far scansionare: l'annuncio viene pubblicato
+              subito. */}
+          <div className="bg-stone-50 border border-stone-200 rounded-2xl p-4">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={oggettoMio}
+                onChange={(e) => setOggettoMio(e.target.checked)}
+                className="mt-0.5 w-5 h-5 accent-rose-600 shrink-0"
+              />
+              <span>
+                <span className="block text-xs font-black uppercase text-stone-900 tracking-widest">L&apos;oggetto è mio</span>
+                <span className="block text-[10px] font-bold text-stone-500 mt-1 leading-relaxed">
+                  Nessuna delega da approvare e nessun QR: sei tu il Proprietario, l&apos;annuncio viene pubblicato subito a tuo nome.
+                </span>
+              </span>
+            </label>
+          </div>
 
           <div>
             <label className="text-[10px] font-black uppercase text-stone-400 tracking-widest ml-2">Titolo dell'oggetto</label>
@@ -336,7 +460,10 @@ export default function NuovoMandatoPage() {
             </p>
           </div>
 
-          <div>
+          {/* La divisione del ricavato ha senso solo fra due persone
+              diverse: se l'oggetto è di chi pubblica, l'intero incasso (al
+              netto del 10% ReLove) è già suo. */}
+          <div className={oggettoMio ? 'hidden' : ''}>
             <label className="text-[10px] font-black uppercase text-stone-400 tracking-widest ml-2">Divisione del ricavato</label>
             <div className="grid grid-cols-2 gap-4 mt-1">
               <div>
@@ -372,7 +499,9 @@ export default function NuovoMandatoPage() {
             disabled={creating}
             className="w-full bg-rose-600 text-white py-4 rounded-xl font-black uppercase tracking-widest text-xs hover:bg-stone-900 transition-all disabled:opacity-50 mt-4 shadow-md"
           >
-            {creating ? 'Creazione...' : 'Crea mandato e genera QR'}
+            {creating
+              ? (oggettoMio ? 'Pubblicazione...' : 'Creazione...')
+              : (oggettoMio ? 'Pubblica subito il tuo oggetto' : 'Crea mandato e genera QR')}
           </button>
         </div>
       </div>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { createClient } from '@supabase/supabase-js'
 import { aggiungiTagAffiliazioneAmazon } from '@/lib/affiliates/amazonTag'
+import { analizzaIndirizzo, leggiAnteprimaLink } from '@/lib/anteprimaLink'
 
 // FIX: "@/lib/supabase-admin" non esiste in questo progetto (sotto lib/ ci
 // sono solo mail.ts e supabase.ts) - era un'assunzione mia, segnalata come
@@ -53,7 +54,11 @@ const VETRINA_GRATUITA = true
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { userId, type, announcementId, externalUrl, title, description, imageUrl, price, shippingCost } = body
+    // NOTA: "price" e "shippingCost" NON vengono piu' letti dal corpo della
+    // richiesta: per la vetrina esterna li rileggiamo noi dalla pagina del
+    // prodotto poco piu' sotto. Accettarli da qui vorrebbe dire fidarsi del
+    // browser su un dato che decide quanto costa un articolo in Vetrina.
+    const { userId, type, announcementId, externalUrl, title, description, imageUrl } = body
 
     if (!userId || !type) {
       return NextResponse.json({ error: 'Dati mancanti.' }, { status: 400 })
@@ -79,18 +84,50 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // NUOVO: per la vetrina esterna il prezzo NON viene più preso da quello
+    // che manda il browser. Il modulo di pubblicazione non ha più un campo
+    // prezzo modificabile a mano, ma una richiesta HTTP si può comunque
+    // costruire a mano: se ci fidassimo del corpo JSON, chiunque potrebbe
+    // pubblicare un articolo Amazon da 300€ dichiarandone 5. Rileggiamo il
+    // prezzo dalla pagina del prodotto qui, sul server, e salviamo quello.
+    let prezzoVerificato: number | null = null
+    let spedizioneVerificata = 0
+    let datiVerificati: { title: string | null; description: string | null; image: string | null } = {
+      title: null, description: null, image: null,
+    }
+
     if (type === 'esterna') {
-      if (!externalUrl || !title || !price) {
-        return NextResponse.json({ error: 'Compila link, titolo e prezzo per la vetrina esterna.' }, { status: 400 })
+      if (!externalUrl) {
+        return NextResponse.json({ error: 'Manca il link del prodotto.' }, { status: 400 })
       }
-      if (Number(price) <= 0 || isNaN(Number(price))) {
-        return NextResponse.json({ error: 'Il prezzo deve essere maggiore di zero.' }, { status: 400 })
-      }
-      try {
-        const parsed = new URL(externalUrl)
-        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new Error('bad protocol')
-      } catch {
+      const parsed = analizzaIndirizzo(externalUrl)
+      if (!parsed) {
         return NextResponse.json({ error: 'Il link esterno non è un indirizzo valido.' }, { status: 400 })
+      }
+
+      const anteprima = await leggiAnteprimaLink(parsed)
+      if (anteprima.price === null || anteprima.price <= 0) {
+        return NextResponse.json({
+          error: "Il prezzo non è leggibile da questo link. Usa l'indirizzo completo della pagina del prodotto.",
+        }, { status: 400 })
+      }
+
+      prezzoVerificato = anteprima.price
+      // Anche le spese di spedizione arrivano dalla pagina, non dal browser.
+      // Se il sito non le dichiara in modo leggibile valgono 0 (gratuita):
+      // è il caso più comune sui grandi negozi, ed è comunque il valore che
+      // l'utente ha visto nell'anteprima prima di pubblicare.
+      spedizioneVerificata = anteprima.shipping ?? 0
+      datiVerificati = {
+        title: anteprima.title,
+        description: anteprima.description,
+        image: anteprima.image,
+      }
+
+      // Il titolo resta modificabile da chi pubblica (i titoli Amazon sono
+      // spesso lunghissimi), ma se lo lascia vuoto usiamo quello reale.
+      if (!title && !anteprima.title) {
+        return NextResponse.json({ error: 'Manca il titolo dell\'articolo.' }, { status: 400 })
       }
     }
 
@@ -107,11 +144,15 @@ export async function POST(req: NextRequest) {
         type,
         announcement_id: type === 'interna' ? announcementId : null,
         external_url: type === 'esterna' ? aggiungiTagAffiliazioneAmazon(externalUrl) : null,
-        title: type === 'esterna' ? title : null,
-        description: type === 'esterna' ? (description || null) : null,
-        image_url: type === 'esterna' ? (imageUrl || null) : null,
-        price: type === 'esterna' ? Number(price) : null,
-        shipping_cost: type === 'esterna' ? (Number(shippingCost) || 0) : null,
+        title: type === 'esterna' ? (title || datiVerificati.title) : null,
+        description: type === 'esterna' ? (description || datiVerificati.description || null) : null,
+        // Immagine e prezzo vengono sempre da quello che abbiamo letto noi
+        // dalla pagina del prodotto, mai da quello che ha mandato il browser.
+        image_url: type === 'esterna' ? (datiVerificati.image || imageUrl || null) : null,
+        price: type === 'esterna' ? prezzoVerificato : null,
+        // Come il prezzo: letta dalla pagina del prodotto, non presa da
+        // quello che manda il browser.
+        shipping_cost: type === 'esterna' ? spedizioneVerificata : null,
         // Quando la Vetrina e' gratuita la voce nasce gia' attiva; altrimenti
         // resta spenta finche' il webhook Stripe non conferma il pagamento.
         is_active: VETRINA_GRATUITA,

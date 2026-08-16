@@ -10,6 +10,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { notificaUtente } from '@/lib/pushServer'
 
 export const dynamic = 'force-dynamic'
 
@@ -114,11 +115,14 @@ export async function POST(req: NextRequest) {
       .update({ status: 'revocato', revoked_at: new Date().toISOString() })
       .eq('id', mandate.id)
 
-    await supabaseAdmin.from('notifications').insert([{
-      user_id: mandate.curator_id,
-      message: `⚠️ Il Proprietario ha revocato la delega per "${datiOggetto.title}". L'annuncio non è più pubblico.`,
-      is_read: false,
-    }])
+    // La notifica in-app funzionava gia' (chiave di servizio), ma la push
+    // non partiva: nessuno la mandava. Ora entrambe, in una sola chiamata.
+    await notificaUtente(
+      mandate.curator_id,
+      `⚠️ Il Proprietario ha revocato la delega per "${datiOggetto.title}". L'annuncio non è più pubblico.`,
+      'Delega revocata ⚠️',
+      '/curatore'
+    )
 
     return NextResponse.json({ ok: true })
   } catch (err) {

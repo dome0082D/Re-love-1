@@ -157,7 +157,7 @@ function DashboardContent() {
                     // qui. Ora il pulsante porta al flusso della Vetrina,
                     // con questo annuncio già preselezionato nel modulo.
                     <Link
-                      href={`/vetrina?create=interna&ad_id=${ad.id}`}
+                      href={`/vetrina/interna?ad_id=${ad.id}`}
                       className="w-full flex items-center justify-center gap-2 bg-stone-900 text-orange-400 text-[9px] font-bold uppercase py-3 rounded-lg hover:bg-rose-500 hover:text-white transition-all shadow-sm border border-orange-400/30"
                     >
                       <Sparkles size={12} /> Metti in Vetrina (2,99€)

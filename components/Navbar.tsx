@@ -111,6 +111,7 @@ export default function Navbar() {
 
   useEffect(() => {
     let notificationHandler: ((e: Event) => void) | null = null;
+    let visibilityHandler: (() => void) | null = null;
 
     const getData = async () => {
       try {
@@ -137,19 +138,35 @@ export default function Navbar() {
             if (detail?.message) triggerNativePush(detail.message)
           }
           window.addEventListener('relove:new-notification', notificationHandler)
+
+          // Il contatore si aggiornava SOLO all'apertura della pagina e agli
+          // eventi in tempo reale. Ma la connessione realtime cade sempre
+          // quando il telefono mette l'app in background o si blocca lo
+          // schermo: al ritorno il pallino restava fermo al valore vecchio
+          // finché non si ricaricava a mano. Ricontrolliamo ogni volta che
+          // l'utente torna sull'app - è una singola query leggera.
+          visibilityHandler = () => {
+            if (document.visibilityState === 'visible') fetchNotifications(currentUser.id)
+          }
+          document.addEventListener('visibilitychange', visibilityHandler)
+          window.addEventListener('focus', visibilityHandler)
         }
       } catch (mainErr) {}
     }
-    
+
     getData()
-    
+
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user || null)
     })
-    
+
     return () => {
       if (notificationHandler) {
         window.removeEventListener('relove:new-notification', notificationHandler)
+      }
+      if (visibilityHandler) {
+        document.removeEventListener('visibilitychange', visibilityHandler)
+        window.removeEventListener('focus', visibilityHandler)
       }
       if (authListener?.subscription) {
         authListener.subscription.unsubscribe()

@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { inviaNotifica } from '@/lib/pushNotify'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
@@ -121,11 +122,13 @@ export default function ControversiePage() {
       alert("Segnalazione inviata allo Staff con successo! I fondi sono stati congelati.")
 
       if (sellerId) {
-        await supabase.from('notifications').insert([{
-          user_id: sellerId,
+        // FIX: vietata dalla RLS se scritta dal browser (vedi /api/notify).
+        await inviaNotifica({
+          userId: sellerId,
           message: `⚠️ L'acquirente ha aperto una controversia per "${tx?.announcements?.title || 'un ordine'} ". Lo Staff interverrà a breve.`,
-          is_read: false
-        }])
+          title: 'Controversia aperta ⚠️',
+          url: '/dashboard/controversie',
+        })
       }
 
       // Se l'ordine era delegato, avvisiamo anche il Curatore (o il
@@ -141,11 +144,12 @@ export default function ControversiePage() {
 
         const altroCoinvolto = [mandateProfiles?.curator_id, mandateProfiles?.owner_id].find(id => id && id !== sellerId)
         if (altroCoinvolto) {
-          await supabase.from('notifications').insert([{
-            user_id: altroCoinvolto,
+          await inviaNotifica({
+            userId: altroCoinvolto,
             message: `⚠️ È stata aperta una controversia su "${tx?.announcements?.title || 'un oggetto'}" gestito in delega. Lo Staff interverrà a breve.`,
-            is_read: false
-          }])
+            title: 'Controversia sul tuo oggetto ⚠️',
+            url: '/dashboard/controversie',
+          })
         }
       }
 

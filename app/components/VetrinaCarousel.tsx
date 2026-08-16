@@ -107,8 +107,11 @@ export default function VetrinaCarousel() {
           <Sparkles size={16} className="text-rose-500" />
           <h2 className="text-[14px] font-black uppercase tracking-[0.4em] text-stone-900">Vetrine della Community</h2>
         </div>
+        {/* NOTA: /vetrina è ora SOLO la propria vetrina. Le vetrine degli
+            altri utenti si aprono dai riquadri qui sotto, ognuna sulla
+            propria pagina - non esiste più un elenco unico di tutte. */}
         <Link href="/vetrina" className="text-[10px] font-black uppercase text-rose-500 hover:text-stone-900 tracking-widest transition-colors">
-          Vedi Tutte →
+          La mia Vetrina →
         </Link>
       </div>
 
@@ -122,7 +125,7 @@ export default function VetrinaCarousel() {
         <div className="flex gap-5 overflow-x-auto pb-3 custom-scrollbar">
           {gruppi.map(gruppo => (
             <div key={gruppo.userId} className="shrink-0 w-64 bg-white rounded-[2rem] border border-stone-200 shadow-sm p-5 flex flex-col">
-              <Link href={`/vetrina?venditore=${gruppo.userId}`} className="flex items-center gap-3 mb-4 group">
+              <Link href={`/vetrina/utente/${gruppo.userId}`} className="flex items-center gap-3 mb-4 group">
                 <div className="w-9 h-9 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center font-black text-sm uppercase shrink-0">
                   {gruppo.nome[0]}
                 </div>
@@ -156,7 +159,7 @@ export default function VetrinaCarousel() {
                 ))}
               </div>
 
-              <Link href={`/vetrina?venditore=${gruppo.userId}`} className="mt-auto block text-center text-[9px] font-black uppercase text-stone-400 hover:text-rose-500 tracking-widest transition-colors">
+              <Link href={`/vetrina/utente/${gruppo.userId}`} className="mt-auto block text-center text-[9px] font-black uppercase text-stone-400 hover:text-rose-500 tracking-widest transition-colors">
                 Vedi tutta la vetrina →
               </Link>
             </div>

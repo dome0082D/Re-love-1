@@ -48,10 +48,21 @@ export default function ScansionaMandatoPage() {
   const [loadingPreview, setLoadingPreview] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
+  // NUOVO: alternative alla scansione dal vivo. Servono davvero - con un
+  // solo telefono a disposizione è impossibile inquadrare lo schermo su cui
+  // il QR è mostrato, e su parecchi display la lettura fallisce comunque
+  // (riflessi, pellicola opaca, luminosità bassa).
+  const [codiceManuale, setCodiceManuale] = useState('')
+  const [analizzandoFoto, setAnalizzandoFoto] = useState(false)
+
   function stopCamera() {
     scanningRef.current = false
-    if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current)
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current)
+      animationFrameRef.current = null
+    }
     streamRef.current?.getTracks().forEach(track => track.stop())
+    streamRef.current = null
   }
 
   // Fermiamo comunque la fotocamera se l'utente lascia la pagina mentre è
@@ -63,21 +74,98 @@ export default function ScansionaMandatoPage() {
   async function startCamera() {
     setCameraError(null)
     setCameraStarted(true)
+
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+      // Succede sul serio: i browser negano del tutto getUserMedia fuori da
+      // un contesto sicuro (http:// che non sia localhost). Prima l'errore
+      // finiva nel catch generico e diceva "controlla i permessi", mandando
+      // a cercare un permesso che il browser non chiederà mai.
+      setCameraError(
+        typeof window !== 'undefined' && !window.isSecureContext
+          ? 'La fotocamera funziona solo su connessione sicura (https). Apri Re-love dal suo indirizzo https, oppure usa il codice a mano qui sotto.'
+          : 'Questo browser non permette di usare la fotocamera. Usa il codice a mano qui sotto.'
+      )
+      return
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' },
+        video: {
+          facingMode: { ideal: 'environment' },
+          // Una risoluzione decente aiuta a leggere un QR mostrato sullo
+          // schermo di un altro telefono, dove i moduli sono piccoli.
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
       })
       streamRef.current = stream
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        await videoRef.current.play()
+
+      // FIX: il <video> viene montato solo quando cameraStarted diventa
+      // true, quindi in questo punto videoRef può essere ancora vuoto e lo
+      // stream non veniva mai collegato: schermata nera e scansione che non
+      // parte mai - il sintomo "sembra finta, non inquadra niente".
+      // Aspettiamo che l'elemento esista davvero prima di collegarlo.
+      const video = await attendiVideo()
+      if (!video) {
+        setCameraError('Non è stato possibile avviare l\'anteprima della fotocamera. Usa il codice a mano qui sotto.')
+        stopCamera()
+        return
       }
+
+      video.srcObject = stream
+      video.setAttribute('playsinline', 'true') // iOS: senza, il video va a schermo intero
+      await video.play()
+
       scanningRef.current = true
-      requestAnimationFrame(scanFrame)
+      animationFrameRef.current = requestAnimationFrame(scanFrame)
     } catch (err) {
       console.error('Errore accesso fotocamera:', err)
-      setCameraError("Impossibile accedere alla fotocamera. Controlla di aver dato il permesso a Re-love nelle impostazioni del browser.")
+      const nome = (err as { name?: string })?.name
+      setCameraError(
+        nome === 'NotAllowedError'
+          ? 'Permesso fotocamera negato. Puoi darlo dalle impostazioni del browser, oppure usare il codice a mano qui sotto.'
+          : nome === 'NotFoundError'
+          ? 'Nessuna fotocamera disponibile su questo dispositivo. Usa il codice a mano qui sotto.'
+          : "Impossibile accedere alla fotocamera. Usa il codice a mano qui sotto."
+      )
     }
+  }
+
+  /** Attende che l'elemento <video> sia stato montato da React (max ~1s). */
+  function attendiVideo(): Promise<HTMLVideoElement | null> {
+    return new Promise(resolve => {
+      let tentativi = 0
+      const controlla = () => {
+        if (videoRef.current) return resolve(videoRef.current)
+        if (++tentativi > 60) return resolve(null)
+        requestAnimationFrame(controlla)
+      }
+      controlla()
+    })
+  }
+
+  /** Cerca un QR dentro un fotogramma già disegnato su canvas. */
+  function leggiQrDaCanvas(canvas: HTMLCanvasElement): string | null {
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+    if (!ctx) return null
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+    // "attemptBoth" legge anche i QR chiari su fondo scuro, che capitano
+    // quando si inquadra uno schermo in modalità notte.
+    const code = jsQR(imageData.data, imageData.width, imageData.height, {
+      inversionAttempts: 'attemptBoth',
+    })
+    return code?.data || null
+  }
+
+  /** Accetta sia il contenuto completo del QR sia il solo token digitato. */
+  function estraiToken(contenuto: string): string | null {
+    const pulito = contenuto.trim()
+    if (!pulito) return null
+    if (pulito.startsWith('RELOVE_MANDATE:')) {
+      const token = pulito.slice('RELOVE_MANDATE:'.length).trim()
+      return token && token !== 'undefined' && token !== 'null' ? token : null
+    }
+    return null
   }
 
   function scanFrame() {
@@ -85,17 +173,30 @@ export default function ScansionaMandatoPage() {
     const video = videoRef.current
     const canvas = canvasRef.current
 
-    if (video && canvas && video.readyState === video.HAVE_ENOUGH_DATA) {
-      canvas.width = video.videoWidth
-      canvas.height = video.videoHeight
-      const ctx = canvas.getContext('2d')
+    // FIX: prima la condizione era "readyState === HAVE_ENOUGH_DATA" (4).
+    // Su parecchi telefoni Android il flusso della fotocamera si ferma
+    // stabilmente a 3 (HAVE_FUTURE_DATA): il fotogramma è disponibile e
+    // disegnabile, ma quel confronto secco lo scartava e non veniva mai
+    // analizzato nulla. L'anteprima si vedeva e il QR non veniva mai letto.
+    if (video && canvas && video.readyState >= 2 && video.videoWidth > 0) {
+      // FIX: prima si copiava il fotogramma alla risoluzione piena della
+      // fotocamera (spesso 1920x1080 o più) 60 volte al secondo. Su un
+      // telefono, getImageData + jsQR su 2 milioni di pixel impiega molto
+      // più di un fotogramma: la pagina si impastava e la lettura risultava
+      // lentissima o mai riuscita. Riduciamo il lato lungo a 640px, più che
+      // sufficiente per un QR e circa dieci volte più veloce.
+      const MAX_LATO = 640
+      const scala = Math.min(1, MAX_LATO / Math.max(video.videoWidth, video.videoHeight))
+      canvas.width = Math.round(video.videoWidth * scala)
+      canvas.height = Math.round(video.videoHeight * scala)
+
+      const ctx = canvas.getContext('2d', { willReadFrequently: true })
       if (ctx) {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-        const code = jsQR(imageData.data, imageData.width, imageData.height)
+        const contenuto = leggiQrDaCanvas(canvas)
+        const token = contenuto ? estraiToken(contenuto) : null
 
-        if (code && code.data.startsWith('RELOVE_MANDATE:')) {
-          const token = code.data.replace('RELOVE_MANDATE:', '')
+        if (token) {
           scanningRef.current = false
           stopCamera()
           setQrToken(token)
@@ -106,6 +207,69 @@ export default function ScansionaMandatoPage() {
     }
 
     animationFrameRef.current = requestAnimationFrame(scanFrame)
+  }
+
+  /** Fallback: legge il QR da una foto scattata o scelta dalla galleria. */
+  async function handleFotoQr(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = '' // così si può riprovare con la stessa foto
+    if (!file) return
+
+    setAnalizzandoFoto(true)
+    const objectUrl = URL.createObjectURL(file)
+    try {
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const i = new Image()
+        i.onload = () => resolve(i)
+        i.onerror = reject
+        i.src = objectUrl
+      })
+
+      const canvas = document.createElement('canvas')
+      const MAX_LATO = 1280 // qui possiamo permetterci più risoluzione: è un solo fotogramma
+      const scala = Math.min(1, MAX_LATO / Math.max(img.width, img.height))
+      canvas.width = Math.round(img.width * scala)
+      canvas.height = Math.round(img.height * scala)
+      canvas.getContext('2d', { willReadFrequently: true })?.drawImage(img, 0, 0, canvas.width, canvas.height)
+
+      const contenuto = leggiQrDaCanvas(canvas)
+      const token = contenuto ? estraiToken(contenuto) : null
+
+      if (!token) {
+        toast.error(contenuto
+          ? 'Questo QR non è un codice di delega Re-love.'
+          : 'Nessun QR riconosciuto nella foto. Riprova più da vicino, o digita il codice a mano.')
+        return
+      }
+
+      stopCamera()
+      setQrToken(token)
+      fetchPreview(token)
+    } catch (err) {
+      console.error('Errore lettura foto QR:', err)
+      toast.error('Non è stato possibile leggere questa immagine.')
+    } finally {
+      URL.revokeObjectURL(objectUrl)
+      setAnalizzandoFoto(false)
+    }
+  }
+
+  /** Fallback: il Proprietario digita il codice mostrato sotto il QR. */
+  function handleCodiceManuale() {
+    const pulito = codiceManuale.trim()
+    if (!pulito) {
+      toast.error('Inserisci il codice mostrato sotto il QR.')
+      return
+    }
+    // Accettiamo sia il codice nudo sia un incolla del contenuto completo.
+    const token = pulito.startsWith('RELOVE_MANDATE:') ? estraiToken(pulito) : pulito
+    if (!token) {
+      toast.error('Codice non valido.')
+      return
+    }
+    stopCamera()
+    setQrToken(token)
+    fetchPreview(token)
   }
 
   async function fetchPreview(token: string) {
@@ -135,7 +299,11 @@ export default function ScansionaMandatoPage() {
   function resetScanner() {
     setQrToken(null)
     setPreview(null)
-    startCamera()
+    setCodiceManuale('')
+    // Riavviamo la fotocamera solo se era stata avviata: chi è arrivato qui
+    // digitando il codice a mano non deve vedersi chiedere il permesso
+    // fotocamera solo perché il codice era sbagliato.
+    if (cameraStarted && !cameraError) startCamera()
   }
 
   async function handleDecision(azione: 'approva' | 'rifiuta') {
@@ -283,6 +451,54 @@ export default function ScansionaMandatoPage() {
             <div className="absolute inset-8 border-2 border-white/40 rounded-2xl pointer-events-none" />
           </div>
         )}
+
+        {/* NUOVO: alternative SEMPRE disponibili, non nascoste dietro un
+            errore della fotocamera. Sono la differenza fra una funzione
+            usabile e una che non si riesce a completare: chi ha un solo
+            telefono non può inquadrare lo schermo su cui il QR è mostrato,
+            e su molti display la lettura fallisce comunque. */}
+        <div className="mt-8 bg-stone-900 border border-stone-800 rounded-[2rem] p-6 text-left">
+          <p className="text-[10px] font-black uppercase text-stone-400 tracking-widest mb-4 text-center">
+            Oppure, senza inquadrare
+          </p>
+
+          <label className="text-[9px] font-black uppercase text-stone-500 tracking-widest">
+            Codice mostrato sotto il QR
+          </label>
+          <div className="flex gap-2 mt-2 mb-5">
+            <input
+              type="text"
+              value={codiceManuale}
+              onChange={(e) => setCodiceManuale(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleCodiceManuale() }}
+              placeholder="Incolla o digita il codice"
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck={false}
+              className="flex-1 min-w-0 bg-stone-950 border border-stone-700 rounded-xl px-4 py-3 text-xs font-mono text-white outline-none focus:border-rose-500"
+            />
+            <button
+              onClick={handleCodiceManuale}
+              disabled={loadingPreview}
+              className="shrink-0 bg-rose-600 text-white px-4 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-700 transition-all disabled:opacity-50"
+            >
+              Vai
+            </button>
+          </div>
+
+          <label className="block w-full">
+            <span className="block w-full text-center bg-stone-800 text-stone-200 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-stone-700 transition-all cursor-pointer">
+              {analizzandoFoto ? 'Lettura in corso...' : '🖼️ Carica una foto del QR'}
+            </span>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleFotoQr}
+              disabled={analizzandoFoto}
+              className="hidden"
+            />
+          </label>
+        </div>
 
         <Link href="/" className="inline-block mt-8 text-stone-500 hover:text-white text-[10px] font-black uppercase tracking-widest transition-colors">
           ← Torna alla Home

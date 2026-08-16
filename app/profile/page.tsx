@@ -45,6 +45,8 @@ function ProfileContent() {
   const [profile, setProfile] = useState<ProfileData | null>(null)
   const [loading, setLoading] = useState(true)
   const [stripeLoading, setStripeLoading] = useState(false)
+  // null = verifica ancora in corso
+  const [statoStripe, setStatoStripe] = useState<{ collegato: boolean; pronto: boolean; mancante: string | null } | null>(null)
   
   const [isEditing, setIsEditing] = useState(false)
   const [editForm, setEditForm] = useState<EditForm>({ 
@@ -63,6 +65,10 @@ function ProfileContent() {
 
   useEffect(() => {
     loadProfile()
+    // Al rientro da Stripe (?onboarding=success) forziamo la rilettura: la
+    // risposta appena messa in cache lato server sarebbe quella di prima
+    // dell'attivazione, e mostrerebbe "incompleto" a chi ha appena finito.
+    verificaStatoStripe(isOnboardingSuccess)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -209,6 +215,35 @@ function ProfileContent() {
     }
   }
 
+  // Chiede al server lo stato REALE del conto Stripe (charges_enabled e
+  // payouts_enabled), invece di dedurlo dalla presenza di stripe_account_id.
+  // "forza" serve al rientro da Stripe: senza, si leggerebbe la risposta
+  // ancora in cache di pochi secondi prima, quando il conto non era attivo.
+  async function verificaStatoStripe(forza = false) {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) return
+
+      const res = await fetch('/api/stripe/account-status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ forza }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        setStatoStripe({ collegato: false, pronto: false, mancante: data.error || 'Verifica non riuscita.' })
+        return
+      }
+      setStatoStripe({ collegato: !!data.collegato, pronto: !!data.pronto, mancante: data.mancante || null })
+    } catch (err) {
+      console.error('Errore verifica conto Stripe:', err)
+      setStatoStripe({ collegato: false, pronto: false, mancante: 'Verifica non riuscita.' })
+    }
+  }
+
   async function handleStripeOnboarding() {
     setStripeLoading(true)
     try {
@@ -218,6 +253,12 @@ function ProfileContent() {
         body: JSON.stringify({ userId: user?.id, email: user?.email })
       })
       const data = await res.json()
+      if (data.giaPronto) {
+        // Il conto risultava già abilitato: niente da riprendere.
+        await verificaStatoStripe(true)
+        setStripeLoading(false)
+        return
+      }
       if (data.url) {
         window.location.href = data.url
       } else {
@@ -420,9 +461,23 @@ function ProfileContent() {
           </div>
         </div>
 
+        {/* FIX: qui bastava "?onboarding=success" nell'indirizzo, OPPURE la
+            semplice presenza di stripe_account_id, per dichiarare
+            "Sei pronto a ricevere pagamenti reali". Ma quell'id viene
+            scritto sul profilo appena si preme il pulsante, prima ancora di
+            vedere la prima schermata di Stripe: aprire Stripe e chiuderlo
+            bastava a risultare abilitato senza aver inserito nulla. Ora lo
+            stato viene chiesto a Stripe (charges_enabled / payouts_enabled)
+            e ha tre esiti distinti: non collegato, iniziato ma incompleto,
+            davvero pronto. */}
         <div className="bg-white rounded-[2.5rem] p-8 border border-stone-200 shadow-sm">
           <h2 className="text-lg font-black uppercase italic text-stone-900 mb-2">Ricezione pagamenti</h2>
-          {(isOnboardingSuccess || profile?.stripe_account_id) ? (
+
+          {statoStripe === null ? (
+            <p className="text-[10px] font-black uppercase tracking-widest text-stone-400 py-4 animate-pulse">
+              Verifica del conto in corso...
+            </p>
+          ) : statoStripe.pronto ? (
             <div className="bg-emerald-50 border border-emerald-100 p-6 rounded-[2rem] flex items-center gap-4 mt-2">
               <span className="text-xl">✅</span>
               <div>
@@ -430,6 +485,30 @@ function ProfileContent() {
                 <p className="text-[11px] text-emerald-600 font-bold italic">Sei pronto a ricevere pagamenti reali.</p>
               </div>
             </div>
+          ) : statoStripe.collegato ? (
+            <>
+              <div className="bg-orange-50 border border-orange-200 p-6 rounded-[2rem] flex items-start gap-4 mt-2 mb-5">
+                <span className="text-xl">⏳</span>
+                <div>
+                  <p className="text-[10px] font-black uppercase text-orange-700 tracking-widest">Configurazione da completare</p>
+                  <p className="text-[11px] text-orange-700 font-bold italic mt-1">
+                    {statoStripe.mancante || 'Stripe non ha ancora abilitato il tuo conto.'}
+                  </p>
+                  <p className="text-[10px] text-orange-600 font-bold mt-2">
+                    Finché non è completata non puoi vendere né ricevere denaro.
+                  </p>
+                </div>
+              </div>
+              <button onClick={handleStripeOnboarding} disabled={stripeLoading} className="w-full bg-gradient-to-r from-rose-500 to-orange-400 text-white font-black uppercase text-[10px] tracking-[0.2em] py-4 rounded-2xl hover:scale-[1.02] transition-all shadow-md">
+                {stripeLoading ? 'Connessione in corso...' : 'Riprendi la configurazione'}
+              </button>
+              <button
+                onClick={() => verificaStatoStripe(true)}
+                className="w-full text-stone-400 font-black uppercase text-[9px] tracking-[0.2em] py-3 mt-2 hover:text-rose-500 transition-colors"
+              >
+                Ho appena finito su Stripe - ricontrolla
+              </button>
+            </>
           ) : (
             <>
               <p className="text-xs font-medium text-stone-500 mb-6 italic">Configura Stripe per incassare i soldi delle tue vendite.</p>

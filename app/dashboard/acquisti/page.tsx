@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { inviaNotifica } from '@/lib/pushNotify'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
@@ -110,11 +111,15 @@ export default function DashboardOrdini() {
 
       const tx = sales.find(s => s.id === transactionId);
       if (tx) {
-        await supabase.from('notifications').insert([{
-          user_id: tx.buyer_id,
+        // FIX: scritta dal browser, questa notifica non arrivava mai: la RLS
+        // vieta alla chiave anonima di creare una riga intestata a un altro
+        // utente, e l'errore non veniva controllato. Ora passa da /api/notify.
+        await inviaNotifica({
+          userId: tx.buyer_id,
           message: `📦 Il tuo ordine "${tx.announcements?.title}" è stato spedito! Tracking: ${tracking}`,
-          is_read: false
-        }]);
+          title: 'Ordine spedito 📦',
+          url: '/dashboard/acquisti',
+        });
       }
       fetchOrders()
     } catch (err) {
@@ -161,11 +166,12 @@ export default function DashboardOrdini() {
       const tx = purchases.find(p => p.id === transactionId);
       const sellerId = tx?.announcements?.user_id;
       if (sellerId) {
-        await supabase.from('notifications').insert([{
-          user_id: sellerId,
+        await inviaNotifica({
+          userId: sellerId,
           message: `✅ L'acquirente ha ricevuto l'ordine "${tx.announcements?.title}". I fondi sono stati rilasciati!`,
-          is_read: false
-        }]);
+          title: 'Pagamento sbloccato ✅',
+          url: '/orders',
+        });
       }
       fetchOrders()
     } catch (err) {
@@ -208,11 +214,12 @@ export default function DashboardOrdini() {
       toast.success("Problema segnalato allo Staff! I fondi sono stati bloccati. 🛡️")
 
       if (sellerId) {
-        await supabase.from('notifications').insert([{
-          user_id: sellerId,
+        await inviaNotifica({
+          userId: sellerId,
           message: `⚠️ L'acquirente ha segnalato un problema (Controversia) per "${selectedTransaction.announcements?.title}".`,
-          is_read: false
-        }]);
+          title: 'Controversia aperta ⚠️',
+          url: '/dashboard/controversie',
+        });
       }
       setShowDisputeModal(false)
       setDisputeDescription('')
@@ -237,11 +244,12 @@ export default function DashboardOrdini() {
       if (error) throw error;
 
       if (sellerId) {
-        await supabase.from('notifications').insert([{
-          user_id: sellerId,
+        await inviaNotifica({
+          userId: sellerId,
           message: `🔄 L'acquirente ha avviato il reso per "${selectedTransaction.announcements?.title}". Motivo: ${returnReason}. Contattalo in chat per i dettagli della spedizione.`,
-          is_read: false
-        }]);
+          title: 'Reso avviato 🔄',
+          url: '/orders',
+        });
       }
 
       toast.success("Reso avviato! Contatta il venditore in chat per accordarvi. 🤝")

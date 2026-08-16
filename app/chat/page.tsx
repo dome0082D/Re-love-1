@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Trash2 } from 'lucide-react'
-import { pushNotify } from '@/lib/pushNotify'
+import { inviaNotifica } from '@/lib/pushNotify'
 import { containsForbiddenContact, reportChatViolation } from '@/lib/chatSecurity'
 
 const POPULAR_EMOJIS = [
@@ -122,12 +122,16 @@ export default function ChatPage() {
         try {
           const senderName = profilesMap[user.id]?.first_name || 'Un utente';
           const anteprima = messageContent.length > 20 ? messageContent.substring(0, 20) + '...' : messageContent;
-          await supabase.from('notifications').insert([{
-            user_id: receiverId,
+          // FIX: la insert diretta dal browser su "notifications" per un
+          // ALTRO utente è vietata dalla RLS e falliva in silenzio - chi
+          // riceveva un messaggio non veniva mai avvisato. Ora passa da
+          // /api/notify (notifica in-app + push in una sola chiamata).
+          await inviaNotifica({
+            userId: receiverId,
             message: `💬 Nuovo messaggio da ${senderName}: "${anteprima}"`,
-            is_read: false
-          }])
-          pushNotify(receiverId, 'Nuovo messaggio 💬', `${senderName}: ${anteprima}`, '/chat')
+            title: 'Nuovo messaggio 💬',
+            url: '/chat',
+          })
         } catch (notifErr) {
           console.warn("Notifica di nuovo messaggio non inviata:", notifErr)
         }

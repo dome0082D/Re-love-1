@@ -50,7 +50,9 @@ export default function CuratoreDashboardPage() {
   const [asOwner, setAsOwner] = useState<Mandate[]>([])
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
-  const [qrPreview, setQrPreview] = useState<{ mandateId: string; dataUrl: string } | null>(null)
+  // Il token viene tenuto insieme all'immagine: serve a mostrarlo anche in
+  // chiaro, come alternativa alla scansione (vedi app/curatore/scansiona).
+  const [qrPreview, setQrPreview] = useState<{ mandateId: string; dataUrl: string; token: string } | null>(null)
 
   async function fetchMandates(userId: string) {
     setLoading(true)
@@ -77,10 +79,30 @@ export default function CuratoreDashboardPage() {
     init()
   }, [])
 
+  // Impostazioni condivise da tutti i QR di delega del sito: correzione
+  // d'errore alta e margine ampio, perche' questi codici vengono quasi
+  // sempre inquadrati DA UN TELEFONO SULLO SCHERMO DI UN ALTRO - la
+  // condizione peggiore possibile per una lettura (riflessi, moire',
+  // luminosita' bassa).
+  const OPZIONI_QR = {
+    width: 420,
+    margin: 4,
+    errorCorrectionLevel: 'H' as const,
+    color: { dark: '#000000', light: '#FFFFFF' },
+  }
+
   async function handleShowQr(mandate: Mandate) {
+    // Un mandato vecchio potrebbe non avere il token (prima veniva lasciato
+    // generare al database): meglio dirlo e offrire la rigenerazione, che
+    // mostrare un QR contenente la scritta "undefined" - illeggibile per il
+    // sistema ma indistinguibile a occhio da uno valido.
+    if (!mandate.qr_token) {
+      toast.error('Questo mandato non ha un codice valido: premi "Rigenera QR".')
+      return
+    }
     const qrContent = `RELOVE_MANDATE:${mandate.qr_token}`
-    const dataUrl = await QRCode.toDataURL(qrContent, { width: 320, margin: 2 })
-    setQrPreview({ mandateId: mandate.id, dataUrl })
+    const dataUrl = await QRCode.toDataURL(qrContent, OPZIONI_QR)
+    setQrPreview({ mandateId: mandate.id, dataUrl, token: mandate.qr_token })
   }
 
   async function handleRegenerateQr(mandate: Mandate) {
@@ -96,8 +118,8 @@ export default function CuratoreDashboardPage() {
       if (error) throw error
 
       const qrContent = `RELOVE_MANDATE:${newToken}`
-      const dataUrl = await QRCode.toDataURL(qrContent, { width: 320, margin: 2 })
-      setQrPreview({ mandateId: mandate.id, dataUrl })
+      const dataUrl = await QRCode.toDataURL(qrContent, OPZIONI_QR)
+      setQrPreview({ mandateId: mandate.id, dataUrl, token: newToken })
       toast.success('Nuovo QR generato, valido 30 minuti.')
       fetchMandates(user.id)
     } catch (err) {
@@ -264,8 +286,27 @@ export default function CuratoreDashboardPage() {
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-stone-900/80 backdrop-blur-sm" onClick={() => setQrPreview(null)}>
           <div className="bg-white rounded-[2rem] p-8 max-w-sm w-full text-center" onClick={(e) => e.stopPropagation()}>
             <p className="text-xs font-black uppercase text-stone-400 tracking-widest mb-4">Fai scansionare questo QR al Proprietario</p>
-            <img src={qrPreview.dataUrl} alt="QR di delega" className="w-full h-auto rounded-2xl border border-stone-200" />
-            <button onClick={() => setQrPreview(null)} className="mt-6 w-full bg-stone-900 text-white py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-600 transition-all">
+            <img src={qrPreview.dataUrl} alt="QR di delega" className="w-full h-auto rounded-2xl border border-stone-200 bg-white" />
+
+            {/* Alternativa alla scansione: con un solo telefono è
+                impossibile inquadrare il proprio schermo. Il Proprietario
+                può digitare questo codice nella pagina "Approva Delega". */}
+            <div className="mt-5 bg-stone-50 border border-stone-200 rounded-2xl p-4 text-left">
+              <p className="text-[9px] font-black uppercase text-stone-400 tracking-widest mb-2">
+                Non riesce a inquadrarlo? Codice da digitare
+              </p>
+              <p className="font-mono text-[11px] font-bold text-stone-900 break-all select-all bg-white border border-stone-200 rounded-lg p-3">
+                {qrPreview.token}
+              </p>
+              <button
+                onClick={() => { navigator.clipboard.writeText(qrPreview.token); toast.success('Codice copiato.') }}
+                className="w-full mt-3 bg-stone-900 text-white py-2.5 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-rose-600 transition-all"
+              >
+                Copia il codice
+              </button>
+            </div>
+
+            <button onClick={() => setQrPreview(null)} className="mt-4 w-full bg-stone-100 text-stone-600 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-stone-200 transition-all">
               Chiudi
             </button>
           </div>

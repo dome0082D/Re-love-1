@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { inviaNotifica } from '@/lib/pushNotify'
 import { useRouter } from 'next/navigation'
 
 export default function SupportoPage() {
@@ -53,11 +54,13 @@ export default function SupportoPage() {
       // 2. NOTIFICA ALL'ADMIN! Cerchiamo l'ID dell'Admin
       const { data: adminData } = await supabase.from('profiles').select('id').eq('email', ADMIN_EMAIL).single()
       if (adminData) {
-        await supabase.from('notifications').insert([{
-          user_id: adminData.id,
+        // FIX: vietata dalla RLS se scritta dal browser (vedi /api/notify).
+        await inviaNotifica({
+          userId: adminData.id,
           message: `💬 SUPPORTO: Nuovo messaggio da ${user.email} - Argomento: ${reason}`,
-          is_read: false
-        }])
+          title: 'Nuovo messaggio al Supporto 💬',
+          url: '/staff',
+        })
       }
 
       setSuccess(true)

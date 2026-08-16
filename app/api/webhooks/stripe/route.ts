@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
+import { notificaUtente } from '@/lib/pushServer';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, { apiVersion: '2026-03-25.dahlia' });
 
@@ -143,29 +144,43 @@ export async function POST(req: Request) {
        // delegata (vedi app/api/stripe/checkout), quindi basta notificare
        // quello. Per una vendita normale "sellerId" e' comunque chi ha
        // pubblicato l'annuncio, quindi non cambia nulla per lui.
-       if (isDelegated && sellerId) {
-         await supabaseAdmin.from('notifications').insert([{
-           user_id: sellerId,
-           message: `🛒 Il tuo oggetto e' stato acquistato tramite il Curatore! Lo scambio e' avviato.`,
-           is_read: false,
-         }])
-       }
+       // FIX: per una vendita NORMALE non veniva avvisato nessuno - ne'
+       // il venditore che aveva appena venduto, ne' il compratore che
+       // aveva appena pagato. Erano previste notifiche solo per i casi
+       // Curatore e Arena. Ora l'evento piu' importante del sito avvisa
+       // sempre entrambe le parti, con notifica in-app e push.
+       await notificaUtente(
+         sellerId,
+         isDelegated
+           ? `🛒 Il tuo oggetto e' stato acquistato tramite il Curatore! Lo scambio e' avviato.`
+           : `🛒 Hai venduto un oggetto! Prepara la spedizione: l'importo resta protetto fino alla consegna.`,
+         'Oggetto venduto 🛒',
+         '/orders'
+       )
+       await notificaUtente(
+         buyerId,
+         `✅ Pagamento riuscito! Il venditore e' stato avvisato e prepara la spedizione.`,
+         'Acquisto confermato ✅',
+         '/dashboard/acquisti'
+       )
 
        // NUOVO: se la vendita e' avvenuta tramite un promotore Arena,
        // avvisiamo sia il Proprietario (che conoscera' il valore finale)
        // sia il Promotore vincitore, in trasparenza reciproca - stessa
        // logica di trasparenza gia' applicata al Curatore Locale.
        if (isArena && arenaPromoterId && sellerId) {
-         await supabaseAdmin.from('notifications').insert([{
-           user_id: sellerId,
-           message: `🏆 Il tuo oggetto in Arena e' stato venduto tramite un promotore della community! Lo scambio e' avviato.`,
-           is_read: false,
-         }])
-         await supabaseAdmin.from('notifications').insert([{
-           user_id: arenaPromoterId,
-           message: `🎉 Hai vinto l'Arena! Il tuo link ha portato alla vendita. Riceverai la tua quota a scambio confermato.`,
-           is_read: false,
-         }])
+         await notificaUtente(
+           sellerId,
+           `🏆 Il tuo oggetto in Arena e' stato venduto tramite un promotore della community! Lo scambio e' avviato.`,
+           'Venduto in Arena 🏆',
+           '/orders'
+         )
+         await notificaUtente(
+           arenaPromoterId,
+           `🎉 Hai vinto l'Arena! Il tuo link ha portato alla vendita. Riceverai la tua quota a scambio confermato.`,
+           'Hai vinto l\'Arena 🎉',
+           '/arena'
+         )
        }
     }
   }

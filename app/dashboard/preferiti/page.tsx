@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { inviaNotifica } from '@/lib/pushNotify'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
@@ -107,21 +108,24 @@ export default function ControversiePage() {
 
       // 1. Notifica al Venditore
       if (sellerId) {
-        await supabase.from('notifications').insert([{
-          user_id: sellerId,
+        // FIX: vietata dalla RLS se scritta dal browser (vedi /api/notify).
+        await inviaNotifica({
+          userId: sellerId,
           message: `⚠️ L'acquirente ha aperto una controversia. Lo Staff interverrà a breve.`,
-          is_read: false
-        }])
+          title: 'Controversia aperta ⚠️',
+          url: '/dashboard/controversie',
+        })
       }
 
       // 2. NOTIFICA ALL'ADMIN!
       const { data: adminData } = await supabase.from('profiles').select('id').eq('email', ADMIN_EMAIL).single()
       if (adminData) {
-        await supabase.from('notifications').insert([{
-          user_id: adminData.id,
+        await inviaNotifica({
+          userId: adminData.id,
           message: `🚨 TRIBUNALE: Nuova controversia aperta da ${user.email}.`,
-          is_read: false
-        }])
+          title: 'Nuova controversia 🚨',
+          url: '/staff/controversie',
+        })
       }
 
       setShowModal(false)

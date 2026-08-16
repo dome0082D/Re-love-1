@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { statoContoStripe } from '@/lib/stripeAccount'
 
 export const dynamic = 'force-dynamic'
 
@@ -54,9 +55,16 @@ export async function POST(req: NextRequest) {
       .eq('id', promoterId)
       .single()
 
-    if (!promoterProfile?.stripe_account_id) {
+    // FIX: prima bastava che stripe_account_id esistesse. Quel campo viene
+    // scritto sul profilo appena si preme "Attiva ricezione pagamenti", cioe'
+    // PRIMA della configurazione vera su Stripe: si poteva quindi diventare
+    // promotore Arena senza poter incassare nulla. Ora si chiede a Stripe.
+    const statoPromotore = await statoContoStripe(promoterProfile?.stripe_account_id)
+    if (!statoPromotore.pronto) {
       return NextResponse.json({
-        error: 'Prima di promuovere un oggetto devi configurare il tuo conto per ricevere pagamenti, dal tuo profilo.',
+        error: statoPromotore.collegato
+          ? 'Devi completare la configurazione del conto su Stripe prima di poter promuovere un oggetto.'
+          : 'Prima di promuovere un oggetto devi configurare il tuo conto per ricevere pagamenti, dal tuo profilo.',
         requiresPayoutSetup: true,
       }, { status: 400 })
     }

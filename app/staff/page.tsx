@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { inviaNotifica } from '@/lib/pushNotify'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
@@ -289,8 +290,13 @@ export default function AdminDashboard() {
         ? `⚖️ Lo Staff ha chiuso la controversia a favore dell'Acquirente. È stato emesso un rimborso.`
         : `⚖️ Lo Staff ha chiuso la controversia a favore del Venditore. I fondi sono stati sbloccati.`;
 
-      if (buyerId) await supabase.from('notifications').insert([{ user_id: buyerId, message: sentenzaMsg, is_read: false }]);
-      if (sellerId) await supabase.from('notifications').insert([{ user_id: sellerId, message: sentenzaMsg, is_read: false }]);
+      // FIX: queste due insert dal browser erano vietate dalla RLS (riga
+      // intestata a un altro utente) e fallivano senza segnalare nulla: la
+      // sentenza del Tribunale non veniva mai comunicata alle parti.
+      await inviaNotifica([
+        ...(buyerId ? [{ userId: buyerId, message: sentenzaMsg, title: 'Esito controversia ⚖️', url: '/dashboard/controversie' }] : []),
+        ...(sellerId ? [{ userId: sellerId, message: sentenzaMsg, title: 'Esito controversia ⚖️', url: '/dashboard/controversie' }] : []),
+      ]);
 
       checkAdminAndFetchData()
     } else {
@@ -308,7 +314,7 @@ export default function AdminDashboard() {
 
     if (!error) {
       alert("Risposta inviata con successo!");
-      await supabase.from('notifications').insert([{ user_id: userId, message: `💬 Risposta Supporto: ${risposta}`, is_read: false }]);
+      await inviaNotifica({ userId, message: `💬 Risposta Supporto: ${risposta}`, title: 'Risposta dal Supporto 💬', url: '/supporto' });
       checkAdminAndFetchData()
     } else {
        alert("Errore durante l'invio della risposta.")

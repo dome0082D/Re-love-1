@@ -6,7 +6,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { Timer, Gavel, ShoppingCart, Sparkles } from 'lucide-react'
-import { pushNotify } from '@/lib/pushNotify'
+import { inviaNotifica } from '@/lib/pushNotify'
 import { useCartStore } from '@/store/cartStore'
 import type { User } from '@supabase/supabase-js'
 
@@ -417,31 +417,30 @@ function AnnouncementContent() {
       setShowOfferModal(false)
       checkExistingOffer(user.id, ann.id)
 
-      await supabase.from('notifications').insert([{
-        user_id: ann.user_id,
-        message: `Hai ricevuto una nuova proposta di €${offerPrice} per il tuo annuncio "${ann.title}"!`,
-        is_read: false
-      }]);
-      pushNotify(ann.user_id, 'Nuova proposta 💡', `€${offerPrice} per "${ann.title}"`, `/announcement/${ann.id}`)
-
-      // FIX: questo blocco era presente DUE volte di seguito, con testi
-      // leggermente diversi. Il Proprietario di un annuncio delegato
-      // (sistema "Curatore Locale") riceveva quindi due notifiche in-app e
-      // due notifiche push identiche per una sola offerta. Ne resta una.
-      // Non blocchiamo mai il resto per un errore qui: l'offerta è già
-      // stata registrata con successo.
-      if (ann.owner_id && ann.owner_id !== ann.user_id) {
-        try {
-          await supabase.from('notifications').insert([{
-            user_id: ann.owner_id,
-            message: `💡 Il Curatore ha ricevuto una proposta di €${offerPrice} per il tuo oggetto "${ann.title}".`,
-            is_read: false
-          }])
-          pushNotify(ann.owner_id, 'Nuova proposta sul tuo oggetto 💡', `€${offerPrice} per "${ann.title}"`, `/announcement/${ann.id}`)
-        } catch (ownerNotifErr) {
-          console.warn('Notifica al Proprietario non inviata:', ownerNotifErr)
-        }
-      }
+      // FIX: prima queste notifiche venivano scritte direttamente dal
+      // browser con supabase.from('notifications').insert(...). La RLS
+      // vieta di scrivere una riga intestata a un ALTRO utente: il database
+      // rispondeva 401 e, non essendo mai controllato l'errore, al
+      // venditore non arrivava nulla mentre l'app diceva "Proposta
+      // inviata". Ora passa da /api/notify, che scrive con la chiave di
+      // servizio e manda anche la push.
+      //
+      // Il blocco per il Proprietario era inoltre duplicato: due notifiche
+      // identiche per una sola offerta. Ne resta una.
+      await inviaNotifica([
+        {
+          userId: ann.user_id,
+          message: `Hai ricevuto una nuova proposta di €${offerPrice} per il tuo annuncio "${ann.title}"!`,
+          title: 'Nuova proposta 💡',
+          url: `/announcement/${ann.id}`,
+        },
+        ...(ann.owner_id && ann.owner_id !== ann.user_id ? [{
+          userId: ann.owner_id,
+          message: `💡 Il Curatore ha ricevuto una proposta di €${offerPrice} per il tuo oggetto "${ann.title}".`,
+          title: 'Nuova proposta sul tuo oggetto 💡',
+          url: `/announcement/${ann.id}`,
+        }] : []),
+      ])
     } else {
       toast.error("Errore database: " + error.message)
     }
@@ -486,27 +485,22 @@ function AnnouncementContent() {
     setShowOfferModal(false)
     setOfferPrice('')
 
-    await supabase.from('notifications').insert([{
-      user_id: ann.user_id,
-      message: `🔥 Nuovo rilancio di €${offerPrice} per la tua asta "${ann.title}"!`,
-      is_read: false
-    }]);
-    pushNotify(ann.user_id, 'Nuovo rilancio 🔨', `€${offerPrice} per "${ann.title}"`, `/announcement/${ann.id}`)
-
-    // FIX: come per le proposte, questo blocco era duplicato e faceva
-    // arrivare al Proprietario due notifiche identiche per ogni rilancio.
-    if (ann.owner_id && ann.owner_id !== ann.user_id) {
-      try {
-        await supabase.from('notifications').insert([{
-          user_id: ann.owner_id,
-          message: `🔨 Nuovo rilancio di €${offerPrice} sulla tua asta "${ann.title}", gestita dal Curatore.`,
-          is_read: false
-        }])
-        pushNotify(ann.owner_id, 'Nuovo rilancio sulla tua asta 🔨', `€${offerPrice} per "${ann.title}"`, `/announcement/${ann.id}`)
-      } catch (ownerNotifErr) {
-        console.warn('Notifica al Proprietario non inviata:', ownerNotifErr)
-      }
-    }
+    // Stesso motivo delle proposte: scritta dal browser questa notifica non
+    // arrivava mai al venditore (RLS). Ora passa dal server.
+    await inviaNotifica([
+      {
+        userId: ann.user_id,
+        message: `🔥 Nuovo rilancio di €${offerPrice} per la tua asta "${ann.title}"!`,
+        title: 'Nuovo rilancio 🔨',
+        url: `/announcement/${ann.id}`,
+      },
+      ...(ann.owner_id && ann.owner_id !== ann.user_id ? [{
+        userId: ann.owner_id,
+        message: `🔨 Nuovo rilancio di €${offerPrice} sulla tua asta "${ann.title}", gestita dal Curatore.`,
+        title: 'Nuovo rilancio sulla tua asta 🔨',
+        url: `/announcement/${ann.id}`,
+      }] : []),
+    ])
 
     setSubmittingOffer(false)
   }
@@ -799,7 +793,7 @@ function AnnouncementContent() {
                     </div>
                     {!ann.is_sponsored && (
                       <Link
-                        href={`/vetrina?create=interna&ad_id=${ann.id}`}
+                        href={`/vetrina/interna?ad_id=${ann.id}`}
                         className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-orange-400 to-rose-500 text-white p-5 rounded-2xl font-black uppercase text-xs tracking-[0.2em] shadow-xl hover:scale-105 transition-transform"
                       >
                         <Sparkles size={16} /> Metti in Vetrina (2,99€)

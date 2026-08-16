@@ -10,6 +10,8 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { statoContoStripe } from '@/lib/stripeAccount'
+import { inviaPushAUtente } from '@/lib/pushServer'
 
 export const dynamic = 'force-dynamic'
 
@@ -79,9 +81,12 @@ export async function POST(req: NextRequest) {
       .eq('id', ownerId)
       .single()
 
-    if (!ownerProfile?.stripe_account_id) {
+    const statoOwner = await statoContoStripe(ownerProfile?.stripe_account_id)
+    if (!statoOwner.pronto) {
       return NextResponse.json({
-        error: 'Prima di approvare un mandato devi configurare il tuo conto per ricevere pagamenti, dal tuo profilo.',
+        error: statoOwner.collegato
+          ? 'Devi completare la configurazione del conto su Stripe prima di approvare un mandato.'
+          : 'Prima di approvare un mandato devi configurare il tuo conto per ricevere pagamenti, dal tuo profilo.',
         requiresPayoutSetup: true,
       }, { status: 400 })
     }
@@ -133,11 +138,15 @@ export async function POST(req: NextRequest) {
 
     // Notifica in-app al Curatore: il Proprietario ha approvato, l'oggetto
     // è ora pubblico e gestibile.
+    // La notifica in-app qui funzionava gia' (chiave di servizio), ma la
+    // push non partiva: nessuno la mandava. Ora entrambe.
+    const messaggioCuratore = `✅ Il Proprietario ha approvato il mandato per "${mandate.draft_title}". L'annuncio è ora pubblico.`
     await supabaseAdmin.from('notifications').insert([{
       user_id: mandate.curator_id,
-      message: `✅ Il Proprietario ha approvato il mandato per "${mandate.draft_title}". L'annuncio è ora pubblico.`,
+      message: messaggioCuratore,
       is_read: false,
     }])
+    await inviaPushAUtente(mandate.curator_id, 'Mandato approvato ✅', messaggioCuratore, `/announcement/${newAnnouncement.id}`)
 
     return NextResponse.json({ ok: true, announcementId: newAnnouncement.id })
   } catch (err) {
