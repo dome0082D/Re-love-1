@@ -9,7 +9,7 @@ export async function POST(req: Request) {
   try {
     // Abbiamo spostato l'avvio QUI DENTRO!
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { 
-      apiVersion: '2025-03-25.dahlia' 
+      apiVersion: '2026-03-25.dahlia' 
     });
     
     const supabase = createClient(

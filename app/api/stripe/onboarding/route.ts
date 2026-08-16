@@ -8,7 +8,7 @@ export async function POST(req: Request) {
     // 1. SPOSTATO QUI DENTRO: Inizializziamo Stripe e Supabase solo quando serve.
     // Così evitiamo che Vercel vada in crash durante la fase di Build!
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
-      apiVersion: "2024-04-10" as any,
+      apiVersion: '2026-03-25.dahlia',
     });
 
     const supabaseAdmin = createClient(

@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
-  apiVersion: '2026-03-25.dahlia' as any,
+  apiVersion: '2026-03-25.dahlia',
 });
 
 // FIX: passato alla chiave di servizio invece di quella anonima. Questa route

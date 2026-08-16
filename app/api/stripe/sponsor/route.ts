@@ -4,7 +4,7 @@ import Stripe from 'stripe';
 
 // Inizializza Stripe con la tua chiave segreta
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
-  apiVersion: '2026-03-25.dahlia' as any, // Modificato per sicurezza con i nuovi standard Stripe
+  apiVersion: '2026-03-25.dahlia', // Modificato per sicurezza con i nuovi standard Stripe
 });
 
 export async function POST(req: Request) {

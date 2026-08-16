@@ -173,10 +173,79 @@ export default function Navbar() {
     } catch (e) {}
   }
 
+  // Trasforma la chiave pubblica VAPID (testo leggibile) nel formato di
+  // byte grezzi richiesto dall'API del browser per iscriversi alle push.
+  function urlBase64ToUint8Array(base64String: string) {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+    const rawData = window.atob(base64)
+    const outputArray = new Uint8Array(rawData.length)
+    for (let i = 0; i < rawData.length; i++) outputArray[i] = rawData.charCodeAt(i)
+    return outputArray
+  }
+
+  // FIX: questa logica esisteva solo in una copia MORTA della Navbar
+  // (app/components/Navbar.tsx, non importata da nessuna parte). Nella
+  // Navbar davvero in uso il permesso del browser veniva chiesto ma non
+  // seguiva alcuna iscrizione: la tabella "push_subscriptions" restava
+  // sempre vuota, quindi /api/push/send non aveva nessun dispositivo a cui
+  // mandare le notifiche e ogni chiamata a pushNotify(...) sparsa nel sito
+  // non faceva assolutamente nulla. Va chiamata solo a permesso già
+  // concesso: non chiede nulla lei stessa, quindi non forza alcun consenso.
+  const attivaPushReali = async (currentUser: { id: string }) => {
+    try {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
+      if (!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY) {
+        console.warn('NEXT_PUBLIC_VAPID_PUBLIC_KEY non configurata - notifiche push non attivabili.')
+        return
+      }
+
+      const registration = await navigator.serviceWorker.ready
+      let subscription = await registration.pushManager.getSubscription()
+
+      if (!subscription) {
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true, // richiesto dal browser: ogni push deve mostrare una notifica visibile
+          applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY),
+        })
+      }
+
+      await fetch('/api/push/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: currentUser.id, subscription: subscription.toJSON() }),
+      })
+    } catch (err) {
+      // Non blocchiamo mai il resto dell'app per un'iscrizione push fallita
+      // (es. utente su un browser che non la supporta, o l'ha rifiutata).
+      console.warn('Iscrizione notifiche push non riuscita:', err)
+    }
+  }
+
+  // Se il permesso è già stato concesso in una visita precedente, ri-allinea
+  // l'iscrizione a ogni accesso: l'endpoint push può cambiare (aggiornamento
+  // del browser, reinstallazione della PWA) e senza questo l'utente
+  // resterebbe registrato con un indirizzo non più valido.
+  useEffect(() => {
+    if (!user) return
+    if (typeof window === 'undefined' || !('Notification' in window)) return
+    if (Notification.permission !== 'granted') return
+    attivaPushReali(user)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user])
+
   const handleOpenNotifs = async () => {
     if (typeof window !== "undefined" && "Notification" in window) {
       if (Notification.permission === "default") {
-        Notification.requestPermission();
+        // FIX: prima questo permesso veniva chiesto ma non succedeva altro
+        // in caso di consenso - le "notifiche push" restavano solo quelle
+        // in-app, mostrate esclusivamente mentre il sito è aperto. Ora, SE
+        // l'utente acconsente, lo iscriviamo davvero alle notifiche push,
+        // che funzionano anche a telefono bloccato o app chiusa.
+        const permesso = await Notification.requestPermission();
+        if (permesso === 'granted' && user) {
+          attivaPushReali(user);
+        }
       }
     }
 

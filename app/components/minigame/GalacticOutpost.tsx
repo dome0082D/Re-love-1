@@ -20,18 +20,23 @@ export default function SnakeGame() {
 
     // Genera cibo in una posizione casuale vuota
     const generateFood = useCallback((currentSnake: {x: number, y: number}[]) => {
-        let newFood;
-        while (true) {
-            newFood = {
-                x: Math.floor(Math.random() * GRID_SIZE),
-                y: Math.floor(Math.random() * GRID_SIZE)
-            };
-            // eslint-disable-next-line no-loop-func
-            if (!currentSnake.some(segment => segment.x === newFood.x && segment.y === newFood.y)) {
-                break;
+        // FIX: la versione precedente lasciava il tipo di "newFood" dedotto
+        // implicitamente (errore di compilazione con "strict") e usava un
+        // while(true) senza via d'uscita: a griglia quasi piena il gioco
+        // poteva restare bloccato in un ciclo infinito, congelando la
+        // pagina. Ora scegliamo la posizione fra quelle davvero libere.
+        const occupate = new Set(currentSnake.map(s => `${s.x},${s.y}`));
+        const libere: { x: number; y: number }[] = [];
+        for (let x = 0; x < GRID_SIZE; x++) {
+            for (let y = 0; y < GRID_SIZE; y++) {
+                if (!occupate.has(`${x},${y}`)) libere.push({ x, y });
             }
         }
-        return newFood;
+        // Griglia completamente occupata (partita vinta): restituiamo la
+        // testa del serpente, così il chiamante ha comunque una posizione
+        // valida invece di un valore indefinito.
+        if (libere.length === 0) return currentSnake[0];
+        return libere[Math.floor(Math.random() * libere.length)];
     }, []);
 
     // Applica una nuova direzione rispettando la stessa regola "non tornare indietro su se stessi"

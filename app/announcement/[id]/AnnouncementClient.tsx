@@ -140,9 +140,16 @@ function AnnouncementContent() {
   useEffect(() => {
     if (!ann?.is_auction || !ann?.auction_end) return;
 
+    // Copiati in costanti locali: dentro il setInterval qui sotto TypeScript
+    // non può più sapere che "ann" è ancora valorizzato (potrebbe cambiare
+    // nel frattempo), quindi leggiamo i valori una volta sola all'avvio del
+    // conto alla rovescia - che è anche il comportamento corretto.
+    const auctionEnd = ann.auction_end
+    const auctionId = ann.id
+
     const interval = setInterval(() => {
       const now = new Date().getTime()
-      const end = new Date(ann.auction_end).getTime()
+      const end = new Date(auctionEnd).getTime()
       const distance = end - now
 
       if (distance < 0) {
@@ -158,8 +165,8 @@ function AnnouncementContent() {
       }
     }, 1000)
 
-    const channel = supabase.channel(`auction_${ann.id}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'announcements', filter: `id=eq.${ann.id}` }, (payload) => {
+    const channel = supabase.channel(`auction_${auctionId}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'announcements', filter: `id=eq.${auctionId}` }, (payload) => {
          if (payload.new.current_bid) {
            setCurrentBid(payload.new.current_bid)
            if (payload.new.current_bid > currentBidRef.current) {
@@ -213,6 +220,7 @@ function AnnouncementContent() {
   }
 
   const handleAddToCart = () => {
+    if (!ann) return;
     if (!user) { toast.error("Devi accedere per usare il carrello."); return; }
     if (user.id === ann.user_id) { toast.error("Non puoi comprare un tuo stesso oggetto."); return; }
 
@@ -237,6 +245,7 @@ function AnnouncementContent() {
   // ora si può sempre scrivere al venditore di qualsiasi annuncio, di
   // qualunque condizione, senza dover prima comprare nulla.
   const handleContact = () => {
+    if (!ann) return;
     if (!user) { toast.error("Devi accedere per continuare!"); return; }
     if (user.id === ann.user_id) { toast.error("Questo è il tuo annuncio."); return; }
 
@@ -257,6 +266,28 @@ function AnnouncementContent() {
     startChat();
   }
 
+  // FIX: la route /api/arena/track-click esisteva ma non veniva chiamata da
+  // nessuna parte del sito. Il codice del promotore veniva letto dall'URL e
+  // usato solo al momento del pagamento: i click sui link di promozione non
+  // venivano quindi MAI conteggiati, e la colonna "clicks" della tabella
+  // arena_promotions restava a zero per tutti (compresa la classifica
+  // mostrata in /arena). Contiamo il click una sola volta per apertura di
+  // pagina, e mai se è il promotore stesso ad aprire il proprio link.
+  const clickArenaContato = useRef(false)
+  useEffect(() => {
+    if (!arenaCode || clickArenaContato.current) return
+    clickArenaContato.current = true
+    fetch('/api/arena/track-click', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ trackingCode: arenaCode }),
+    }).catch((err) => {
+      // Il conteggio è un dato accessorio: non deve mai disturbare chi sta
+      // semplicemente guardando l'oggetto.
+      console.warn('Conteggio click Arena non riuscito:', err)
+    })
+  }, [arenaCode])
+
   // NUOVO: se l'oggetto è in Arena, controlliamo se l'utente ha già un
   // proprio link di promozione per questo oggetto - così mostriamo subito
   // "copia il tuo link" invece di "partecipa", senza fargli generare un
@@ -276,6 +307,7 @@ function AnnouncementContent() {
   }, [user, ann])
 
   async function handlePromuoviArena() {
+    if (!ann) return
     if (!user) {
       toast.error('Devi accedere per promuovere questo oggetto.')
       router.push('/login')
@@ -305,13 +337,14 @@ function AnnouncementContent() {
   }
 
   function copiaLinkArena() {
-    if (!myPromoCode) return
+    if (!myPromoCode || !ann) return
     const link = `${window.location.origin}/announcement/${ann.id}?arena=${myPromoCode}`
     navigator.clipboard.writeText(link)
     toast.success('Link copiato negli appunti!')
   }
 
   const handleSecureBuy = async () => {
+    if (!ann) return;
     if (!user) { toast.error("Devi accedere per acquistare."); return; }
     if (user.id === ann.user_id) { toast.error("Non puoi acquistare un tuo stesso oggetto."); return; }
     setActionLoading(true)
@@ -361,6 +394,8 @@ function AnnouncementContent() {
   }
 
   const submitOffer = async () => {
+    if (!ann) return;
+    if (!user) { toast.error("Devi accedere per fare una proposta."); return; }
     if (!offerPrice || isNaN(Number(offerPrice)) || Number(offerPrice) <= 0) {
       toast.error("Inserisci una cifra valida."); return;
     }
@@ -389,32 +424,20 @@ function AnnouncementContent() {
       }]);
       pushNotify(ann.user_id, 'Nuova proposta 💡', `€${offerPrice} per "${ann.title}"`, `/announcement/${ann.id}`)
 
-      // NUOVO: se questo e' un annuncio delegato (Curatore Locale), il
-      // Proprietario deve essere informato degli eventi chiave anche se
-      // lascia al Curatore l'onere di rispondere in chat - qui l'evento e'
-      // "ricezione di un'offerta".
-      if (ann.owner_id && ann.owner_id !== ann.user_id) {
-        await supabase.from('notifications').insert([{
-          user_id: ann.owner_id,
-          message: `💡 Il Curatore ha ricevuto una proposta di €${offerPrice} per il tuo oggetto "${ann.title}".`,
-          is_read: false
-        }]);
-        pushNotify(ann.owner_id, 'Nuova proposta sul tuo oggetto 💡', `€${offerPrice} per "${ann.title}"`, `/announcement/${ann.id}`)
-      }
-
-      // NUOVO: se questo annuncio ha un Proprietario diverso dal Curatore
-      // (sistema "Curatore Locale"), lo avvisiamo anche a lui - la
-      // trasparenza sugli eventi chiave e' un requisito esplicito del
-      // sistema, anche se resta il Curatore a occuparsi di rispondere in
-      // chat. Non blocchiamo mai il resto per un errore qui.
+      // FIX: questo blocco era presente DUE volte di seguito, con testi
+      // leggermente diversi. Il Proprietario di un annuncio delegato
+      // (sistema "Curatore Locale") riceveva quindi due notifiche in-app e
+      // due notifiche push identiche per una sola offerta. Ne resta una.
+      // Non blocchiamo mai il resto per un errore qui: l'offerta è già
+      // stata registrata con successo.
       if (ann.owner_id && ann.owner_id !== ann.user_id) {
         try {
           await supabase.from('notifications').insert([{
             user_id: ann.owner_id,
-            message: `💡 Il tuo Curatore ha ricevuto una proposta di €${offerPrice} per "${ann.title}".`,
+            message: `💡 Il Curatore ha ricevuto una proposta di €${offerPrice} per il tuo oggetto "${ann.title}".`,
             is_read: false
           }])
-          pushNotify(ann.owner_id, 'Proposta sul tuo oggetto 💡', `€${offerPrice} per "${ann.title}"`, `/announcement/${ann.id}`)
+          pushNotify(ann.owner_id, 'Nuova proposta sul tuo oggetto 💡', `€${offerPrice} per "${ann.title}"`, `/announcement/${ann.id}`)
         } catch (ownerNotifErr) {
           console.warn('Notifica al Proprietario non inviata:', ownerNotifErr)
         }
@@ -426,6 +449,8 @@ function AnnouncementContent() {
   }
 
   const submitBid = async () => {
+    if (!ann) return;
+    if (!user) { toast.error("Devi accedere per rilanciare."); return; }
     if (!offerPrice || isNaN(Number(offerPrice)) || Number(offerPrice) <= currentBid) {
       toast.error(`Devi rilanciare con una cifra maggiore di €${currentBid.toFixed(2)}!`); return;
     }
@@ -468,26 +493,16 @@ function AnnouncementContent() {
     }]);
     pushNotify(ann.user_id, 'Nuovo rilancio 🔨', `€${offerPrice} per "${ann.title}"`, `/announcement/${ann.id}`)
 
-    // NUOVO: stessa trasparenza verso il Proprietario, per un'asta delegata.
-    if (ann.owner_id && ann.owner_id !== ann.user_id) {
-      await supabase.from('notifications').insert([{
-        user_id: ann.owner_id,
-        message: `🔨 Nuovo rilancio di €${offerPrice} sulla tua asta "${ann.title}", gestita dal Curatore.`,
-        is_read: false
-      }]);
-      pushNotify(ann.owner_id, 'Nuovo rilancio sulla tua asta 🔨', `€${offerPrice} per "${ann.title}"`, `/announcement/${ann.id}`)
-    }
-
-    // NUOVO: stessa trasparenza verso il Proprietario, anche per i
-    // rilanci d'asta.
+    // FIX: come per le proposte, questo blocco era duplicato e faceva
+    // arrivare al Proprietario due notifiche identiche per ogni rilancio.
     if (ann.owner_id && ann.owner_id !== ann.user_id) {
       try {
         await supabase.from('notifications').insert([{
           user_id: ann.owner_id,
-          message: `🔨 Nuovo rilancio di €${offerPrice} per la tua asta "${ann.title}", gestita dal tuo Curatore.`,
+          message: `🔨 Nuovo rilancio di €${offerPrice} sulla tua asta "${ann.title}", gestita dal Curatore.`,
           is_read: false
         }])
-        pushNotify(ann.owner_id, 'Rilancio sul tuo oggetto 🔨', `€${offerPrice} per "${ann.title}"`, `/announcement/${ann.id}`)
+        pushNotify(ann.owner_id, 'Nuovo rilancio sulla tua asta 🔨', `€${offerPrice} per "${ann.title}"`, `/announcement/${ann.id}`)
       } catch (ownerNotifErr) {
         console.warn('Notifica al Proprietario non inviata:', ownerNotifErr)
       }
@@ -498,6 +513,8 @@ function AnnouncementContent() {
 
   const submitReview = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!ann) return
+    if (!user) { toast.error("Devi accedere per lasciare una recensione."); return }
     setSubmittingReview(true)
     const { error } = await supabase.from('reviews').insert([{
       reviewer_id: user.id,
@@ -685,7 +702,7 @@ function AnnouncementContent() {
                  </>
                )}
 
-               {!usePickup && ann.shipping_cost > 0 && ann.condition !== 'Baratto' && (
+               {!usePickup && (ann.shipping_cost ?? 0) > 0 && ann.condition !== 'Baratto' && (
                  <p className="text-xs font-black text-stone-600 uppercase mt-2">+ Spese Spedizione € {ann.shipping_cost}</p>
                )}
             </div>
