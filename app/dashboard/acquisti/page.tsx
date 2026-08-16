@@ -271,11 +271,14 @@ export default function DashboardOrdini() {
     setSubmittingDispute(true)
     // FIX: aggiunto try/catch, stesso schema delle altre azioni di questa pagina.
     try {
+      // FIX: la colonna si chiama "reviewed_id", non "reviewed_user_id".
+      // Con il nome sbagliato il database rispondeva 400 e la recensione
+      // non veniva mai salvata.
       const { error } = await supabase.from('reviews').insert([{
         rating,
         comment,
         reviewer_id: user.id,
-        reviewed_user_id: selectedTransaction.announcements.user_id,
+        reviewed_id: selectedTransaction.announcements.user_id,
         transaction_id: selectedTransaction.id
       }])
 

@@ -42,7 +42,10 @@ export default function SellerProfilePage() {
       const [profRes, annRes, revRes] = await Promise.all([
         supabase.from('profiles').select('id, first_name, nickname, city, created_at').eq('id', id).single(),
         supabase.from('announcements').select('*').eq('user_id', id).order('created_at', { ascending: false }),
-        supabase.from('reviews').select('*, reviewer:profiles!reviewer_id(first_name)').eq('reviewed_user_id', id).order('created_at', { ascending: false }),
+        // FIX: colonna "reviewed_user_id" inesistente (e' "reviewed_id") e join
+        // verso profiles senza chiave esterna: questa lettura rispondeva
+        // sempre 400, quindi le recensioni del venditore non comparivano mai.
+        supabase.from('reviews').select('*').eq('reviewed_id', id).order('created_at', { ascending: false }),
       ])
 
       if (profRes.error) throw profRes.error

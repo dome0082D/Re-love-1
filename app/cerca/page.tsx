@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 
 import { useEffect, useState, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
+import { alternaPreferito } from '@/lib/azioniUtente'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Search, Heart } from 'lucide-react'
@@ -72,17 +73,17 @@ function CercaContent() {
     }
   }
 
+  // Stesso difetto della Home: la RLS rifiutava l'inserimento nei preferiti
+  // fatto direttamente dal browser. Ora passa dalla route server.
   async function handleToggleFavorite(e: React.MouseEvent, id: string) {
     e.preventDefault()
     e.stopPropagation()
     if (!user) return
-    if (favorites.includes(id)) {
-      const { error } = await supabase.from('favorites').delete().eq('user_id', user.id).eq('announcement_id', id)
-      if (!error) setFavorites(favorites.filter(f => f !== id))
-    } else {
-      const { error } = await supabase.from('favorites').insert([{ user_id: user.id, announcement_id: id }])
-      if (!error) setFavorites([...favorites, id])
-    }
+    const esito = await alternaPreferito(id)
+    if (!esito.ok) return
+    setFavorites(prev => esito.preferito
+      ? [...prev.filter(f => f !== id), id]
+      : prev.filter(f => f !== id))
   }
 
   return (

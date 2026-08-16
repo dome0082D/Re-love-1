@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { toast } from 'sonner'
 import { Timer, Gavel, ShoppingCart, Sparkles } from 'lucide-react'
 import { inviaNotifica } from '@/lib/pushNotify'
+import { registraRilancio } from '@/lib/azioniUtente'
 import { useCartStore } from '@/store/cartStore'
 import type { User } from '@supabase/supabase-js'
 
@@ -187,13 +188,41 @@ function AnnouncementContent() {
     if (data) setSeller(data)
   }
 
+  // FIX: questa lettura falliva SEMPRE, per due motivi insieme.
+  //  1. Filtrava su "reviewed_user_id", colonna che non esiste: nella
+  //     tabella si chiama "reviewed_id".
+  //  2. Chiedeva la join "reviewer:profiles!reviewer_id(...)", ma fra
+  //     "reviews" e "profiles" non c'è nessuna chiave esterna, quindi
+  //     PostgREST rispondeva 400 (PGRST200) a prescindere.
+  // Nessuna recensione è quindi mai comparsa sotto un annuncio, e la media
+  // voto del venditore risultava sempre "Nuovo".
   async function fetchReviews(sellerId: string) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('reviews')
-      .select('*, reviewer:profiles!reviewer_id(first_name)')
-      .eq('reviewed_user_id', sellerId)
+      .select('*')
+      .eq('reviewed_id', sellerId)
       .order('created_at', { ascending: false })
-    if (data) setReviews(data)
+
+    if (error) {
+      console.error('Errore lettura recensioni:', error)
+      return
+    }
+    if (!data) return
+
+    // I nomi dei recensori con una seconda query, senza dipendere da una
+    // relazione che il database non ha.
+    const idRecensori = Array.from(new Set(data.map(r => r.reviewer_id).filter(Boolean)))
+    if (idRecensori.length > 0) {
+      const { data: autori } = await supabase
+        .from('profiles')
+        .select('id, first_name, nickname')
+        .in('id', idRecensori)
+      const mappa: Record<string, { first_name?: string }> = {}
+      ;(autori || []).forEach(a => { mappa[a.id] = { first_name: a.nickname || a.first_name } })
+      data.forEach(r => { r.reviewer = mappa[r.reviewer_id] || null })
+    }
+
+    setReviews(data)
   }
 
   async function checkIfPurchased(buyerId: string, annId: string) {
@@ -455,30 +484,21 @@ function AnnouncementContent() {
     }
 
     setSubmittingOffer(true)
-    
-    const { data: annData, error: annError } = await supabase.from('announcements')
-      .update({ current_bid: Number(offerPrice) })
-      .eq('id', ann.id)
-      .lt('current_bid', Number(offerPrice))
-      .select()
 
-    if (annError) {
-      toast.error("Errore durante il rilancio.")
+    // FIX: lo storico dei rilanci non veniva MAI registrato, per due motivi
+    // sovrapposti. La colonna scritta era "amount" mentre in tabella si
+    // chiama "bid_amount" (400 dal database), e comunque la RLS rifiuta un
+    // inserimento in "bids" fatto dal browser (403). Nessuno dei due errori
+    // veniva controllato: il prezzo dell'asta saliva, ma non restava traccia
+    // di CHI avesse rilanciato - quindi a fine asta era impossibile sapere
+    // chi avesse vinto. Ora il rilancio passa da una route server che
+    // ricontrolla la cifra sul database e registra lo storico.
+    const esito = await registraRilancio(ann.id, Number(offerPrice))
+    if (!esito.ok) {
+      toast.error(esito.errore || "Errore durante il rilancio.")
       setSubmittingOffer(false)
       return
     }
-
-    if (!annData || annData.length === 0) {
-      toast.error("Qualcuno ha rilanciato prima di te! Ricarica la pagina e riprova con una cifra più alta.")
-      setSubmittingOffer(false)
-      return
-    }
-
-    await supabase.from('bids').insert([{
-      announcement_id: ann.id,
-      bidder_id: user.id,
-      amount: Number(offerPrice)
-    }])
 
     toast.success("Rilancio effettuato con successo! Sei in vantaggio. 🔨")
     setCurrentBid(Number(offerPrice))
@@ -510,10 +530,14 @@ function AnnouncementContent() {
     if (!ann) return
     if (!user) { toast.error("Devi accedere per lasciare una recensione."); return }
     setSubmittingReview(true)
+    // FIX: due colonne sbagliate insieme - "reviewed_user_id" (in tabella si
+    // chiama "reviewed_id") e "announcement_id", che nella tabella delle
+    // recensioni non esiste. Il database rispondeva 400, e il messaggio
+    // mostrato all'utente era il fuorviante "Hai già recensito questo
+    // ordine" - mentre in realtà nessuna recensione era mai stata salvata.
     const { error } = await supabase.from('reviews').insert([{
       reviewer_id: user.id,
-      reviewed_user_id: ann.user_id,
-      announcement_id: ann.id,
+      reviewed_id: ann.user_id,
       rating: newReview.rating,
       comment: newReview.comment
     }])

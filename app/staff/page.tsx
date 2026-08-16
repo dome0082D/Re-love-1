@@ -50,7 +50,7 @@ interface Review {
   rating: number;
   comment: string;
   reviewer_id?: string;
-  reviewed_user_id?: string;
+  reviewed_id?: string;
   reviewer?: { email: string };
   reviewed?: { email: string };
 }
@@ -152,7 +152,7 @@ export default function AdminDashboard() {
         const enrichedRevs = revs.map(r => ({
           ...r,
           reviewer: { email: loadedProfiles.find(p => p.id === r.reviewer_id)?.email || 'N/D' },
-          reviewed: { email: loadedProfiles.find(p => p.id === r.reviewed_user_id)?.email || 'N/D' }
+          reviewed: { email: loadedProfiles.find(p => p.id === r.reviewed_id)?.email || 'N/D' }
         }))
         setReviews(enrichedRevs as unknown as Review[])
       }

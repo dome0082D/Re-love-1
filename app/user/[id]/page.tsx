@@ -52,7 +52,10 @@ export default function PublicProfilePage() {
     // acquisto, in app/dashboard/acquisti) con la colonna "reviewed_user_id"
     // - nomi diversi. Con "receiver_id" qui non sarebbe mai comparsa
     // nessuna delle recensioni lasciate nel modo normale.
-    const { data: revs } = await supabase.from('reviews').select('*').eq('reviewed_user_id', id).order('created_at', { ascending: false })
+    // FIX: la colonna si chiama "reviewed_id", non "reviewed_user_id":
+    // con il nome sbagliato la lettura rispondeva 400 e le recensioni
+    // ricevute non comparivano mai.
+    const { data: revs } = await supabase.from('reviews').select('*').eq('reviewed_id', id).order('created_at', { ascending: false })
     if (revs) setReviews(revs)
 
     setLoading(false)
@@ -74,9 +77,13 @@ export default function PublicProfilePage() {
     // Aggiunto anche il try/catch - senza, un fallimento di rete lasciava
     // "Pubblica Recensione" bloccato per sempre su "Pubblicazione...".
     try {
+      // FIX (SEGUITO): la colonna corretta, verificata sullo schema reale
+      // del database, è "reviewed_id" - non "reviewed_user_id", che non
+      // esiste in nessuna tabella. Finché è rimasto quel nome, ogni
+      // salvataggio rispondeva 400.
       const { error } = await supabase.from('reviews').insert([{
         reviewer_id: currentUser.id,
-        reviewed_user_id: id,
+        reviewed_id: id,
         rating: rating,
         comment: comment
       }])

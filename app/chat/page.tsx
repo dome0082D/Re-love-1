@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Trash2 } from 'lucide-react'
 import { inviaNotifica } from '@/lib/pushNotify'
+import { eliminaMessaggio, eliminaConversazione } from '@/lib/azioniUtente'
 import { containsForbiddenContact, reportChatViolation } from '@/lib/chatSecurity'
 
 const POPULAR_EMOJIS = [
@@ -148,16 +149,21 @@ export default function ChatPage() {
     setNewMessage(prev => prev + emoji)
   }
 
+  // FIX: la cancellazione veniva fatta dal browser con la chiave anonima.
+  // La RLS su "messages" non ha una policy di DELETE: la richiesta rispondeva
+  // 200 senza toccare NESSUNA riga, e siccome qui il messaggio veniva tolto
+  // comunque dall'elenco a schermo, sembrava sparito - salvo ricomparire
+  // identico al primo ricaricamento. Ora passa dalla route server, che
+  // verifica che il messaggio sia davvero tuo e dice quante righe ha
+  // cancellato.
   async function handleDeleteMessage(messageId: string) {
     if (!confirm("Eliminare definitivamente questo messaggio? L'azione è irreversibile.")) return
-    try {
-      const { error } = await supabase.from('messages').delete().eq('id', messageId)
-      if (error) throw error
-      setMessages(prev => prev.filter(m => m.id !== messageId))
-    } catch (err: any) {
-      console.error('Errore eliminazione messaggio:', err)
-      alert("Errore durante l'eliminazione. Riprova.")
+    const esito = await eliminaMessaggio(messageId)
+    if (!esito.ok) {
+      alert(esito.errore || "Errore durante l'eliminazione. Riprova.")
+      return
     }
+    setMessages(prev => prev.filter(m => m.id !== messageId))
   }
 
   async function handleDeleteConversation(pairKey: string) {
@@ -166,19 +172,16 @@ export default function ChatPage() {
 
     if (IS_STAFF) {
       if (!confirm("ATTENZIONE STAFF: stai per eliminare DEFINITIVAMENTE tutti i messaggi di questa conversazione, per entrambi gli utenti. L'azione è irreversibile e toglie anche la prova utile per eventuali controversie. Continuare?")) return
-      try {
-        const { error } = await supabase.from('messages').delete()
-          .or(`and(sender_id.eq.${u1},receiver_id.eq.${u2}),and(sender_id.eq.${u2},receiver_id.eq.${u1})`)
-        if (error) throw error
-        setMessages(prev => prev.filter(m => {
-          const p = [m.sender_id, m.receiver_id].sort().join('_')
-          return p !== pairKey
-        }))
-        setActiveChatPair(null)
-      } catch (err: any) {
-        console.error('Errore eliminazione conversazione:', err)
-        alert("Errore durante l'eliminazione. Riprova.")
+      const esito = await eliminaConversazione(u1, u2)
+      if (!esito.ok) {
+        alert(esito.errore || "Errore durante l'eliminazione. Riprova.")
+        return
       }
+      setMessages(prev => prev.filter(m => {
+        const p = [m.sender_id, m.receiver_id].sort().join('_')
+        return p !== pairKey
+      }))
+      setActiveChatPair(null)
     } else {
       if (!confirm("Vuoi eliminare questa conversazione? Sparirà solo dalla tua vista - se questa persona ti scrive di nuovo, ricomparirà.")) return
       try {

@@ -40,10 +40,33 @@ export default function PublicProfilePage() {
       .order('created_at', { ascending: false })
 
     // 3. Recensioni ricevute (Aggiornato per cercare il nickname del recensore)
+    // FIX: questa lettura falliva SEMPRE, per due motivi insieme.
+    //  1. Filtrava su "reviewed_user_id", colonna che non esiste: nella
+    //     tabella si chiama "reviewed_id".
+    //  2. Chiedeva la join "reviewer:profiles!reviewer_id(...)", ma fra
+    //     "reviews" e "profiles" non c'e' nessuna chiave esterna, quindi
+    //     PostgREST rispondeva 400 (PGRST200) a prescindere.
+    // Risultato: nessuna recensione e' mai comparsa sul sito. Ora filtriamo
+    // sulla colonna giusta e i nomi dei recensori li leggiamo con una
+    // seconda query su "profiles", senza dipendere da una relazione che il
+    // database non ha.
     const { data: revs } = await supabase.from('reviews')
-      .select('*, reviewer:profiles!reviewer_id(nickname, first_name)')
-      .eq('reviewed_user_id', id)
+      .select('*')
+      .eq('reviewed_id', id)
       .order('created_at', { ascending: false })
+
+    if (revs && revs.length > 0) {
+      const idRecensori = Array.from(new Set(revs.map((r: any) => r.reviewer_id).filter(Boolean)))
+      if (idRecensori.length > 0) {
+        const { data: autori } = await supabase
+          .from('profiles')
+          .select('id, nickname, first_name')
+          .in('id', idRecensori)
+        const mappa: Record<string, any> = {}
+        ;(autori || []).forEach((a: any) => { mappa[a.id] = a })
+        revs.forEach((r: any) => { r.reviewer = mappa[r.reviewer_id] || null })
+      }
+    }
 
     if (prof) setProfile(prof as PublicProfile)
     if (ads) setAnnouncements(ads)

@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useCartStore } from '@/store/cartStore'
+import { segnaNotificheLette, eliminaNotifica, eliminaTutteLeNotifiche } from '@/lib/azioniUtente'
 import { 
   Menu, Sun, Moon, ShieldCheck, Sparkles, Radar, Plus, Bell, 
   MoreVertical, ShoppingCart, Settings, TrendingUp, HelpCircle, 
@@ -270,14 +271,14 @@ export default function Navbar() {
     setIsQuickMenuOpen(false);
 
     if (!isNotifOpen && notifications > 0 && user) {
-      const { error } = await supabase
-        .from('notifications')
-        .update({ is_read: true })
-        .eq('user_id', user.id)
-        .eq('is_read', false);
-
-      if (error) {
-        console.error('Errore aggiornamento notifiche lette:', error)
+      // FIX: questo aggiornamento veniva fatto dal browser con la chiave
+      // anonima. La RLS su "notifications" non ha una policy di UPDATE:
+      // rispondeva 200 senza toccare NESSUNA riga. Il pallino rosso spariva
+      // solo a schermo e tornava al numero di prima a ogni ricaricamento,
+      // per sempre. Ora passa dalla route server.
+      const esito = await segnaNotificheLette();
+      if (!esito.ok) {
+        console.error('Notifiche non segnate come lette:', esito.errore)
         return
       }
 
@@ -285,6 +286,32 @@ export default function Navbar() {
       setNotifList(prev => prev.map(n => ({...n, is_read: true})));
     }
   };
+
+  // NUOVO: cancellazione delle proprie notifiche - prima non era proprio
+  // prevista, si potevano solo accumulare.
+  const handleEliminaNotifica = async (id: string) => {
+    const esito = await eliminaNotifica(id)
+    if (!esito.ok) {
+      alert(esito.errore || "Errore durante l'eliminazione.")
+      return
+    }
+    setNotifList(prev => prev.filter(n => n.id !== id))
+    setNotifications(prev => {
+      const eliminata = notifList.find(n => n.id === id)
+      return eliminata && !eliminata.is_read ? Math.max(0, prev - 1) : prev
+    })
+  }
+
+  const handleEliminaTutteNotifiche = async () => {
+    if (!confirm('Eliminare tutte le tue notifiche? Non si possono recuperare.')) return
+    const esito = await eliminaTutteLeNotifiche()
+    if (!esito.ok) {
+      alert(esito.errore || "Errore durante l'eliminazione.")
+      return
+    }
+    setNotifList([])
+    setNotifications(0)
+  }
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -429,9 +456,20 @@ export default function Navbar() {
               <div className="fixed left-4 right-4 top-24 sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-3 sm:w-80 bg-white border border-stone-200 rounded-3xl shadow-2xl p-5 z-[6000]">
                 <div className="flex justify-between items-center border-b border-stone-100 pb-3 mb-4">
                   <h4 className="text-sm font-bold uppercase tracking-widest text-stone-400">Notifiche</h4>
-                  <button onClick={() => setIsNotifOpen(false)} className="text-stone-400 hover:text-stone-800 text-sm font-bold w-8 h-8 flex items-center justify-center rounded-full hover:bg-stone-50">
-                    <X size={18} strokeWidth={2.5} />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    {notifList.length > 0 && (
+                      <button
+                        onClick={handleEliminaTutteNotifiche}
+                        title="Elimina tutte le notifiche"
+                        className="text-[9px] font-black uppercase tracking-widest text-stone-400 hover:text-red-500 transition-colors px-2 py-1 rounded-lg hover:bg-red-50"
+                      >
+                        Svuota
+                      </button>
+                    )}
+                    <button onClick={() => setIsNotifOpen(false)} className="text-stone-400 hover:text-stone-800 text-sm font-bold w-8 h-8 flex items-center justify-center rounded-full hover:bg-stone-50">
+                      <X size={18} strokeWidth={2.5} />
+                    </button>
+                  </div>
                 </div>
                 
                 {notifList.length === 0 ? (
@@ -443,8 +481,15 @@ export default function Navbar() {
                 ) : (
                   <div className="max-h-72 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
                     {notifList.map(n => (
-                      <div key={n.id} className={`p-4 rounded-2xl border text-sm transition-all ${n.is_read ? 'bg-stone-50 border-stone-100 text-stone-500' : 'bg-rose-50 border-rose-200 text-stone-900 font-bold shadow-sm'}`}>
-                        {n.message}
+                      <div key={n.id} className={`p-4 rounded-2xl border text-sm transition-all flex items-start gap-2 ${n.is_read ? 'bg-stone-50 border-stone-100 text-stone-500' : 'bg-rose-50 border-rose-200 text-stone-900 font-bold shadow-sm'}`}>
+                        <span className="flex-1 min-w-0 break-words">{n.message}</span>
+                        <button
+                          onClick={() => handleEliminaNotifica(n.id)}
+                          title="Elimina questa notifica"
+                          className="shrink-0 text-stone-300 hover:text-red-500 transition-colors mt-0.5"
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       </div>
                     ))}
                   </div>

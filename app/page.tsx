@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 
 import { useEffect, useState, Suspense, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import { alternaPreferito } from '@/lib/azioniUtente'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { User } from '@supabase/supabase-js'
@@ -689,18 +690,24 @@ function HomePageContent() {
     )
   }
 
+  // FIX: il salvataggio nei preferiti veniva fatto dal browser con la chiave
+  // anonima, ma la RLS su "favorites" non ha una policy di INSERT e il
+  // database rifiutava la scrittura (403). L'errore c'era, ma "if (!error)"
+  // si limitava a NON aggiornare l'elenco: nessun avviso, e sul cuore
+  // premuto non succedeva niente di visibile. Ora passa dalla route server.
   async function handleToggleFavorite(e: React.MouseEvent, announcementId: string) {
     e.preventDefault()
     e.stopPropagation()
     if (!user) { toast.error("Devi accedere per salvare i tuoi preferiti ❤️"); return; }
-    
-    if (favorites.includes(announcementId)) {
-      const { error } = await supabase.from('favorites').delete().eq('user_id', user.id).eq('announcement_id', announcementId)
-      if (!error) setFavorites(favorites.filter(id => id !== announcementId))
-    } else {
-      const { error } = await supabase.from('favorites').insert([{ user_id: user.id, announcement_id: announcementId }])
-      if (!error) setFavorites([...favorites, announcementId])
+
+    const esito = await alternaPreferito(announcementId)
+    if (!esito.ok) {
+      toast.error(esito.errore || "Preferito non salvato. Riprova.")
+      return
     }
+    setFavorites(prev => esito.preferito
+      ? [...prev.filter(id => id !== announcementId), announcementId]
+      : prev.filter(id => id !== announcementId))
   }
 
   const filteredData = announcements.filter(item => {
@@ -872,6 +879,21 @@ function HomePageContent() {
           {/* NUOVO: widget Arena ReLove, in cima al feed principale come
               richiesto. Mostrato solo se c'è almeno un oggetto in Arena -
               nessun riquadro vuoto quando l'Arena non ha ancora nulla. */}
+          {/* ==========================================================
+              ORDINE DELLA HOME (richiesto esplicitamente):
+                1. Arena ReLove
+                2. Vetrine degli utenti (scorrimento laterale)
+                3. Tutti gli Annunci
+                4. Riquadro di ricerca e filtri
+                5. Laboratori & Corsi (creazione eventi e corsi)
+                6. Tutto il resto
+
+              I filtri continuano a valere anche stando SOTTO agli
+              annunci: agiscono sullo stato del componente, non sulla
+              posizione nella pagina, quindi l'elenco qui sopra si
+              aggiorna comunque a ogni modifica dei filtri.
+              ========================================================== */}
+
           {arenaItems.length > 0 && (
             <section className="mb-8 max-w-[1300px] mx-auto px-2">
               <div className="bg-gradient-to-br from-rose-600 to-orange-500 rounded-[2.5rem] p-6 md:p-8 shadow-lg relative overflow-hidden">
@@ -909,6 +931,77 @@ function HomePageContent() {
             </section>
           )}
 
+          {/* 2. Vetrine degli utenti, a scorrimento laterale. */}
+          <VetrinaCarousel />
+
+          {/* 3. Tutti gli Annunci. */}
+          <section className="mb-20 max-w-[1300px] mx-auto px-2">
+            {/* FIX: stesso identico problema del titolo "Vetrina Top Nuovo"
+                qui sopra - testo senza sfondo, sovrapposto all'illustrazione
+                fissa del sito. */}
+            <div className="flex justify-between items-end mb-8 border-b border-stone-300 pb-4 bg-white rounded-2xl px-4 py-3">
+              <h2 className="text-[14px] font-black uppercase tracking-[0.4em] text-stone-900 opacity-50">Tutti gli Annunci</h2>
+            </div>
+            
+            {loading ? (
+               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-5">
+                 {Array.from({ length: 12 }).map((_, i) => <SkeletonCard key={`reg-skel-${i}`} isTop={false} />)}
+               </div>
+            ) : regularItems.length === 0 ? (
+              <div className="text-center py-20 bg-white rounded-3xl border border-stone-200">
+                 <Search size={64} className="text-stone-300 mx-auto mb-4" strokeWidth={1.5} />
+                 <p className="text-sm font-black text-stone-900 uppercase tracking-widest">Nessun risultato</p>
+                 <p className="text-[10px] font-bold text-stone-500 uppercase mt-2">Prova ad allargare i filtri di ricerca o la fascia di prezzo.</p>
+                 {mainSearch.trim() && (
+                   <div className="mt-10 text-left">
+                     <ExternalResultsFallback query={mainSearch.trim()} />
+                   </div>
+                 )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-5">
+                {regularItems.slice(0, visibleCount).map(item => (
+                  <div key={item.id} className={`group bg-white rounded-3xl overflow-hidden shadow-sm border ${item.is_sponsored ? 'border-orange-400' : 'border-stone-200'} hover:bg-stone-50 transition-all flex flex-col relative`}>
+                    {item.is_sponsored && (
+                      <div className="absolute top-0 left-0 bg-orange-500 text-white text-[7px] font-black uppercase px-2 py-1 rounded-br-xl z-40 tracking-widest shadow-sm">
+                        TOP 🌟
+                      </div>
+                    )}
+                    <Link href={`/announcement/${item.id}`} className="aspect-square bg-stone-100 relative block overflow-hidden">
+                      <button onClick={(e) => handleToggleFavorite(e, item.id)} className="absolute top-2 right-2 z-30 bg-white w-8 h-8 flex items-center justify-center rounded-full shadow-sm hover:scale-110 transition-all">
+                        <Heart size={16} className={favorites.includes(item.id) ? "fill-rose-500 text-rose-500" : "text-stone-400"} />
+                      </button>
+                      <img src={item.image_url || "/usato.png"} className="w-full h-full object-contain" alt={item.title} loading="lazy" decoding="async" />
+                    </Link>
+                    <div className="p-3 flex flex-col justify-between flex-grow">
+                      <div>
+                        <h4 className="text-[10px] font-black uppercase line-clamp-2 text-stone-800 leading-tight mb-1">{item.title}</h4>
+                        <p className="text-[14px] font-black text-rose-600 italic">
+                          {item.condition === 'Regalo' || item.condition === 'Baratto' ? '€ 0' : `€ ${item.price}`}
+                        </p>
+                      </div>
+                      <Link href={`/announcement/${item.id}`} className="mt-3 block text-center w-full bg-stone-900 text-white text-[9px] font-black uppercase py-2 rounded-xl hover:bg-rose-600 transition-all">
+                        {item.condition === 'Baratto' ? 'Baratta' : item.condition === 'Regalo' ? 'Ricevi' : 'Acquista'}
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {!loading && regularItems.length > visibleCount && (
+              <div className="mt-12 flex justify-center w-full">
+                <button 
+                  onClick={() => setVisibleCount(prev => prev + 12)}
+                  className="bg-stone-900 text-white px-10 py-4 rounded-full text-[11px] font-black uppercase tracking-widest hover:bg-rose-600 transition-all shadow-md"
+                >
+                  Carica Altri ({regularItems.length - visibleCount})
+                </button>
+              </div>
+            )}
+          </section>
+
+          {/* 4. Riquadro di ricerca e filtri. */}
           <section className="mb-12 max-w-[1300px] mx-auto px-2">
             <div className="bg-white p-6 rounded-[2.5rem] shadow-md border border-stone-200 flex flex-col gap-8">
               {/* FIX: rimesso qui il campo di ricerca testuale. Quando ho tolto
@@ -1021,198 +1114,9 @@ function HomePageContent() {
             </div>
           </section>
 
-          {!catFilter && !typeFilter && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-16 max-w-[1300px] mx-auto px-2">
-              
-              <Tooltip text="Metti in vendita un oggetto mai usato ✨" wrapperClass="relative w-full h-full">
-                <Link href="/add?mode=new" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#f5efdf] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
-                   <div className="absolute inset-0 w-full h-full overflow-hidden">
-                     <img src="/nuovo.png" className="w-full h-full object-cover" alt="Nuovo" loading="lazy" decoding="async" />
-                   </div>
-                   <div className="absolute bottom-3 z-10 w-full px-2">
-                     <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Vendi Nuovo</span>
-                   </div>
-                </Link>
-              </Tooltip>
-              
-              <Tooltip text="Dai una seconda vita ai tuoi oggetti ♻️" wrapperClass="relative w-full h-full">
-                <Link href="/add?mode=used" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#f5efdf] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
-                   <div className="absolute inset-0 w-full h-full overflow-hidden">
-                     <img src="/usato.png" className="w-full h-full object-cover" alt="Usato" loading="lazy" decoding="async" />
-                   </div>
-                   <div className="absolute bottom-3 z-10 w-full px-2">
-                     <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Vendi Usato</span>
-                   </div>
-                </Link>
-              </Tooltip>
-              
-              <Tooltip text="Regala o trova oggetti gratis in regalo 🎁" wrapperClass="relative w-full h-full">
-                <Link href="/add?mode=gift" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#f5efdf] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
-                   <div className="absolute inset-0 w-full h-full overflow-hidden">
-                     <img src="/regalo.png" className="w-full h-full object-cover" alt="Regalo" loading="lazy" decoding="async" />
-                   </div>
-                   <div className="absolute bottom-3 z-10 w-full px-2">
-                     <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Regalo</span>
-                   </div>
-                </Link>
-              </Tooltip>
-
-              <Tooltip text="Scambia i tuoi oggetti senza usare soldi 🤝" wrapperClass="relative w-full h-full">
-                <Link href="/add?mode=barter" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#f5efdf] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
-                   <div className="absolute inset-0 w-full h-full overflow-hidden">
-                     <img src="/baratto.png" className="w-full h-full object-cover" alt="Baratto" loading="lazy" decoding="async" />
-                   </div>
-                   <div className="absolute bottom-3 z-10 w-full px-2">
-                     <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Baratto</span>
-                   </div>
-                </Link>
-              </Tooltip>
-            </div>
-          )}
-
-          {/* NUOVO: riquadro dedicato al sistema "Curatore Locale" - su
-              richiesta, l'ingresso visibile mancava del tutto: le pagine
-              (/curatore, /curatore/nuovo, /curatore/scansiona) esistevano
-              gia' e funzionavano, ma nessun link nel sito ci portava. */}
-          <section className="mb-20 max-w-[1300px] mx-auto px-2">
-            <div className="bg-white rounded-[2.5rem] border border-stone-200 shadow-md p-8 md:p-10 flex flex-col md:flex-row items-center gap-8">
-              <div className="shrink-0 text-6xl">🤝</div>
-              <div className="flex-1 text-center md:text-left">
-                <span className="inline-block bg-stone-900 text-white text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full mb-3">Novità</span>
-                <h2 className="text-xl md:text-2xl font-black uppercase italic text-stone-900 tracking-tight">Curatore Locale</h2>
-                <p className="text-stone-500 font-bold text-xs mt-2 max-w-xl">
-                  Gestisci la vendita degli oggetti di amici e vicini che non hanno tempo per l&apos;app.
-                  Guadagni una commissione reale su ogni scambio concluso, in totale trasparenza col Proprietario.
-                </p>
-              </div>
-              <div className="flex flex-col sm:flex-row gap-3 shrink-0 w-full md:w-auto">
-                <Link
-                  href="/curatore"
-                  className="bg-stone-900 text-white px-6 py-4 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-rose-600 transition-all shadow-md text-center whitespace-nowrap"
-                >
-                  Scopri di più
-                </Link>
-                <Link
-                  href="/curatore/nuovo"
-                  className="bg-rose-600 text-white px-6 py-4 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-stone-900 transition-all shadow-md text-center whitespace-nowrap"
-                >
-                  + Nuovo Mandato
-                </Link>
-              </div>
-            </div>
-          </section>
-
-          <section className="mb-20 max-w-[1300px] mx-auto px-2">
-            {/* FIX: questo titolo prima era scritto "nudo", senza nessuno
-                sfondo dietro - sopra l'illustrazione fissa del sito, il suo
-                testo si sovrapponeva a quello disegnato nell'immagine,
-                rendendo entrambi illeggibili. Stesso trattamento già usato
-                per le card (bg-white qui diventa semi-trasparente e sfocato
-                grazie alla regola in globals.css), applicato anche qui. */}
-            <div className="flex justify-between items-end mb-8 border-b border-stone-300 pb-4 bg-white rounded-2xl px-4 py-3">
-              <h2 className="text-[14px] font-black uppercase tracking-[0.4em] text-stone-900">Vetrina Top Nuovo</h2>
-              <Link href="/?condition=Nuovo" className="text-[10px] font-black uppercase text-rose-600 hover:text-stone-900 transition-colors">Vedi tutti →</Link>
-            </div>
-            
-            {loading ? (
-               <div className="grid grid-cols-2 lg:grid-cols-5 gap-6">
-                 {Array.from({ length: 5 }).map((_, i) => <SkeletonCard key={`top-skel-${i}`} isTop={true} />)}
-               </div>
-            ) : topItems.length === 0 ? (
-               <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest text-center my-10 bg-white rounded-2xl py-6">Nessun oggetto NUOVO tra i risultati (qui compaiono solo articoli mai usati - guarda "Tutti gli Annunci" qui sotto per usato, baratto e regalo).</p>
-            ) : (
-              <div className="grid grid-cols-2 lg:grid-cols-5 gap-6">
-                {topItems.map(item => (
-                  <div key={item.id} className={`group bg-white p-4 rounded-[2rem] shadow-md border ${item.is_sponsored ? 'border-orange-400 ring-2 ring-orange-400' : 'border-stone-200'} hover:bg-stone-50 transition-all relative overflow-hidden`}>
-                    {item.is_sponsored && (
-                      <div className="absolute top-0 left-0 bg-orange-500 text-white text-[8px] font-black uppercase px-3 py-1.5 rounded-br-2xl z-40 tracking-widest shadow-sm">
-                        TOP ✨
-                      </div>
-                    )}
-                    <button onClick={(e) => handleToggleFavorite(e, item.id)} className="absolute top-6 right-6 z-30 bg-white w-8 h-8 flex items-center justify-center rounded-full shadow-md hover:scale-110 transition-all">
-                      <Heart size={16} className={favorites.includes(item.id) ? "fill-rose-500 text-rose-500" : "text-stone-400"} />
-                    </button>
-                    <Link href={`/announcement/${item.id}`}>
-                      <div className="aspect-square rounded-2xl overflow-hidden bg-stone-100 mb-4 relative border border-stone-200">
-                        <img src={item.image_url || "/nuovo.png"} className="w-full h-full object-contain" alt={item.title} loading="lazy" decoding="async" />
-                      </div>
-                      <h4 className="text-[12px] font-black uppercase truncate text-stone-900 mb-1">{item.title}</h4>
-                      <p className="text-xl font-black text-rose-600 italic">€ {item.price}</p>
-                    </Link>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <section className="mb-20 max-w-[1300px] mx-auto px-2">
-            {/* FIX: stesso identico problema del titolo "Vetrina Top Nuovo"
-                qui sopra - testo senza sfondo, sovrapposto all'illustrazione
-                fissa del sito. */}
-            <div className="flex justify-between items-end mb-8 border-b border-stone-300 pb-4 bg-white rounded-2xl px-4 py-3">
-              <h2 className="text-[14px] font-black uppercase tracking-[0.4em] text-stone-900 opacity-50">Tutti gli Annunci</h2>
-            </div>
-            
-            {loading ? (
-               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-5">
-                 {Array.from({ length: 12 }).map((_, i) => <SkeletonCard key={`reg-skel-${i}`} isTop={false} />)}
-               </div>
-            ) : regularItems.length === 0 ? (
-              <div className="text-center py-20 bg-white rounded-3xl border border-stone-200">
-                 <Search size={64} className="text-stone-300 mx-auto mb-4" strokeWidth={1.5} />
-                 <p className="text-sm font-black text-stone-900 uppercase tracking-widest">Nessun risultato</p>
-                 <p className="text-[10px] font-bold text-stone-500 uppercase mt-2">Prova ad allargare i filtri di ricerca o la fascia di prezzo.</p>
-                 {mainSearch.trim() && (
-                   <div className="mt-10 text-left">
-                     <ExternalResultsFallback query={mainSearch.trim()} />
-                   </div>
-                 )}
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-5">
-                {regularItems.slice(0, visibleCount).map(item => (
-                  <div key={item.id} className={`group bg-white rounded-3xl overflow-hidden shadow-sm border ${item.is_sponsored ? 'border-orange-400' : 'border-stone-200'} hover:bg-stone-50 transition-all flex flex-col relative`}>
-                    {item.is_sponsored && (
-                      <div className="absolute top-0 left-0 bg-orange-500 text-white text-[7px] font-black uppercase px-2 py-1 rounded-br-xl z-40 tracking-widest shadow-sm">
-                        TOP 🌟
-                      </div>
-                    )}
-                    <Link href={`/announcement/${item.id}`} className="aspect-square bg-stone-100 relative block overflow-hidden">
-                      <button onClick={(e) => handleToggleFavorite(e, item.id)} className="absolute top-2 right-2 z-30 bg-white w-8 h-8 flex items-center justify-center rounded-full shadow-sm hover:scale-110 transition-all">
-                        <Heart size={16} className={favorites.includes(item.id) ? "fill-rose-500 text-rose-500" : "text-stone-400"} />
-                      </button>
-                      <img src={item.image_url || "/usato.png"} className="w-full h-full object-contain" alt={item.title} loading="lazy" decoding="async" />
-                    </Link>
-                    <div className="p-3 flex flex-col justify-between flex-grow">
-                      <div>
-                        <h4 className="text-[10px] font-black uppercase line-clamp-2 text-stone-800 leading-tight mb-1">{item.title}</h4>
-                        <p className="text-[14px] font-black text-rose-600 italic">
-                          {item.condition === 'Regalo' || item.condition === 'Baratto' ? '€ 0' : `€ ${item.price}`}
-                        </p>
-                      </div>
-                      <Link href={`/announcement/${item.id}`} className="mt-3 block text-center w-full bg-stone-900 text-white text-[9px] font-black uppercase py-2 rounded-xl hover:bg-rose-600 transition-all">
-                        {item.condition === 'Baratto' ? 'Baratta' : item.condition === 'Regalo' ? 'Ricevi' : 'Acquista'}
-                      </Link>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {!loading && regularItems.length > visibleCount && (
-              <div className="mt-12 flex justify-center w-full">
-                <button 
-                  onClick={() => setVisibleCount(prev => prev + 12)}
-                  className="bg-stone-900 text-white px-10 py-4 rounded-full text-[11px] font-black uppercase tracking-widest hover:bg-rose-600 transition-all shadow-md"
-                >
-                  Carica Altri ({regularItems.length - visibleCount})
-                </button>
-              </div>
-            )}
-          </section>
-
-          <VetrinaCarousel />
-
+          {/* 5. Laboratori & Corsi: qui si creano eventi e corsi. La
+              chat pubblica sta nella stessa fascia a due colonne, quindi
+              si sposta insieme al riquadro. */}
           <div className="w-full max-w-[1300px] mx-auto grid grid-cols-1 xl:grid-cols-2 gap-6 mb-12 px-2">
             
             <div className="w-full h-full rounded-[2rem] border border-stone-200 shadow-md bg-[#f5efdf] p-6 flex flex-col justify-between min-h-[400px] text-stone-900 relative">
@@ -1427,6 +1331,131 @@ function HomePageContent() {
               </div>
             </div>
           </div>
+
+          {/* 6. Tutto il resto, nell'ordine in cui era prima. */}
+          {!catFilter && !typeFilter && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-16 max-w-[1300px] mx-auto px-2">
+              
+              <Tooltip text="Metti in vendita un oggetto mai usato ✨" wrapperClass="relative w-full h-full">
+                <Link href="/add?mode=new" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#f5efdf] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
+                   <div className="absolute inset-0 w-full h-full overflow-hidden">
+                     <img src="/nuovo.png" className="w-full h-full object-cover" alt="Nuovo" loading="lazy" decoding="async" />
+                   </div>
+                   <div className="absolute bottom-3 z-10 w-full px-2">
+                     <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Vendi Nuovo</span>
+                   </div>
+                </Link>
+              </Tooltip>
+              
+              <Tooltip text="Dai una seconda vita ai tuoi oggetti ♻️" wrapperClass="relative w-full h-full">
+                <Link href="/add?mode=used" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#f5efdf] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
+                   <div className="absolute inset-0 w-full h-full overflow-hidden">
+                     <img src="/usato.png" className="w-full h-full object-cover" alt="Usato" loading="lazy" decoding="async" />
+                   </div>
+                   <div className="absolute bottom-3 z-10 w-full px-2">
+                     <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Vendi Usato</span>
+                   </div>
+                </Link>
+              </Tooltip>
+              
+              <Tooltip text="Regala o trova oggetti gratis in regalo 🎁" wrapperClass="relative w-full h-full">
+                <Link href="/add?mode=gift" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#f5efdf] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
+                   <div className="absolute inset-0 w-full h-full overflow-hidden">
+                     <img src="/regalo.png" className="w-full h-full object-cover" alt="Regalo" loading="lazy" decoding="async" />
+                   </div>
+                   <div className="absolute bottom-3 z-10 w-full px-2">
+                     <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Regalo</span>
+                   </div>
+                </Link>
+              </Tooltip>
+
+              <Tooltip text="Scambia i tuoi oggetti senza usare soldi 🤝" wrapperClass="relative w-full h-full">
+                <Link href="/add?mode=barter" className="w-full h-full flex flex-col items-center justify-center rounded-[2rem] border border-stone-200 overflow-hidden bg-[#f5efdf] hover:bg-stone-100 transition-all shadow-md text-center aspect-square relative mx-auto">
+                   <div className="absolute inset-0 w-full h-full overflow-hidden">
+                     <img src="/baratto.png" className="w-full h-full object-cover" alt="Baratto" loading="lazy" decoding="async" />
+                   </div>
+                   <div className="absolute bottom-3 z-10 w-full px-2">
+                     <span className="inline-block bg-stone-950 text-white text-[11px] font-black uppercase tracking-wide px-3 py-1 rounded-xl shadow-md">Baratto</span>
+                   </div>
+                </Link>
+              </Tooltip>
+            </div>
+          )}
+
+          {/* NUOVO: riquadro dedicato al sistema "Curatore Locale" - su
+              richiesta, l'ingresso visibile mancava del tutto: le pagine
+              (/curatore, /curatore/nuovo, /curatore/scansiona) esistevano
+              gia' e funzionavano, ma nessun link nel sito ci portava. */}
+          <section className="mb-20 max-w-[1300px] mx-auto px-2">
+            <div className="bg-white rounded-[2.5rem] border border-stone-200 shadow-md p-8 md:p-10 flex flex-col md:flex-row items-center gap-8">
+              <div className="shrink-0 text-6xl">🤝</div>
+              <div className="flex-1 text-center md:text-left">
+                <span className="inline-block bg-stone-900 text-white text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full mb-3">Novità</span>
+                <h2 className="text-xl md:text-2xl font-black uppercase italic text-stone-900 tracking-tight">Curatore Locale</h2>
+                <p className="text-stone-500 font-bold text-xs mt-2 max-w-xl">
+                  Gestisci la vendita degli oggetti di amici e vicini che non hanno tempo per l&apos;app.
+                  Guadagni una commissione reale su ogni scambio concluso, in totale trasparenza col Proprietario.
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-3 shrink-0 w-full md:w-auto">
+                <Link
+                  href="/curatore"
+                  className="bg-stone-900 text-white px-6 py-4 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-rose-600 transition-all shadow-md text-center whitespace-nowrap"
+                >
+                  Scopri di più
+                </Link>
+                <Link
+                  href="/curatore/nuovo"
+                  className="bg-rose-600 text-white px-6 py-4 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-stone-900 transition-all shadow-md text-center whitespace-nowrap"
+                >
+                  + Nuovo Mandato
+                </Link>
+              </div>
+            </div>
+          </section>
+
+          <section className="mb-20 max-w-[1300px] mx-auto px-2">
+            {/* FIX: questo titolo prima era scritto "nudo", senza nessuno
+                sfondo dietro - sopra l'illustrazione fissa del sito, il suo
+                testo si sovrapponeva a quello disegnato nell'immagine,
+                rendendo entrambi illeggibili. Stesso trattamento già usato
+                per le card (bg-white qui diventa semi-trasparente e sfocato
+                grazie alla regola in globals.css), applicato anche qui. */}
+            <div className="flex justify-between items-end mb-8 border-b border-stone-300 pb-4 bg-white rounded-2xl px-4 py-3">
+              <h2 className="text-[14px] font-black uppercase tracking-[0.4em] text-stone-900">Vetrina Top Nuovo</h2>
+              <Link href="/?condition=Nuovo" className="text-[10px] font-black uppercase text-rose-600 hover:text-stone-900 transition-colors">Vedi tutti →</Link>
+            </div>
+            
+            {loading ? (
+               <div className="grid grid-cols-2 lg:grid-cols-5 gap-6">
+                 {Array.from({ length: 5 }).map((_, i) => <SkeletonCard key={`top-skel-${i}`} isTop={true} />)}
+               </div>
+            ) : topItems.length === 0 ? (
+               <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest text-center my-10 bg-white rounded-2xl py-6">Nessun oggetto NUOVO tra i risultati (qui compaiono solo articoli mai usati - guarda "Tutti gli Annunci" qui sotto per usato, baratto e regalo).</p>
+            ) : (
+              <div className="grid grid-cols-2 lg:grid-cols-5 gap-6">
+                {topItems.map(item => (
+                  <div key={item.id} className={`group bg-white p-4 rounded-[2rem] shadow-md border ${item.is_sponsored ? 'border-orange-400 ring-2 ring-orange-400' : 'border-stone-200'} hover:bg-stone-50 transition-all relative overflow-hidden`}>
+                    {item.is_sponsored && (
+                      <div className="absolute top-0 left-0 bg-orange-500 text-white text-[8px] font-black uppercase px-3 py-1.5 rounded-br-2xl z-40 tracking-widest shadow-sm">
+                        TOP ✨
+                      </div>
+                    )}
+                    <button onClick={(e) => handleToggleFavorite(e, item.id)} className="absolute top-6 right-6 z-30 bg-white w-8 h-8 flex items-center justify-center rounded-full shadow-md hover:scale-110 transition-all">
+                      <Heart size={16} className={favorites.includes(item.id) ? "fill-rose-500 text-rose-500" : "text-stone-400"} />
+                    </button>
+                    <Link href={`/announcement/${item.id}`}>
+                      <div className="aspect-square rounded-2xl overflow-hidden bg-stone-100 mb-4 relative border border-stone-200">
+                        <img src={item.image_url || "/nuovo.png"} className="w-full h-full object-contain" alt={item.title} loading="lazy" decoding="async" />
+                      </div>
+                      <h4 className="text-[12px] font-black uppercase truncate text-stone-900 mb-1">{item.title}</h4>
+                      <p className="text-xl font-black text-rose-600 italic">€ {item.price}</p>
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
 
           <div className="w-full max-w-[800px] mx-auto mt-12 mb-10 rounded-[2rem] overflow-hidden shadow-sm bg-[#020205] relative h-[400px] flex">
             <GalacticOutpost />

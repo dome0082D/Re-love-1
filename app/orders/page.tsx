@@ -78,11 +78,14 @@ export default function OrdersPage() {
     if (!orderToReview) return
     setSubmittingReview(true)
 
+    // FIX: due colonne sbagliate insieme - "reviewed_user_id" (in tabella si
+    // chiama "reviewed_id") e "announcement_id", che nella tabella delle
+    // recensioni non esiste proprio. Il database rispondeva 400 e nessuna
+    // recensione veniva mai salvata.
     const { error } = await supabase.from('reviews').insert([{
       transaction_id: orderToReview.id,
       reviewer_id: myId,
-      reviewed_user_id: orderToReview.seller_id, 
-      announcement_id: orderToReview.announcement_id,
+      reviewed_id: orderToReview.seller_id,
       rating: rating,
       comment: comment
     }])
