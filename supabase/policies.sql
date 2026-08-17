@@ -36,6 +36,47 @@
 -- ============================================================================
 
 
+-- ============================================================================
+-- PASSO 0 - PULIZIA DELLE POLICY VECCHIE   ⚠️ QUESTO PASSO E' INDISPENSABILE
+--
+-- Alla prima esecuzione di questo file il buco sugli annunci NON si e' chiuso.
+-- Verificato sul database subito dopo, con un utente autenticato qualsiasi:
+--
+--     DELETE announcements (di un altro utente) -> 200, righe toccate: 1
+--     PATCH  announcements (di un altro utente) -> 200, righe toccate: 1
+--
+-- Il motivo: sulla tabella esistono gia' altre policy, create tempo fa con
+-- nomi diversi dai nostri. I "drop policy if exists" qui sotto tolgono solo
+-- le policy con i NOSTRI nomi, quindi quelle vecchie restavano al loro posto.
+-- E in PostgreSQL le policy si sommano: basta che UNA permetta l'operazione
+-- perche' sia permessa. Aggiungere una regola severa accanto a una permissiva
+-- non cambia dunque assolutamente nulla.
+--
+-- Questo blocco toglie TUTTE le policy dalle tabelle gestite in questo file,
+-- cosi' che lo stato finale sia esattamente e solamente quello scritto qui
+-- sotto. E' la ragione per cui il file va letto come la fonte unica della
+-- verita' sui permessi: dopo averlo eseguito, valgono queste regole e nessuna
+-- altra.
+-- ============================================================================
+do $$
+declare
+  p record;
+begin
+  for p in
+    select schemaname, tablename, policyname
+    from pg_policies
+    where schemaname = 'public'
+      and tablename in (
+        'notifications','messages','favorites','bids','reviews',
+        'hidden_conversations','vetrina_items','baratti','categories','announcements'
+      )
+  loop
+    execute format('drop policy if exists %I on %I.%I', p.policyname, p.schemaname, p.tablename);
+  end loop;
+end
+$$;
+
+
 -- ---------------------------------------------------------------- NOTIFICHE
 -- Ognuno vede, segna come lette ed elimina SOLO le proprie.
 -- L'inserimento resta escluso di proposito: una notifica la crea il server
@@ -273,3 +314,7 @@ where schemaname = 'public'
     'hidden_conversations','vetrina_items','baratti','categories','announcements'
   )
 order by tablename, cmd, policyname;
+
+-- Se dopo l'esecuzione compaiono policy con nomi diversi da quelli scritti in
+-- questo file, vuol dire che qualcuno le ha aggiunte altrove: vanno tolte,
+-- altrimenti possono riaprire i permessi che qui abbiamo chiuso.
