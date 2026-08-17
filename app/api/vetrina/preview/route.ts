@@ -10,7 +10,7 @@
 // controllo smette di valere alla prima modifica fatta solo qui.
 
 import { NextRequest, NextResponse } from 'next/server'
-import { analizzaIndirizzo, leggiAnteprimaLink } from '@/lib/anteprimaLink'
+import { analizzaIndirizzo, leggiAnteprimaLink, isAccorciatore } from '@/lib/anteprimaLink'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,8 +26,18 @@ export async function POST(req: NextRequest) {
     const risultato = await leggiAnteprimaLink(parsedUrl)
 
     if (!risultato.title && !risultato.image && risultato.price === null) {
+      // Messaggio diverso per i link accorciati: dire "usa l'indirizzo
+      // completo" a chi ha incollato un amzn.to è l'unico consiglio utile,
+      // ma va detto sapendo che quel link è accorciato - altrimenti sembra
+      // un rimprovero senza senso a chi ha incollato proprio quello che
+      // Amazon gli ha dato dal tasto Condividi.
+      const accorciato = isAccorciatore(parsedUrl.hostname)
       return NextResponse.json(
-        { error: "Non è stato possibile leggere questo link. Prova con l'indirizzo completo della pagina del prodotto." },
+        {
+          error: accorciato
+            ? "Non riesco ad aprire questo link abbreviato. Apri il prodotto su Amazon e copia l'indirizzo dalla barra del browser (quello lungo, con /dp/)."
+            : "Non è stato possibile leggere questo link. Prova con l'indirizzo completo della pagina del prodotto.",
+        },
         { status: 200 }
       )
     }

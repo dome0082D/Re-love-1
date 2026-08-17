@@ -351,7 +351,7 @@ function prezzoDaHtmlGenerico(html: string): { price: number; currency: string |
 // articolo da 11,98€ uscivano 8,99€ e 23,99€ a seconda della risposta.
 // Per questi, la lettura affidabile è quella di microlink, che apre la
 // pagina con un browser vero e usa i selettori del riquadro d'acquisto.
-const SITI_DIFFICILI = ['amazon.', 'ebay.', 'aliexpress.', 'zalando.', 'temu.']
+const SITI_DIFFICILI = ['amazon.', 'amzn.', 'a.co', 'ebay.', 'aliexpress.', 'zalando.', 'temu.']
 
 export function isSitoDifficile(hostname: string): boolean {
   const h = hostname.toLowerCase()
@@ -471,27 +471,100 @@ function decodificaEntitaHtml(testo: string): string {
  * seguendo i redirect fino all'indirizzo finale e completo. Per qualsiasi
  * altro sito restituisce l'URL originale invariato.
  */
-async function risolviLinkAccorciato(parsedUrl: URL): Promise<URL> {
-  const accorciatori = ['amzn.eu', 'amzn.to']
-  const isAccorciato = accorciatori.some(d => parsedUrl.hostname === d || parsedUrl.hostname.endsWith('.' + d))
+/** Domini accorciati di Amazon, quelli generati dal tasto "Condividi". */
+const ACCORCIATORI = ['amzn.to', 'amzn.eu', 'a.co', 'amzn.asia']
 
-  if (!isAccorciato) return parsedUrl
+export function isAccorciatore(hostname: string): boolean {
+  const h = hostname.toLowerCase()
+  return ACCORCIATORI.some(d => h === d || h.endsWith('.' + d))
+}
+
+/** Estrae il codice prodotto (ASIN) da un indirizzo Amazon, se c'è. */
+function asinDaUrl(u: URL): string | null {
+  const m = u.pathname.match(/\/(?:dp|gp\/product|gp\/aw\/d)\/([A-Z0-9]{10})/i)
+  return m ? m[1].toUpperCase() : null
+}
+
+/**
+ * Trasforma un link accorciato (amzn.to/…, amzn.eu/…) nell'indirizzo vero e
+ * pulito della pagina prodotto.
+ *
+ * ============================================================================
+ * PERCHÉ ERA ROTTO PER I LINK DI AFFILIAZIONE
+ *
+ * La versione precedente faceva una GET con "redirect: follow" e prendeva
+ * "res.url". Sembra ragionevole, ma su questi indirizzi non funziona:
+ * seguendo i redirect si finisce a scaricare la PAGINA di destinazione, e
+ * Amazon a quel punto risponde alle richieste dai datacenter con una pagina
+ * vuota di blocco. Misurato:
+ *
+ *     GET https://amzn.to/…  (redirect: follow)
+ *     -> 202, corpo di 0 byte, url finale "https://www.amazon.com/"
+ *
+ * Cioè: si perdeva del tutto il prodotto e si finiva sulla home di
+ * amazon.com. Da lì nessun prezzo era leggibile, ed è esattamente l'errore
+ * "Prezzo non leggibile da questo link".
+ *
+ * Ora i redirect si seguono UNO A UNO leggendo l'intestazione "Location",
+ * senza mai scaricare la pagina: quella parte funziona anche quando il corpo
+ * viene bloccato.
+ *
+ *     GET https://amzn.to/…  (redirect: manual)
+ *     -> 302, Location: <indirizzo vero del prodotto>
+ *
+ * In più, una volta trovato il codice prodotto (ASIN), l'indirizzo viene
+ * ricostruito pulito - senza i parametri di tracciamento dell'affiliazione,
+ * che su Amazon possono far comparire varianti o pagine intermedie.
+ * ============================================================================
+ */
+async function risolviLinkAccorciato(parsedUrl: URL): Promise<URL> {
+  if (!isAccorciatore(parsedUrl.hostname)) return parsedUrl
+
+  let corrente = parsedUrl
 
   try {
-    const res = await fetch(parsedUrl.toString(), {
-      method: 'GET',
-      headers: { 'User-Agent': USER_AGENT },
-      redirect: 'follow',
-    })
-    // "res.url" e' l'indirizzo finale dopo tutti i redirect seguiti da fetch.
-    if (res.url) {
-      return new URL(res.url)
+    // Al massimo 6 salti: se ce ne vogliono di più, qualcosa non va e
+    // continuare significherebbe solo restare appesi.
+    for (let salto = 0; salto < 6; salto++) {
+      const res = await fetch(corrente.toString(), {
+        method: 'GET',
+        headers: {
+          'User-Agent': USER_AGENT,
+          'Accept-Language': 'it-IT,it;q=0.9',
+        },
+        redirect: 'manual',
+        signal: AbortSignal.timeout(12000),
+      })
+
+      const destinazione = res.headers.get('location')
+      if (!destinazione) break
+
+      corrente = new URL(destinazione, corrente)
+
+      // Arrivati fuori dagli accorciatori: è l'indirizzo vero.
+      if (!isAccorciatore(corrente.hostname)) break
     }
-    return parsedUrl
   } catch (err) {
-    console.warn('[Vetrina/Preview] Impossibile risolvere il link accorciato, uso quello originale:', err)
+    console.warn('[AnteprimaLink] Link accorciato non risolto, uso quello originale:', err)
     return parsedUrl
   }
+
+  // Se siamo rimasti sull'accorciatore, non abbiamo risolto niente.
+  if (isAccorciatore(corrente.hostname)) return parsedUrl
+
+  // Indirizzo ripulito: solo dominio + /dp/<ASIN>, senza parametri di
+  // tracciamento. Se l'ASIN non c'è (es. siamo finiti sulla home), teniamo
+  // l'indirizzo così com'è.
+  const asin = asinDaUrl(corrente)
+  if (asin) {
+    try {
+      return new URL(`https://${corrente.hostname}/dp/${asin}`)
+    } catch {
+      return corrente
+    }
+  }
+
+  return corrente
 }
 
 // Frasi che compaiono sulle pagine di blocco/errore dei grandi negozi.
