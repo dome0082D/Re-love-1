@@ -57,6 +57,11 @@ export async function POST(req: Request) {
       bonificiAttivi: stato.bonificiAttivi,
       pronto: stato.pronto,
       mancante: stato.mancante,
+      // Dettaglio di cosa Stripe sta ancora aspettando, così il profilo può
+      // dirlo voce per voce invece di un generico "da completare".
+      daCompletare: stato.daCompletare || [],
+      scadenza: stato.scadenza || null,
+      inVerifica: !!stato.inVerifica,
     })
   } catch (err) {
     console.error('[Stripe/AccountStatus] Errore:', err)

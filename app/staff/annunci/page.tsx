@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { azioneStaff } from '@/lib/staffClient'
 import { useRouter } from 'next/navigation'
 
 export default function StaffAnnunciPage() {
@@ -47,16 +48,23 @@ export default function StaffAnnunciPage() {
     setLoading(false)
   }
 
+  // FIX: la cancellazione avveniva dal browser con la chiave anonima. Oggi
+  // funziona solo per un difetto della configurazione del database (che
+  // permette a QUALSIASI utente autenticato di cancellare gli annunci
+  // altrui); appena quel buco viene chiuso - come deve - smetterebbe di
+  // funzionare senza dare errore, cancellando zero righe e dicendo comunque
+  // "Annuncio eliminato". Ora passa dalla route di moderazione, che verifica
+  // lo staff e riferisce quante righe ha davvero rimosso.
   async function handleDelete(id: string) {
     if (!window.confirm('Sei sicuro di voler eliminare definitivamente questo annuncio?')) return;
-    
-    const { error } = await supabase.from('announcements').delete().eq('id', id)
-    if (!error) {
-      setAnnouncements(announcements.filter(a => a.id !== id))
-      alert('Annuncio eliminato.')
-    } else {
-      alert('Errore durante l\'eliminazione: ' + error.message)
+
+    const { ok, errore } = await azioneStaff({ azione: 'elimina-annuncio', announcementId: id })
+    if (!ok) {
+      alert(errore || "Errore durante l'eliminazione.")
+      return
     }
+    setAnnouncements(announcements.filter(a => a.id !== id))
+    alert('Annuncio eliminato.')
   }
 
   return (

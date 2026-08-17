@@ -416,14 +416,14 @@ function AnnouncementContent() {
     setActionLoading(true)
 
     try {
-      const { data: sellerProfile } = await supabase.from('profiles').select('stripe_account_id').eq('id', ann.user_id).single()
-
-      if (!sellerProfile || !sellerProfile.stripe_account_id) {
-        toast.error("Il venditore non ha ancora configurato il suo conto per ricevere pagamenti.");
-        setActionLoading(false);
-        return;
-      }
-
+      // FIX: qui il browser leggeva "stripe_account_id" del venditore e, se
+      // c'era, procedeva. Ma quel campo esiste già dal momento in cui il
+      // venditore preme "Attiva pagamenti", anche senza aver completato
+      // niente su Stripe: l'acquirente arrivava alla pagina di pagamento di
+      // un venditore che non poteva incassare. Il controllo vero (che
+      // interroga Stripe) sta in /api/stripe/checkout: qui lo lasciamo fare
+      // a lui e ci limitiamo a mostrarne il messaggio, invece di dare un
+      // via libera che non vale nulla.
       const finalPrice = (existingOffer && existingOffer.status === 'Accettata') 
         ? existingOffer.offer_price 
         : ann.price;

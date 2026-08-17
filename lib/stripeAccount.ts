@@ -28,8 +28,56 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 export const STRIPE_API_VERSION = '2026-03-25.dahlia' as const
 
+// ============================================================================
+// CONTROLLO DELLA CHIAVE — trovato un problema grave nella configurazione.
+//
+// In .env, STRIPE_SECRET_KEY conteneva la chiave PUBBLICABILE (pk_live_...),
+// lo stesso identico valore di NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY. Non è una
+// chiave segreta, e Stripe rifiuta OGNI chiamata fatta con essa:
+//
+//     GET https://api.stripe.com/v1/balance
+//     -> 403 {"code":"secret_key_required",
+//             "message":"This API call cannot be made with a publishable API key."}
+//
+// Con quella chiave non funziona NIENTE lato server: creazione dei conti
+// venditore, pagine di pagamento, verifica dei conti, bonifici ai venditori.
+// E l'errore arrivava sempre come un 403 generico sepolto nei log, che
+// somiglia a un problema di permessi qualsiasi: da qui la difficoltà a
+// capire cosa stesse succedendo davvero.
+//
+// La chiave giusta si copia da Stripe -> Sviluppatori -> Chiavi API ->
+// "Chiave segreta", e comincia per "sk_live_" (o "rk_live_" se ristretta).
+// ============================================================================
+
+/** Riconosce una chiave che NON può funzionare lato server. */
+export function chiaveSegretaValida(chiave: string | undefined): boolean {
+  if (!chiave) return false
+  return chiave.startsWith('sk_') || chiave.startsWith('rk_')
+}
+
+export function problemaChiaveStripe(): string | null {
+  const chiave = process.env.STRIPE_SECRET_KEY
+  if (!chiave) return 'STRIPE_SECRET_KEY non è configurata.'
+  if (chiave.startsWith('pk_')) {
+    return 'STRIPE_SECRET_KEY contiene una chiave PUBBLICABILE (pk_...). ' +
+      'Serve la chiave segreta (sk_...), che trovi su Stripe in Sviluppatori > Chiavi API.'
+  }
+  if (!chiaveSegretaValida(chiave)) {
+    return 'STRIPE_SECRET_KEY non sembra una chiave Stripe valida (deve iniziare con sk_ o rk_).'
+  }
+  return null
+}
+
 let stripeSingleton: Stripe | null = null
 export function getStripe(): Stripe {
+  // Meglio fermarsi qui con un messaggio chiaro che lasciar partire una
+  // chiamata destinata a un 403 incomprensibile.
+  const problema = problemaChiaveStripe()
+  if (problema) {
+    console.error('[Stripe] CONFIGURAZIONE NON VALIDA:', problema)
+    throw new Error(`Pagamenti non configurati. ${problema}`)
+  }
+
   if (!stripeSingleton) {
     stripeSingleton = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
       apiVersion: STRIPE_API_VERSION,
@@ -51,6 +99,12 @@ export interface StatoConto {
   pronto: boolean
   /** Cosa manca ancora, così la pagina può dirlo all'utente. */
   mancante: string | null
+  /** Voci che Stripe sta ancora aspettando (documenti, dati fiscali...). */
+  daCompletare?: string[]
+  /** Entro quando vanno completate, se Stripe ha fissato una scadenza. */
+  scadenza?: string | null
+  /** Stripe ha ricevuto i documenti e li sta controllando. */
+  inVerifica?: boolean
 }
 
 const NON_COLLEGATO: StatoConto = {
@@ -60,6 +114,9 @@ const NON_COLLEGATO: StatoConto = {
   bonificiAttivi: false,
   pronto: false,
   mancante: 'Non hai ancora collegato un conto per ricevere i pagamenti.',
+  daCompletare: [],
+  scadenza: null,
+  inVerifica: false,
 }
 
 // Piccola cache in memoria: senza, ogni caricamento di pagina che deve
@@ -87,34 +144,84 @@ export async function statoContoStripe(stripeAccountId: string | null | undefine
   try {
     const account = await getStripe().accounts.retrieve(stripeAccountId)
 
+    const req = account.requirements
+    const daCompletareSubito = [...(req?.currently_due || []), ...(req?.past_due || [])]
+
     const datiInviati = !!account.details_submitted
     const incassiAttivi = !!account.charges_enabled
     const bonificiAttivi = !!account.payouts_enabled
-    const pronto = incassiAttivi && bonificiAttivi
+
+    // ========================================================================
+    // PERCHÉ IL CONTROLLO È PIÙ SEVERO DI "charges_enabled && payouts_enabled"
+    //
+    // È questa la ragione per cui una configurazione INCOMPLETA poteva
+    // risultare accettata. Su un account Express, Stripe concede un periodo
+    // di tolleranza: attiva subito incassi e bonifici e lascia all'utente
+    // qualche giorno per completare documenti e verifiche. In quella
+    // finestra l'account ha:
+    //
+    //     charges_enabled: true, payouts_enabled: true
+    //     requirements.currently_due: ["individual.id_number", ...]
+    //     requirements.current_deadline: <fra qualche giorno>
+    //
+    // Guardando solo i primi due campi sembra tutto a posto - e infatti il
+    // sito diceva "sei pronto a ricevere pagamenti reali". Poi la scadenza
+    // passa, Stripe disattiva l'account, e il venditore si ritrova con
+    // vendite fatte e soldi che non arrivano.
+    //
+    // Consideriamo "pronto" solo un conto che ha davvero finito: modulo
+    // inviato, nessun documento ancora richiesto, nessun blocco in corso.
+    // ========================================================================
+    const pronto =
+      incassiAttivi &&
+      bonificiAttivi &&
+      datiInviati &&
+      daCompletareSubito.length === 0 &&
+      !req?.disabled_reason
 
     let mancante: string | null = null
     if (!pronto) {
       if (!datiInviati) {
-        mancante = 'Hai iniziato la configurazione su Stripe ma non l\'hai completata.'
-      } else if (account.requirements?.disabled_reason) {
-        mancante = 'Stripe sta ancora verificando i tuoi dati, oppure ne mancano alcuni.'
-      } else {
+        mancante = "Hai iniziato la configurazione su Stripe ma non l'hai completata."
+      } else if (daCompletareSubito.length > 0) {
+        const scadenza = req?.current_deadline
+          ? ` Hai tempo fino al ${new Date(req?.current_deadline * 1000).toLocaleDateString('it-IT')}.`
+          : ''
+        mancante = `Stripe aspetta ancora dei dati da te (${daCompletareSubito.length} ${daCompletareSubito.length === 1 ? 'voce' : 'voci'} da completare).${scadenza}`
+      } else if (req?.disabled_reason) {
+        mancante = 'Stripe ha sospeso il tuo conto in attesa di verifiche.'
+      } else if (!incassiAttivi || !bonificiAttivi) {
         mancante = 'Stripe non ha ancora abilitato incassi e bonifici sul tuo conto.'
+      } else {
+        mancante = 'Configurazione non ancora completa.'
       }
     }
 
-    const stato: StatoConto = { collegato: true, datiInviati, incassiAttivi, bonificiAttivi, pronto, mancante }
+    const stato: StatoConto = {
+      collegato: true, datiInviati, incassiAttivi, bonificiAttivi, pronto, mancante,
+      daCompletare: daCompletareSubito,
+      scadenza: req?.current_deadline ? new Date(req?.current_deadline * 1000).toISOString() : null,
+      inVerifica: (req?.pending_verification || []).length > 0,
+    }
     cache.set(stripeAccountId, { quando: Date.now(), stato })
     return stato
   } catch (err) {
     console.error('[StripeAccount] Impossibile leggere lo stato del conto:', err)
+    // Se il problema e' la chiave sbagliata, dirlo apertamente: altrimenti
+    // sembra un guasto momentaneo e si continua a riprovare all'infinito.
+    const problema = problemaChiaveStripe()
     return {
       collegato: true,
       datiInviati: false,
       incassiAttivi: false,
       bonificiAttivi: false,
       pronto: false,
-      mancante: 'Non è stato possibile verificare il tuo conto con Stripe. Riprova fra poco.',
+      mancante: problema
+        ? 'I pagamenti non sono configurati correttamente sul sito. Contatta lo staff.'
+        : 'Non è stato possibile verificare il tuo conto con Stripe. Riprova fra poco.',
+      daCompletare: [],
+      scadenza: null,
+      inVerifica: false,
     }
   }
 }

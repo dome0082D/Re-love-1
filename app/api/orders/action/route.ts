@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
 import { notificaUtente } from '@/lib/pushServer';
+import { statoContoStripe } from '@/lib/stripeAccount';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
   apiVersion: '2026-03-25.dahlia',
@@ -108,7 +109,13 @@ export async function POST(req: Request) {
           const ownerStripeId = ownerProfileRes.data?.stripe_account_id
           const curatorStripeId = curatorProfileRes.data?.stripe_account_id
 
-          if (!ownerStripeId || !curatorStripeId) {
+          // Stessa verifica del percorso normale: un conto che esiste non e'
+          // per forza un conto che puo' ricevere denaro.
+          const [statoOwner, statoCurator] = await Promise.all([
+            statoContoStripe(ownerStripeId),
+            statoContoStripe(curatorStripeId),
+          ]);
+          if (!statoOwner.pronto || !statoCurator.pronto) {
             console.error(`Mandato ${transaction.mandate_id}: Proprietario o Curatore senza stripe_account_id - transazione ${transactionId} confermata ma fondi NON trasferiti.`);
             return NextResponse.json({ error: "Il Proprietario o il Curatore non hanno un conto Stripe collegato. Contatta lo staff." }, { status: 400 });
           }
@@ -158,7 +165,11 @@ export async function POST(req: Request) {
           const ownerStripeId = ownerProfileRes.data?.stripe_account_id
           const promoterStripeId = promoterProfileRes.data?.stripe_account_id
 
-          if (!ownerStripeId || !promoterStripeId) {
+          const [statoOwnerArena, statoPromotore] = await Promise.all([
+            statoContoStripe(ownerStripeId),
+            statoContoStripe(promoterStripeId),
+          ]);
+          if (!statoOwnerArena.pronto || !statoPromotore.pronto) {
             console.error(`Arena: Proprietario o Promotore senza stripe_account_id - transazione ${transactionId} confermata ma fondi NON trasferiti.`);
             return NextResponse.json({ error: "Il Proprietario o il Promotore non hanno un conto Stripe collegato. Contatta lo staff." }, { status: 400 });
           }
@@ -198,12 +209,19 @@ export async function POST(req: Request) {
           .eq('id', transaction.seller_id)
           .single();
 
-        if (!seller?.stripe_account_id) {
-          // Lo stato è già "Ricevuto": lo segnaliamo chiaramente nei log per
-          // un controllo manuale, dato che qui non possiamo più tornare
-          // indietro allo stato precedente senza rischiare confusione.
-          console.error(`Venditore ${transaction.seller_id} senza stripe_account_id - transazione ${transactionId} confermata ma fondi NON trasferiti.`);
-          return NextResponse.json({ error: "Il venditore non ha un account Stripe collegato. Contatta lo staff." }, { status: 400 });
+        // FIX: qui bastava che "stripe_account_id" esistesse. Ma un conto puo'
+        // esistere ed essere sospeso, incompleto o con documenti scaduti: in
+        // quel caso stripe.transfers.create fallisce, e a quel punto lo stato
+        // e' gia' "Ricevuto" - soldi bloccati e ordine chiuso a meta'. Meglio
+        // accorgersene PRIMA di muovere il denaro.
+        const statoVenditore = await statoContoStripe(seller?.stripe_account_id);
+        if (!statoVenditore.pronto) {
+          console.error(`Venditore ${transaction.seller_id}: conto non pronto (${statoVenditore.mancante}) - transazione ${transactionId} confermata ma fondi NON trasferiti.`);
+          return NextResponse.json({
+            error: statoVenditore.collegato
+              ? "Il venditore non ha completato la configurazione del conto: i fondi restano bloccati. Contatta lo staff."
+              : "Il venditore non ha un conto collegato per ricevere pagamenti. Contatta lo staff.",
+          }, { status: 400 });
         }
 
         // Calcoliamo il 90% (Trasformando i test in centesimi per Stripe)
@@ -215,7 +233,7 @@ export async function POST(req: Request) {
           await stripe.transfers.create({
             amount: sellerShareCents,
             currency: 'eur',
-            destination: seller.stripe_account_id,
+            destination: seller!.stripe_account_id,
             transfer_group: transaction.announcement_id, // Colleghiamo il trasferimento al pagamento originale
           });
           console.log(`Fondi sbloccati: €${sellerShareCents / 100} inviati al venditore.`);

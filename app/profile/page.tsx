@@ -40,13 +40,48 @@ interface AdItem {
   user_id?: string;
 }
 
+// Stripe elenca cio' che manca con nomi tecnici in inglese
+// ("individual.verification.document"). Tradotti, perche' un utente non ha
+// modo di capire cosa gli venga chiesto.
+const RICHIESTE_STRIPE: Record<string, string> = {
+  'individual.verification.document': "Documento d'identità",
+  'individual.verification.additional_document': 'Un secondo documento',
+  'individual.id_number': 'Codice fiscale',
+  'individual.address.line1': 'Indirizzo di residenza',
+  'individual.dob.day': 'Data di nascita',
+  'individual.dob.month': 'Data di nascita',
+  'individual.dob.year': 'Data di nascita',
+  'individual.first_name': 'Nome',
+  'individual.last_name': 'Cognome',
+  'individual.phone': 'Numero di telefono',
+  'individual.email': 'Indirizzo email',
+  'external_account': 'IBAN su cui ricevere i pagamenti',
+  'business_profile.url': 'Sito o profilo di vendita',
+  'business_profile.mcc': 'Categoria di attività',
+  'tos_acceptance.date': 'Accettazione delle condizioni Stripe',
+  'tos_acceptance.ip': 'Accettazione delle condizioni Stripe',
+}
+
+function descriviRichiestaStripe(voce: string): string {
+  if (RICHIESTE_STRIPE[voce]) return RICHIESTE_STRIPE[voce]
+  // Voce non prevista: almeno la rendiamo leggibile invece di mostrarla grezza.
+  return voce.split('.').pop()?.replace(/_/g, ' ') || voce
+}
+
 function ProfileContent() {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<ProfileData | null>(null)
   const [loading, setLoading] = useState(true)
   const [stripeLoading, setStripeLoading] = useState(false)
   // null = verifica ancora in corso
-  const [statoStripe, setStatoStripe] = useState<{ collegato: boolean; pronto: boolean; mancante: string | null } | null>(null)
+  const [statoStripe, setStatoStripe] = useState<{
+    collegato: boolean
+    pronto: boolean
+    mancante: string | null
+    daCompletare?: string[]
+    scadenza?: string | null
+    inVerifica?: boolean
+  } | null>(null)
   
   const [isEditing, setIsEditing] = useState(false)
   const [editForm, setEditForm] = useState<EditForm>({ 
@@ -237,7 +272,14 @@ function ProfileContent() {
         setStatoStripe({ collegato: false, pronto: false, mancante: data.error || 'Verifica non riuscita.' })
         return
       }
-      setStatoStripe({ collegato: !!data.collegato, pronto: !!data.pronto, mancante: data.mancante || null })
+      setStatoStripe({
+        collegato: !!data.collegato,
+        pronto: !!data.pronto,
+        mancante: data.mancante || null,
+        daCompletare: data.daCompletare || [],
+        scadenza: data.scadenza || null,
+        inVerifica: !!data.inVerifica,
+      })
     } catch (err) {
       console.error('Errore verifica conto Stripe:', err)
       setStatoStripe({ collegato: false, pronto: false, mancante: 'Verifica non riuscita.' })
@@ -272,23 +314,38 @@ function ProfileContent() {
     }
   }
 
+  // FIX: qui l'eliminazione era riservata alla sola email dello staff. Ma
+  // questa griglia mostra I TUOI annunci, sul TUO profilo: il risultato era
+  // che nessun utente poteva togliere un proprio annuncio da nessuna parte
+  // del sito, e chi provava si sentiva rispondere "Solo lo staff può
+  // cancellare gli annunci" sulla propria roba. Ora l'autore cancella i
+  // propri, e controlliamo quante righe sono state davvero rimosse invece di
+  // fidarci dell'assenza di errore.
   async function handleDelete(e: React.MouseEvent, id: string) {
-    e.preventDefault(); 
+    e.preventDefault();
     e.stopPropagation();
 
-    if (!user?.email || user.email !== 'dome0082@gmail.com') {
-      alert("Solo lo staff può cancellare gli annunci.");
+    if (!user) return;
+    if (!window.confirm("Vuoi davvero eliminare questo annuncio? L'azione è definitiva.")) return;
+
+    const { data, error } = await supabase
+      .from('announcements')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', user.id) // non si tocca la roba di altri, nemmeno per sbaglio
+      .select('id');
+
+    if (error) {
+      alert("Errore durante l'eliminazione: " + error.message);
       return;
     }
-    
-    if (!window.confirm("Vuoi davvero eliminare questo annuncio?")) return;
-    const { error } = await supabase.from('announcements').delete().eq('id', id);
-    if (!error) {
-      setMyAds(myAds.filter(a => a.id !== id));
-      setSoldAds(soldAds.filter(a => a.id !== id));
-    } else {
-      alert("Errore durante l'eliminazione.");
+    if (!data || data.length === 0) {
+      alert("L'annuncio non è stato eliminato. Ricarica la pagina e riprova.");
+      return;
     }
+
+    setMyAds(myAds.filter(a => a.id !== id));
+    setSoldAds(soldAds.filter(a => a.id !== id));
   }
 
   const renderGrid = (items: AdItem[], emptyMessage: string, isOwner: boolean = false) => {
@@ -312,11 +369,12 @@ function ProfileContent() {
                    <Link href={`/edit/${ann.id}`} className="text-center bg-stone-100 text-stone-600 text-[8px] font-black uppercase py-2 rounded-lg hover:bg-stone-900 hover:text-white transition-all">
                      ✏️ Modifica
                    </Link>
-                   {user?.email === 'dome0082@gmail.com' && (
-                     <button onClick={(e) => handleDelete(e, ann.id)} className="bg-stone-50 text-rose-500 text-[8px] font-black uppercase py-2 rounded-lg hover:bg-rose-500 hover:text-white transition-all">
-                       🗑️ Elimina
-                     </button>
-                   )}
+                   {/* Il pulsante compariva solo all'email dello staff: sul
+                       proprio profilo, l'autore non poteva togliere i propri
+                       annunci. Ora lo vede chi li ha pubblicati. */}
+                   <button onClick={(e) => handleDelete(e, ann.id)} className="bg-stone-50 text-rose-500 text-[8px] font-black uppercase py-2 rounded-lg hover:bg-rose-500 hover:text-white transition-all">
+                     🗑️ Elimina
+                   </button>
                  </div>
                ) : (
                  <Link href={`/announcement/${ann.id}`} className="mt-3 block text-center w-full bg-stone-50 text-stone-800 text-[9px] font-black uppercase py-2 rounded-lg hover:bg-stone-900 hover:text-white transition-all">
@@ -488,13 +546,36 @@ function ProfileContent() {
           ) : statoStripe.collegato ? (
             <>
               <div className="bg-orange-50 border border-orange-200 p-6 rounded-[2rem] flex items-start gap-4 mt-2 mb-5">
-                <span className="text-xl">⏳</span>
-                <div>
-                  <p className="text-[10px] font-black uppercase text-orange-700 tracking-widest">Configurazione da completare</p>
+                <span className="text-xl">{statoStripe.inVerifica ? '🔍' : '⏳'}</span>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black uppercase text-orange-700 tracking-widest">
+                    {statoStripe.inVerifica ? 'Verifica in corso' : 'Configurazione da completare'}
+                  </p>
                   <p className="text-[11px] text-orange-700 font-bold italic mt-1">
                     {statoStripe.mancante || 'Stripe non ha ancora abilitato il tuo conto.'}
                   </p>
-                  <p className="text-[10px] text-orange-600 font-bold mt-2">
+
+                  {/* NUOVO: il dettaglio di cosa manca davvero. Prima l'utente
+                      leggeva solo "configurazione da completare" e non aveva
+                      modo di sapere quali documenti Stripe stesse aspettando. */}
+                  {statoStripe.daCompletare && statoStripe.daCompletare.length > 0 && (
+                    <ul className="mt-3 space-y-1">
+                      {statoStripe.daCompletare.slice(0, 6).map(voce => (
+                        <li key={voce} className="text-[10px] font-bold text-orange-800 flex gap-2">
+                          <span className="text-orange-400">•</span>
+                          <span className="break-words">{descriviRichiestaStripe(voce)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  {statoStripe.scadenza && (
+                    <p className="text-[10px] font-black uppercase tracking-widest text-rose-600 mt-3">
+                      Scadenza: {new Date(statoStripe.scadenza).toLocaleDateString('it-IT')}
+                    </p>
+                  )}
+
+                  <p className="text-[10px] text-orange-600 font-bold mt-3">
                     Finché non è completata non puoi vendere né ricevere denaro.
                   </p>
                 </div>
@@ -519,15 +600,19 @@ function ProfileContent() {
           )}
         </div>
 
+        {/* FIX: questi due riquadri avevano l'aspetto di pulsanti - cursore a
+            manina, effetto al passaggio del mouse - ma NON erano collegati a
+            niente: né Link né onClick. Toccarli non faceva assolutamente
+            nulla. Ora portano davvero dove promettono. */}
         <div className="grid grid-cols-2 gap-4">
-          <div className="bg-white rounded-[2rem] p-6 border border-stone-100 shadow-sm text-center flex flex-col items-center justify-center group cursor-pointer hover:border-rose-300 transition-all">
+          <Link href="/dashboard/acquisti" className="bg-white rounded-[2rem] p-6 border border-stone-100 shadow-sm text-center flex flex-col items-center justify-center group hover:border-rose-300 transition-all">
             <span className="text-2xl mb-2 group-hover:scale-110 transition-transform">📦</span>
             <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest">I miei acquisti</p>
-          </div>
-          <div className="bg-white rounded-[2rem] p-6 border border-stone-100 shadow-sm text-center flex flex-col items-center justify-center group cursor-pointer hover:border-rose-300 transition-all">
+          </Link>
+          <Link href="/dashboard/preferiti" className="bg-white rounded-[2rem] p-6 border border-stone-100 shadow-sm text-center flex flex-col items-center justify-center group hover:border-rose-300 transition-all">
             <span className="text-2xl mb-2 group-hover:scale-110 transition-transform">❤️</span>
             <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest">I miei preferiti</p>
-          </div>
+          </Link>
         </div>
 
         <div className="bg-white rounded-[2.5rem] p-8 border border-stone-200 shadow-sm">

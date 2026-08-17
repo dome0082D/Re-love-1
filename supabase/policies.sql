@@ -197,6 +197,42 @@ create policy "vetrina: elimino le mie"
   using (auth.uid() = user_id);
 
 
+-- ---------------------------------------------------------------- ANNUNCI
+-- ATTENZIONE, QUESTO E' UN BUCO DI SICUREZZA APERTO.
+-- Verificato in produzione: un utente autenticato QUALSIASI riesce oggi a
+-- cancellare l'annuncio di CHIUNQUE ALTRO.
+--
+--     DELETE announcements (di un altro utente) -> 200, righe toccate: 1
+--
+-- Non serve essere staff e non serve nessun trucco: basta l'id dell'annuncio.
+-- Le policy qui sotto limitano modifica e cancellazione al proprietario. La
+-- moderazione dello staff continua a funzionare perche' passa da
+-- /api/staff/azione, che usa la chiave di servizio e scavalca la RLS dopo
+-- aver verificato chi sta chiedendo.
+alter table public.announcements enable row level security;
+
+drop policy if exists "annunci: sono pubblici" on public.announcements;
+create policy "annunci: sono pubblici"
+  on public.announcements for select
+  using (true);
+
+drop policy if exists "annunci: pubblico i miei" on public.announcements;
+create policy "annunci: pubblico i miei"
+  on public.announcements for insert
+  with check (auth.uid() = user_id);
+
+drop policy if exists "annunci: modifico i miei" on public.announcements;
+create policy "annunci: modifico i miei"
+  on public.announcements for update
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+drop policy if exists "annunci: elimino i miei" on public.announcements;
+create policy "annunci: elimino i miei"
+  on public.announcements for delete
+  using (auth.uid() = user_id);
+
+
 -- --------------------------------------------------------------- CATEGORIE
 -- L'elenco delle categorie e' un dato pubblico del sito (serve nel menu
 -- laterale). Senza una policy di lettura la tabella rispondeva 200 con un
@@ -234,6 +270,6 @@ from pg_policies
 where schemaname = 'public'
   and tablename in (
     'notifications','messages','favorites','bids','reviews',
-    'hidden_conversations','vetrina_items','baratti','categories'
+    'hidden_conversations','vetrina_items','baratti','categories','announcements'
   )
 order by tablename, cmd, policyname;

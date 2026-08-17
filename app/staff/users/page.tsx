@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { azioneStaff } from '@/lib/staffClient'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
@@ -75,9 +76,18 @@ export default function StaffUsersPage() {
     // FIX: prima l'esito non veniva controllato - un salvataggio fallito
     // ricaricava comunque la lista (mostrando ancora il nome vecchio) senza
     // nessun avviso che qualcosa non fosse andato a buon fine.
-    const { error } = await supabase.from('profiles').update({ first_name: newName }).eq('id', p.id);
-    if (error) {
-      alert("Errore durante il salvataggio: " + error.message)
+    // FIX (SEGUITO): il controllo dell'errore da solo non bastava. La RLS
+    // impedisce a un utente - staff compreso - di modificare il profilo di
+    // un altro, ma senza restituire errore: la richiesta rispondeva 200
+    // toccando ZERO righe, quindi si ricaricava l'elenco col nome vecchio e
+    // nessun avviso. Ora passa dalla route di moderazione.
+    const { ok, errore } = await azioneStaff({
+      azione: 'modifica-profilo',
+      userId: p.id,
+      campi: { first_name: newName },
+    })
+    if (!ok) {
+      alert("Errore durante il salvataggio: " + (errore || 'operazione non riuscita'))
       return
     }
     loadProfiles();

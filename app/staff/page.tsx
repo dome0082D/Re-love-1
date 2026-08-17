@@ -1,655 +1,800 @@
 'use client'
 export const dynamic = 'force-dynamic'
 
-import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
-import { inviaNotifica } from '@/lib/pushNotify'
-import Link from 'next/link'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { supabase } from '@/lib/supabase'
+import { toast } from 'sonner'
+import { caricaDatiStaff, azioneStaff, type DatiStaff, type AnnuncioStaff } from '@/lib/staffClient'
+import {
+  Crown, Users, Package, Star, Scale, ShieldAlert, FileText, Sparkles,
+  Handshake, Search, RefreshCw, Trash2, Ban, CheckCircle2, Truck, Pencil, X, Settings, AlertTriangle,
+} from 'lucide-react'
 
-// --- INTERFACCE DATI ---
-interface Transaction {
-  id: string;
-  created_at: string;
-  status: string;
-  buyer_id: string;
-  seller_id: string;
-  stripe_payment_intent_id: string;
-  courier_name?: string;      
-  tracking_number?: string;   
-  package_id_code?: string;   
-  announcements: {
-    id: string;
-    title: string;
-    price: number;
-    condition: string;
-    image_url: string;
-  };
-  buyer?: { email: string };
-  seller?: { email: string };
+// ============================================================================
+// PANNELLO STAFF
+//
+// Rifatto per due motivi insieme.
+//
+// 1. FUNZIONAVA A META'. Leggeva e scriveva tutto dal browser con la chiave
+//    anonima: per il database lo staff e' un utente come gli altri, quindi la
+//    RLS gli nascondeva le righe altrui e gli rifiutava le scritture. Provato
+//    in produzione con una sessione autenticata:
+//        SELECT transactions    -> 0 righe   (sezione Ordini sempre vuota)
+//        SELECT chat_violations -> 0 righe   (Segnalazioni sempre vuota)
+//        UPDATE profiles (ban)  -> 0 righe   (nessuno e' mai stato bloccato)
+//        UPDATE disputes        -> 0 righe   (nessuna pratica mai chiusa)
+//        DELETE reviews         -> 0 righe   (nessuna recensione mai rimossa)
+//    E siccome PostgREST risponde 200 e non un errore, il pannello diceva
+//    "fatto" ogni volta. Ora tutto passa da /api/staff/*, che verifica chi
+//    chiede e riferisce quante righe ha davvero toccato.
+//
+// 2. ERA DISORDINATO. Sezioni una sotto l'altra in una pagina unica
+//    lunghissima, senza modo di cercare né di filtrare. Ora: riepilogo in
+//    cima, schede per area, ricerca in ogni elenco.
+// ============================================================================
+
+type Scheda = 'riepilogo' | 'utenti' | 'ordini' | 'annunci' | 'tribunale' | 'segnalazioni' | 'recensioni' | 'vetrina' | 'baratti' | 'sistema'
+
+const SCHEDE: { id: Scheda; titolo: string; icona: React.ReactNode }[] = [
+  { id: 'riepilogo', titolo: 'Riepilogo', icona: <Crown size={15} /> },
+  { id: 'utenti', titolo: 'Utenti', icona: <Users size={15} /> },
+  { id: 'ordini', titolo: 'Ordini', icona: <Package size={15} /> },
+  { id: 'annunci', titolo: 'Annunci', icona: <FileText size={15} /> },
+  { id: 'tribunale', titolo: 'Controversie', icona: <Scale size={15} /> },
+  { id: 'segnalazioni', titolo: 'Segnalazioni', icona: <ShieldAlert size={15} /> },
+  { id: 'recensioni', titolo: 'Recensioni', icona: <Star size={15} /> },
+  { id: 'vetrina', titolo: 'Vetrina', icona: <Sparkles size={15} /> },
+  { id: 'baratti', titolo: 'Baratti', icona: <Handshake size={15} /> },
+  { id: 'sistema', titolo: 'Sistema', icona: <Settings size={15} /> },
+]
+
+interface VenditoreDiagnosi {
+  email: string
+  stato: string
+  mancante: string | null
 }
 
-interface Profile {
-  id: string;
-  email: string;
-  first_name?: string;
-  last_name?: string;
-  city?: string;
-  address?: string;
-  full_address?: string;
-  created_at: string;
-  stripe_account_id?: string;
-  role?: string;
-  nickname?: string;
-  is_banned?: boolean;
-  banned_reason?: string;
+interface Diagnosi {
+  error?: string
+  configurazione?: Record<string, string | null>
+  stripeRaggiungibile?: boolean
+  dettaglioStripe?: string | null
+  contiCollegati?: number
+  venditoriPronti?: number
+  venditori?: VenditoreDiagnosi[]
 }
 
-interface Review {
-  id: string;
-  rating: number;
-  comment: string;
-  reviewer_id?: string;
-  reviewed_id?: string;
-  reviewer?: { email: string };
-  reviewed?: { email: string };
-}
+const STATI_ORDINE = ['held', 'Pagato', 'Spedito', 'Ricevuto', 'Concluso', 'In Contestazione', 'Rimborsato']
 
-interface ChatViolation {
-  id: string;
-  sender_id: string;
-  receiver_id: string;
-  message_content: string;
-  reviewed: boolean;
-  created_at: string;
-  senderEmail?: string;
-  receiverEmail?: string;
-  senderBanned?: boolean;
-  receiverBanned?: boolean;
-}
-
-export default function AdminDashboard() {
-  const [transactions, setTransactions] = useState<Transaction[]>([])
-  const [profiles, setProfiles] = useState<Profile[]>([])
-  const [reviews, setReviews] = useState<Review[]>([])
-  
-  // STATO PER IL TRIBUNALE E SUPPORTO
-  const [disputes, setDisputes] = useState<any[]>([])
-
-  // NUOVO: segnalazioni automatiche di scambio contatti in chat
-  const [violations, setViolations] = useState<ChatViolation[]>([])
-
-  const [loading, setLoading] = useState(true)
-  const [actionLoading, setActionLoading] = useState(false)
-
+export default function PannelloStaff() {
   const router = useRouter()
-  const ADMIN_EMAIL = 'dome0082@gmail.com'
+  const [dati, setDati] = useState<DatiStaff | null>(null)
+  const [caricamento, setCaricamento] = useState(true)
+  const [errore, setErrore] = useState<string | null>(null)
+  const [scheda, setScheda] = useState<Scheda>('riepilogo')
+  const [cerca, setCerca] = useState('')
+  const [inCorso, setInCorso] = useState<string | null>(null)
+  const [modificaAnnuncio, setModificaAnnuncio] = useState<AnnuncioStaff | null>(null)
+  const [diagnosi, setDiagnosi] = useState<Diagnosi | null>(null)
+  const [caricoDiagnosi, setCaricoDiagnosi] = useState(false)
+
+  // La diagnosi si carica solo quando serve: interroga Stripe conto per
+  // conto, quindi non ha senso farlo a ogni apertura del pannello.
+  async function caricaDiagnosi() {
+    setCaricoDiagnosi(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch('/api/staff/stripe-check', { headers: { Authorization: `Bearer ${session?.access_token}` } })
+      setDiagnosi(await res.json())
+    } catch {
+      setDiagnosi({ error: 'Diagnosi non riuscita.' })
+    } finally {
+      setCaricoDiagnosi(false)
+    }
+  }
+
+  async function carica(silenzioso = false) {
+    if (!silenzioso) setCaricamento(true)
+    const { dati: d, errore: e } = await caricaDatiStaff()
+    if (e) {
+      setErrore(e)
+      setDati(null)
+    } else {
+      setErrore(null)
+      setDati(d!)
+    }
+    setCaricamento(false)
+  }
 
   useEffect(() => {
-    checkAdminAndFetchData()
+    async function avvia() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { router.push('/login'); return }
+      await carica()
+    }
+    avvia()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  async function checkAdminAndFetchData() {
-    setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    
-    if (!user || user.email !== ADMIN_EMAIL) {
-      router.push('/')
+  // Ogni azione passa di qui: una sola conferma, un solo punto in cui si
+  // gestiscono errore e ricarica.
+  async function esegui(chiave: string, corpo: Record<string, unknown>, conferma?: string, successo?: string) {
+    if (conferma && !confirm(conferma)) return
+    setInCorso(chiave)
+    const { ok, errore: err } = await azioneStaff(corpo)
+    setInCorso(null)
+    if (!ok) {
+      toast.error(err || 'Operazione non riuscita.')
       return
     }
-
-    try {
-      // 1. Recupero Transazioni con Annunci
-      const { data: txs, error: txError } = await supabase
-        .from('transactions')
-        .select('*, announcements(*)')
-        .order('created_at', { ascending: false })
-      if (txError) console.error("Errore txs:", txError)
-
-      // 2. Recupero Profili (per le email)
-      const { data: profs, error: profsError } = await supabase.from('profiles').select('*')
-      if (profsError) console.error("Errore profili:", profsError)
-
-      // 3. Recupero Recensioni
-      const { data: revs, error: revsError } = await supabase
-        .from('reviews')
-        .select('*')
-      if (revsError) console.error("Errore reviews:", revsError)
-
-      // 4. Recupero Controversie e Supporto (Il Tribunale)
-      const { data: dispData, error: dispError } = await supabase
-        .from('disputes')
-        .select('*, transaction:transactions(*, announcements(*))')
-        .order('created_at', { ascending: false })
-      if (dispError) console.error("Errore controversie:", dispError)
-      else if (dispData) setDisputes(dispData)
-
-      // 5. NUOVO: recupero segnalazioni chat non ancora esaminate
-      const { data: violData, error: violError } = await supabase
-        .from('chat_violations')
-        .select('*')
-        .order('created_at', { ascending: false })
-      if (violError) console.error("Errore segnalazioni chat:", violError)
-
-      let loadedProfiles: Profile[] = []
-      if (profs) {
-        loadedProfiles = profs as Profile[]
-        setProfiles(loadedProfiles)
-      }
-      
-      // Abbiniamo le email alle transazioni
-      if (txs && loadedProfiles.length > 0) {
-        const enrichedTxs = txs.map(tx => ({
-          ...tx,
-          buyer: { email: loadedProfiles.find(p => p.id === tx.buyer_id)?.email || 'N/D' },
-          seller: { email: loadedProfiles.find(p => p.id === tx.seller_id)?.email || 'N/D' }
-        }))
-        setTransactions(enrichedTxs as unknown as Transaction[])
-      }
-
-      // Abbiniamo le email alle recensioni MANUALMENTE
-      if (revs && loadedProfiles.length > 0) {
-        const enrichedRevs = revs.map(r => ({
-          ...r,
-          reviewer: { email: loadedProfiles.find(p => p.id === r.reviewer_id)?.email || 'N/D' },
-          reviewed: { email: loadedProfiles.find(p => p.id === r.reviewed_id)?.email || 'N/D' }
-        }))
-        setReviews(enrichedRevs as unknown as Review[])
-      }
-
-      // NUOVO: arricchiamo le segnalazioni chat con email e stato blocco
-      // dei due utenti coinvolti, per non dover cercarli a mano.
-      if (violData && loadedProfiles.length > 0) {
-        const enrichedViol = violData.map((v: any) => {
-          const senderP = loadedProfiles.find(p => p.id === v.sender_id)
-          const receiverP = loadedProfiles.find(p => p.id === v.receiver_id)
-          return {
-            ...v,
-            senderEmail: senderP?.email || 'N/D',
-            receiverEmail: receiverP?.email || 'N/D',
-            senderBanned: senderP?.is_banned || false,
-            receiverBanned: receiverP?.is_banned || false,
-          }
-        })
-        setViolations(enrichedViol)
-      } else if (violData) {
-        setViolations(violData as ChatViolation[])
-      }
-
-    } catch (err) {
-      console.error("Errore generale:", err)
-    }
-    
-    setLoading(false)
+    toast.success(successo || 'Fatto.')
+    carica(true)
   }
 
-  // --- LOGICA AZIONI ADMIN ---
-
-  const forceStatus = async (txId: string, newStatus: string) => {
-    if (!confirm(`Vuoi forzare lo stato a: ${newStatus}?`)) return
-
-    if (newStatus === 'Ricevuto') {
-      setActionLoading(true)
-      try {
-        const { data: { user } } = await supabase.auth.getUser()
-        const res = await fetch('/api/orders/action', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ transactionId: txId, action: 'confirm_receipt', userId: user?.id, userRole: 'staff' }),
-        })
-        const data = await res.json()
-        if (!res.ok || data.error) {
-          alert("Errore nello sblocco fondi: " + (data.error || 'errore sconosciuto'))
-          return
-        }
-        alert("Fondi trasferiti al venditore.")
-        checkAdminAndFetchData()
-      } catch (err: any) {
-        alert("Errore di connessione: " + err.message)
-      } finally {
-        setActionLoading(false)
-      }
-      return
-    }
-
-    const { error } = await supabase.from('transactions').update({ status: newStatus }).eq('id', txId)
-    if (error) {
-      alert("Errore durante l'aggiornamento: " + error.message)
-      return
-    }
-    checkAdminAndFetchData()
+  const filtra = <T,>(elenco: T[], campi: (v: T) => (string | null | undefined)[]) => {
+    const q = cerca.trim().toLowerCase()
+    if (!q) return elenco
+    return elenco.filter(v => campi(v).some(c => (c || '').toLowerCase().includes(q)))
   }
 
-  const updateShipping = async (txId: string, courier: string, track: string, code: string) => {
-    if (!confirm(`Vuoi salvare la spedizione con ${courier} e segnare l'ordine come Spedito?`)) return;
-    
-    const { error } = await supabase
-      .from('transactions')
-      .update({ 
-        courier_name: courier, 
-        tracking_number: track, 
-        package_id_code: code,
-        status: 'Spedito' 
-      })
-      .eq('id', txId);
-      
-    if (!error) {
-      alert("Spedizione aggiornata!");
-      checkAdminAndFetchData();
-    } else {
-      alert("Errore: " + error.message);
-    }
-  };
+  const r = dati?.riepilogo
 
-  const deleteReview = async (id: string) => {
-    if (!confirm("Eliminare definitivamente questa recensione?")) return
-    const { error } = await supabase.from('reviews').delete().eq('id', id)
-    if (error) {
-      alert("Errore durante l'eliminazione: " + error.message)
-      return
-    }
-    checkAdminAndFetchData()
+  const schedeConBadge = useMemo(() => {
+    if (!r) return {} as Record<string, number>
+    return {
+      tribunale: r.controversieAperte,
+      segnalazioni: r.segnalazioniDaEsaminare,
+      ordini: r.ordiniInContestazione,
+    } as Record<string, number>
+  }, [r])
+
+  // ---------------------------------------------------------------- schermate
+  if (caricamento) {
+    return <div className="min-h-screen flex items-center justify-center text-[11px] font-black uppercase tracking-[0.3em] text-stone-400 animate-pulse">Caricamento pannello...</div>
   }
 
-  // --- LOGICA DEL TRIBUNALE ---
-  const resolveDispute = async (disputeId: string, resolution: 'Rimborso Acquirente' | 'Fondi al Venditore', buyerId: string, sellerId: string, transactionId?: string) => {
-    const confirmMessage = resolution === 'Rimborso Acquirente' 
-      ? "⚠️ Sicuro di voler RIMBORSARE il compratore? L'azione è irreversibile." 
-      : "⚠️ Sicuro di voler sbloccare i fondi e PAGARE il venditore?";
-
-    if (!confirm(confirmMessage)) return;
-    setActionLoading(true)
-
-    if (resolution === 'Fondi al Venditore' && transactionId) {
-      try {
-        const { data: { user } } = await supabase.auth.getUser()
-        const res = await fetch('/api/orders/action', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ transactionId, action: 'confirm_receipt', userId: user?.id, userRole: 'staff' }),
-        })
-        const data = await res.json()
-        if (!res.ok || data.error) {
-          alert("Errore nel trasferimento fondi: " + (data.error || 'errore sconosciuto') + "\nLa contestazione resta aperta.")
-          setActionLoading(false)
-          return
-        }
-      } catch (err: any) {
-        alert("Errore di connessione durante il trasferimento: " + err.message + "\nLa contestazione resta aperta.")
-        setActionLoading(false)
-        return
-      }
-    }
-
-    const { error } = await supabase.from('disputes').update({ status: `Risolta (${resolution})` }).eq('id', disputeId)
-
-    if (!error) {
-      alert(`Pratica chiusa con successo: ${resolution}!`);
-      
-      const sentenzaMsg = resolution === 'Rimborso Acquirente'
-        ? `⚖️ Lo Staff ha chiuso la controversia a favore dell'Acquirente. È stato emesso un rimborso.`
-        : `⚖️ Lo Staff ha chiuso la controversia a favore del Venditore. I fondi sono stati sbloccati.`;
-
-      // FIX: queste due insert dal browser erano vietate dalla RLS (riga
-      // intestata a un altro utente) e fallivano senza segnalare nulla: la
-      // sentenza del Tribunale non veniva mai comunicata alle parti.
-      await inviaNotifica([
-        ...(buyerId ? [{ userId: buyerId, message: sentenzaMsg, title: 'Esito controversia ⚖️', url: '/dashboard/controversie' }] : []),
-        ...(sellerId ? [{ userId: sellerId, message: sentenzaMsg, title: 'Esito controversia ⚖️', url: '/dashboard/controversie' }] : []),
-      ]);
-
-      checkAdminAndFetchData()
-    } else {
-      alert("Errore: " + error.message)
-    }
-    setActionLoading(false)
-  }
-
-  const closeSupportTicket = async (disputeId: string, userId: string) => {
-    const risposta = prompt("Scrivi la risposta da inviare all'utente (Riceverà una notifica nel sito):");
-    if (!risposta) return;
-
-    setActionLoading(true)
-    const { error } = await supabase.from('disputes').update({ status: 'Risolta (Risposto)' }).eq('id', disputeId)
-
-    if (!error) {
-      alert("Risposta inviata con successo!");
-      await inviaNotifica({ userId, message: `💬 Risposta Supporto: ${risposta}`, title: 'Risposta dal Supporto 💬', url: '/supporto' });
-      checkAdminAndFetchData()
-    } else {
-       alert("Errore durante l'invio della risposta.")
-    }
-    setActionLoading(false)
-  }
-
-  // --- NUOVO: LOGICA SEGNALAZIONI CHAT (blocco / sblocco / archivia) ---
-  const toggleBan = async (userId: string, currentlyBanned: boolean) => {
-    const azione = currentlyBanned ? 'sbloccare' : 'bloccare'
-    if (!confirm(`Vuoi ${azione} questo utente?`)) return
-    setActionLoading(true)
-    const { error } = await supabase
-      .from('profiles')
-      .update({
-        is_banned: !currentlyBanned,
-        banned_reason: !currentlyBanned ? 'Bloccato manualmente dallo staff.' : null,
-        banned_at: !currentlyBanned ? new Date().toISOString() : null,
-      })
-      .eq('id', userId)
-    if (error) {
-      alert("Errore durante l'operazione: " + error.message)
-    } else {
-      checkAdminAndFetchData()
-    }
-    setActionLoading(false)
-  }
-
-  const markViolationReviewed = async (violationId: string) => {
-    const { error } = await supabase.from('chat_violations').update({ reviewed: true }).eq('id', violationId)
-    if (error) {
-      alert("Errore: " + error.message)
-      return
-    }
-    checkAdminAndFetchData()
-  }
-
-
-  // --- CALCOLI DASHBOARD ---
-  const earnings = transactions
-    .filter(t => t.status === 'Ricevuto' || t.status === 'Concluso')
-    .reduce((acc, t) => acc + ((t.announcements?.price || 0) * 0.10), 0)
-
-  const pendingViolations = violations.filter(v => !v.reviewed)
-
-  if (loading && transactions.length === 0) return <div className="min-h-screen bg-stone-900 flex items-center justify-center font-black uppercase text-rose-500 tracking-widest animate-pulse">Caricamento Hub Re-love Staff...</div>
-
-  return (
-    <div className="min-h-screen bg-[#1c1c1c] p-6 md:p-12 font-sans text-stone-200">
-      <div className="max-w-7xl mx-auto">
-        
-        {/* HEADER */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-12 gap-6 border-b border-stone-800 pb-8">
-          <div>
-            <span className="bg-rose-500 text-white px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.2em] mb-4 inline-block shadow-lg shadow-rose-500/20">Staff Only</span>
-            <h1 className="text-4xl font-black uppercase italic text-white tracking-tighter">Stanza dei Bottoni 👑</h1>
-          </div>
-          <button onClick={() => router.push('/')} className="bg-stone-800 hover:bg-stone-700 text-stone-400 hover:text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border border-stone-700">← Torna al Sito</button>
-        </div>
-
-        {/* DASHBOARD FINANZIARIA */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
-          <div className="bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 p-8 rounded-[2.5rem] border border-emerald-500/20">
-            <h3 className="text-[10px] font-black uppercase text-emerald-400 tracking-widest mb-2">💰 Commissioni Reali (10%)</h3>
-            <p className="text-5xl font-black text-white italic">€ {earnings.toFixed(2)}</p>
-          </div>
-          <div className="bg-stone-800/50 p-8 rounded-[2.5rem] border border-stone-700">
-            <h3 className="text-[10px] font-black uppercase text-stone-500 tracking-widest mb-2">📦 Ordini Gestiti</h3>
-            <p className="text-5xl font-black text-white italic">{transactions.length}</p>
-          </div>
-          <div className="bg-stone-800/50 p-8 rounded-[2.5rem] border border-stone-700">
-            <h3 className="text-[10px] font-black uppercase text-stone-500 tracking-widest mb-2">👤 Utenti Registrati</h3>
-            <p className="text-5xl font-black text-white italic">{profiles.length}</p>
-          </div>
-        </div>
-
-        {/* ---------------- NUOVO: SEGNALAZIONI CHAT AUTOMATICHE ---------------- */}
-        <div className="bg-stone-800/40 p-8 rounded-[2.5rem] border border-orange-900/50 mb-12 shadow-2xl">
-          <div className="flex justify-between items-center mb-8 border-b border-stone-800 pb-4">
-            <h2 className="text-lg font-black uppercase italic text-orange-400 tracking-tighter flex items-center gap-3">
-              <span className="text-2xl">🚨</span> Segnalazioni Chat (Scambio Contatti)
-            </h2>
-            {pendingViolations.length > 0 && (
-              <span className="bg-orange-500 text-white text-[10px] font-black uppercase px-3 py-1.5 rounded-full">
-                {pendingViolations.length} da esaminare
-              </span>
-            )}
-          </div>
-
-          {violations.length === 0 ? (
-            <p className="text-center text-xs font-bold text-stone-500 uppercase py-10">Nessuna segnalazione. Nessuno ha ancora provato a scambiarsi contatti fuori dal sito.</p>
-          ) : (
-            <div className="space-y-4">
-              {violations.map(v => (
-                <div key={v.id} className={`p-6 rounded-3xl border ${v.reviewed ? 'border-[#333] bg-[#1f1f1f] opacity-60' : 'border-orange-900/50 bg-[#2a2418]'} flex flex-col md:flex-row justify-between items-start md:items-center gap-6`}>
-                  <div className="flex-1">
-                    <span className={`px-3 py-1 rounded-md text-[9px] font-black uppercase tracking-widest ${v.reviewed ? 'bg-[#333] text-stone-400' : 'bg-orange-500 text-white'}`}>
-                      {v.reviewed ? 'Esaminata' : 'Da esaminare'} · {new Date(v.created_at).toLocaleString('it-IT')}
-                    </span>
-                    <p className="text-xs text-stone-300 mt-3 italic font-medium">Messaggio bloccato: "{v.message_content}"</p>
-                    <div className="flex flex-col sm:flex-row gap-4 mt-3">
-                      <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">
-                        Da: <span className="text-stone-200">{v.senderEmail}</span> {v.senderBanned && <span className="text-rose-500">(Bloccato)</span>}
-                      </p>
-                      <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">
-                        A: <span className="text-stone-200">{v.receiverEmail}</span> {v.receiverBanned && <span className="text-rose-500">(Bloccato)</span>}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-2 w-full md:w-56 min-w-[220px]">
-                    <button onClick={() => toggleBan(v.sender_id, !!v.senderBanned)} disabled={actionLoading} className={`py-3 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg ${v.senderBanned ? 'bg-emerald-600 hover:bg-emerald-500 text-white' : 'bg-rose-600 hover:bg-rose-500 text-white'}`}>
-                      {v.senderBanned ? 'Sblocca mittente' : 'Blocca mittente'}
-                    </button>
-                    <button onClick={() => toggleBan(v.receiver_id, !!v.receiverBanned)} disabled={actionLoading} className={`py-3 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg ${v.receiverBanned ? 'bg-emerald-600 hover:bg-emerald-500 text-white' : 'bg-rose-600 hover:bg-rose-500 text-white'}`}>
-                      {v.receiverBanned ? 'Sblocca destinatario' : 'Blocca destinatario'}
-                    </button>
-                    {!v.reviewed && (
-                      <button onClick={() => markViolationReviewed(v.id)} disabled={actionLoading} className="bg-stone-700 hover:bg-stone-600 text-stone-300 py-2 px-4 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all mt-1">
-                        Segna come esaminata
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* ---------------- SEZIONE: TRIBUNALE E SUPPORTO ---------------- */}
-        <div className="bg-stone-800/40 p-8 rounded-[2.5rem] border border-rose-900/50 mb-12 shadow-2xl">
-          <div className="flex justify-between items-center mb-8 border-b border-stone-800 pb-4">
-            <h2 className="text-lg font-black uppercase italic text-rose-500 tracking-tighter flex items-center gap-3">
-              <span className="text-2xl">⚖️</span> Tribunale & Supporto Clienti
-            </h2>
-          </div>
-          
-          {disputes.length === 0 ? (
-            <p className="text-center text-xs font-bold text-stone-500 uppercase py-10">Nessuna segnalazione attiva. Tutto tranquillo.</p>
-          ) : (
-            <div className="space-y-4">
-              {disputes.map(dispute => {
-                const isClosed = dispute.status.includes('Risolta');
-                const isSupport = !dispute.seller_id;
-                
-                return (
-                  <div key={dispute.id} className={`p-6 rounded-3xl border ${isClosed ? 'border-[#333] bg-[#1f1f1f] opacity-60' : isSupport ? 'border-blue-900/50 bg-[#1c2433]' : 'border-rose-900/50 bg-[#331c1c]'} flex flex-col md:flex-row justify-between items-start md:items-center gap-6`}>
-                    <div className="flex-1">
-                      <span className={`px-3 py-1 rounded-md text-[9px] font-black uppercase tracking-widest ${isClosed ? 'bg-[#333] text-stone-400' : isSupport ? 'bg-blue-500 text-white' : 'bg-rose-500 text-white'}`}>
-                        {dispute.status}
-                      </span>
-                      {/* NUOVO: se questa contestazione riguarda un
-                          oggetto delegato (Curatore Locale), mostriamo
-                          subito su chi ricadrebbe la responsabilità
-                          secondo la regola concordata al momento della
-                          delega (In Custodia -> Curatore, In Sede ->
-                          Proprietario) - resta comunque lo Staff a
-                          decidere davvero come chiudere la pratica, qui è
-                          solo un suggerimento con contesto immediato. */}
-                      {dispute.liable_party && (
-                        <span className="ml-2 px-3 py-1 rounded-md text-[9px] font-black uppercase tracking-widest bg-orange-500/20 text-orange-400">
-                          Responsabile secondo il mandato: {dispute.liable_party === 'curator' ? 'Curatore' : 'Proprietario'} ({dispute.custody_type_at_time === 'in_custodia' ? 'In Custodia' : 'In Sede'})
-                        </span>
-                      )}
-                      <h4 className="text-white font-black mt-3 uppercase text-sm">{dispute.reason}</h4>
-                      <p className="text-xs text-stone-300 mt-2 italic font-medium">"{dispute.description}"</p>
-                      
-                      {!isSupport && dispute.transaction && (
-                        <p className="text-[10px] font-bold text-stone-400 mt-3 uppercase tracking-widest bg-black/20 p-2 rounded-lg inline-block border border-black/10">
-                          📦 Ordine: {dispute.transaction.announcements?.title} (€{dispute.transaction.amount})
-                        </p>
-                      )}
-                      
-                      <div className="flex gap-4 mt-3">
-                        <p className="text-[9px] font-bold text-stone-500 uppercase tracking-widest">Da Utente: <span className="text-stone-300">{dispute.buyer_id.slice(0,8)}</span></p>
-                        {!isSupport && dispute.seller_id && (
-                          <p className="text-[9px] font-bold text-stone-500 uppercase tracking-widest">Vs Utente: <span className="text-stone-300">{dispute.seller_id.slice(0,8)}</span></p>
-                        )}
-                      </div>
-                    </div>
-
-                    {!isClosed && (
-                      <div className="flex flex-col gap-2 w-full md:w-56 min-w-[200px]">
-                        {isSupport ? (
-                          <button onClick={() => closeSupportTicket(dispute.id, dispute.buyer_id)} disabled={actionLoading} className="bg-blue-600 text-white py-3 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-500 transition-all shadow-lg">
-                            💬 Rispondi all'utente
-                          </button>
-                        ) : (
-                          <>
-                            <button onClick={() => resolveDispute(dispute.id, 'Rimborso Acquirente', dispute.buyer_id, dispute.seller_id, dispute.transaction_id)} disabled={actionLoading} className="bg-rose-600 text-white py-3 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-500 transition-all shadow-lg">
-                              💸 Rimborsa Acquirente
-                            </button>
-                            <button onClick={() => resolveDispute(dispute.id, 'Fondi al Venditore', dispute.buyer_id, dispute.seller_id, dispute.transaction_id)} disabled={actionLoading} className="bg-emerald-600 text-white py-3 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500 transition-all shadow-lg">
-                              ✅ Paga Venditore
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-
-
-        {/* TABELLA TRANSAZIONI */}
-        <div className="bg-stone-800/40 rounded-[2.5rem] border border-stone-800 overflow-hidden mb-12 backdrop-blur-sm shadow-2xl">
-          <div className="p-8 bg-stone-900/40 border-b border-stone-800 flex justify-between items-center">
-            <h2 className="text-lg font-black uppercase italic text-white">Gestione Flussi Cassa & Spedizioni</h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead className="bg-stone-900/60 text-[10px] font-black uppercase text-stone-500 tracking-widest">
-                <tr>
-                  <th className="px-8 py-5">Annuncio</th>
-                  <th className="px-8 py-5">Compratore</th>
-                  <th className="px-8 py-5">Stato & Spedizione</th>
-                  <th className="px-8 py-5 text-right">Intervento</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-stone-800/50">
-                {transactions.map(tx => (
-                  <tr key={tx.id} className="hover:bg-white/[0.02] transition-colors group">
-                    <td className="px-8 py-6">
-                      <div className="flex items-center gap-4">
-                        <img src={tx.announcements?.image_url} className="w-12 h-12 rounded-xl object-cover border border-stone-700" alt="img" />
-                        <div>
-                          <p className="font-black text-white uppercase text-sm italic">{tx.announcements?.title}</p>
-                          <p className="text-[10px] text-stone-500 font-bold">€ {tx.announcements?.price}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-8 py-6">
-                      <p className="text-xs font-bold text-stone-400">{tx.buyer?.email}</p>
-                      <p className="text-[9px] text-stone-600 mt-1 uppercase">Venditore: {tx.seller?.email}</p>
-                    </td>
-                    <td className="px-8 py-6">
-                      <div className="flex flex-col gap-3">
-                        <span className={`text-[9px] font-black uppercase px-3 py-1 rounded-md w-fit ${
-                          tx.status === 'Pagato' ? 'bg-orange-500/20 text-orange-400' : 
-                          tx.status === 'Spedito' ? 'bg-blue-500/20 text-blue-400' :
-                          tx.status === 'Ricevuto' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
-                        }`}>{tx.status}</span>
-                        
-                        {(tx.status === 'Pagato' || tx.status === 'Spedito') && (
-                          <div className="flex flex-col gap-2 w-48">
-                            <input id={`cour-${tx.id}`} defaultValue={tx.courier_name} placeholder="Corriere (es. BRT)" className="bg-stone-900 text-[10px] font-bold text-white p-2 rounded-lg border border-stone-700 outline-none focus:border-emerald-500" />
-                            <input id={`track-${tx.id}`} defaultValue={tx.tracking_number} placeholder="N. Spedizione" className="bg-stone-900 text-[10px] font-bold text-white p-2 rounded-lg border border-stone-700 outline-none focus:border-emerald-500" />
-                            <button 
-                              onClick={() => {
-                                const c = (document.getElementById(`cour-${tx.id}`) as HTMLInputElement).value;
-                                const t = (document.getElementById(`track-${tx.id}`) as HTMLInputElement).value;
-                                updateShipping(tx.id, c, t, "REV-" + tx.id.substring(0,8).toUpperCase());
-                              }}
-                              className="bg-stone-800 hover:bg-emerald-600 text-stone-400 hover:text-white text-[9px] font-black uppercase p-2 rounded-lg transition-colors border border-stone-700 hover:border-emerald-500 mt-1"
-                            >
-                              {tx.status === 'Spedito' ? 'Aggiorna Dati' : 'Salva & Segna Spedito'}
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-8 py-6 text-right align-top">
-                      <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => forceStatus(tx.id, 'Ricevuto')} disabled={actionLoading} className="bg-emerald-500 text-white px-3 py-2 rounded-lg text-[9px] font-black uppercase disabled:opacity-50">Sblocca</button>
-                        <button onClick={() => forceStatus(tx.id, 'Rimborsato')} disabled={actionLoading} className="bg-rose-500 text-white px-3 py-2 rounded-lg text-[9px] font-black uppercase disabled:opacity-50">Refund</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* GESTIONE UTENTI */}
-          <div className="bg-stone-800/40 rounded-[2.5rem] border border-stone-800 overflow-hidden">
-            <div className="p-8 bg-stone-900/40 border-b border-stone-800"><h2 className="text-lg font-black uppercase italic text-white">Anagrafica & Sicurezza</h2></div>
-            <div className="max-h-[600px] overflow-y-auto">
-              {profiles.map(p => (
-                <div key={p.id} className="p-6 border-b border-stone-800/50 flex justify-between items-center hover:bg-white/[0.02] transition-colors">
-                  <div>
-                    <p className="font-black text-white text-sm flex items-center gap-2">
-                      {p.email}
-                      {p.is_banned && <span className="bg-rose-500 text-white text-[8px] font-black uppercase px-2 py-0.5 rounded-md">Bloccato</span>}
-                    </p>
-                    <p className="text-[10px] text-stone-500 font-bold uppercase tracking-widest">{p.city || 'Città non impostata'}</p>
-                  </div>
-                  <div className="flex gap-2 items-center">
-                    <button
-                      onClick={() => toggleBan(p.id, !!p.is_banned)}
-                      disabled={actionLoading}
-                      className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase transition-all ${p.is_banned ? 'bg-emerald-500/10 border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500 hover:text-white' : 'bg-rose-500/10 border border-rose-500/40 text-rose-400 hover:bg-rose-500 hover:text-white'}`}
-                    >
-                      {p.is_banned ? 'Sblocca' : 'Blocca'}
-                    </button>
-                    {/* FIX: prima apriva un popup dentro questa stessa pagina.
-                        Ora porta a una pagina dedicata (/staff/users/[id]),
-                        su richiesta - con dentro anche gli annunci
-                        dell'utente (prima assenti) e le chat raggruppate per
-                        conversazione con eliminazione per singolo messaggio
-                        (prima solo un elenco piatto in sola lettura). */}
-                    <Link href={`/staff/users/${p.id}`} className="bg-blue-500/10 border border-blue-500/40 text-blue-400 hover:bg-blue-500 hover:text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase transition-all">
-                      Ispeziona
-                    </Link>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* GESTIONE RECENSIONI */}
-          <div className="bg-stone-800/40 rounded-[2.5rem] border border-stone-800 overflow-hidden">
-            <div className="p-8 bg-stone-900/40 border-b border-stone-800"><h2 className="text-lg font-black uppercase italic text-white">Feedback Community</h2></div>
-            <div className="max-h-[600px] overflow-y-auto p-6 space-y-4">
-              {reviews.map(r => (
-                <div key={r.id} className="bg-stone-900/50 p-5 rounded-3xl border border-stone-700/50 relative group">
-                  <button onClick={() => deleteReview(r.id)} className="absolute top-4 right-4 text-stone-600 hover:text-rose-500 text-xl transition-colors">&times;</button>
-                  <p className="text-[9px] font-black uppercase text-stone-500 mb-2">Da: {r.reviewer?.email || 'Sconosciuto'} → Per: {r.reviewed?.email || 'Sconosciuto'}</p>
-                  <div className="flex gap-1 mb-2">
-                    {[...Array(5)].map((_, i) => (
-                      <span key={i} className={i < r.rating ? 'text-yellow-500' : 'text-stone-700'}>★</span>
-                    ))}
-                  </div>
-                  <p className="text-xs text-stone-300 italic font-medium leading-relaxed">"{r.comment}"</p>
-                </div>
-              ))}
-              {reviews.length === 0 && <p className="text-center text-stone-600 text-xs py-10 uppercase font-black">Nessuna recensione da moderare.</p>}
-            </div>
-          </div>
+  if (errore) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <div className="bg-white border border-stone-200 rounded-[2rem] shadow-sm p-10 max-w-md text-center">
+          <ShieldAlert size={48} className="text-rose-500 mx-auto mb-4" strokeWidth={1.5} />
+          <h1 className="text-lg font-black uppercase italic text-stone-900 mb-2">Accesso non consentito</h1>
+          <p className="text-xs font-bold text-stone-500 mb-6">{errore}</p>
+          <Link href="/" className="inline-block bg-stone-900 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-600 transition-colors">
+            Torna alla Home
+          </Link>
         </div>
       </div>
+    )
+  }
+
+  if (!dati || !r) return null
+
+  return (
+    <div className="min-h-screen font-sans text-stone-900 pb-32 bg-stone-50">
+
+      {/* ------------------------------------------------------- INTESTAZIONE */}
+      <div className="bg-stone-900 text-white">
+        <div className="max-w-6xl mx-auto px-4 py-8 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="w-11 h-11 rounded-xl bg-rose-500 flex items-center justify-center shrink-0">
+              <Crown size={22} />
+            </span>
+            <div>
+              <h1 className="text-xl font-black uppercase italic tracking-tight leading-none">Pannello Staff</h1>
+              <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-stone-400 mt-1.5">Moderazione Re-love</p>
+            </div>
+          </div>
+          <button
+            onClick={() => carica()}
+            className="flex items-center gap-2 h-11 px-4 bg-white/10 hover:bg-white/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors"
+          >
+            <RefreshCw size={14} /> Aggiorna
+          </button>
+        </div>
+      </div>
+
+      {/* ------------------------------------------------------------ SCHEDE */}
+      <div className="bg-white border-b border-stone-200 sticky top-16 md:top-20 z-30">
+        <div className="max-w-6xl mx-auto px-4 flex gap-1 overflow-x-auto custom-scrollbar">
+          {SCHEDE.map(s => (
+            <button
+              key={s.id}
+              onClick={() => { setScheda(s.id); setCerca('') }}
+              className={`shrink-0 flex items-center gap-2 px-4 py-3.5 text-[10px] font-black uppercase tracking-widest border-b-2 transition-colors ${
+                scheda === s.id
+                  ? 'border-rose-500 text-rose-600'
+                  : 'border-transparent text-stone-400 hover:text-stone-700'
+              }`}
+            >
+              {s.icona} {s.titolo}
+              {schedeConBadge[s.id] > 0 && (
+                <span className="bg-rose-500 text-white text-[9px] min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full">
+                  {schedeConBadge[s.id]}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="max-w-6xl mx-auto px-4 mt-8">
+
+        {/* --------------------------------------------------------- RICERCA */}
+        {scheda !== 'riepilogo' && (
+          <div className="relative mb-6">
+            <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400" />
+            <input
+              value={cerca}
+              onChange={e => setCerca(e.target.value)}
+              placeholder="Cerca in questa sezione..."
+              className="w-full h-12 pl-11 pr-4 bg-white border border-stone-200 rounded-xl text-sm font-bold outline-none focus:border-rose-400 transition-colors"
+            />
+          </div>
+        )}
+
+        {/* ------------------------------------------------------- RIEPILOGO */}
+        {scheda === 'riepilogo' && (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <Riquadro titolo="Utenti" valore={r.utenti} nota={`${r.utentiBloccati} bloccati`} />
+            <Riquadro titolo="Annunci attivi" valore={r.annunciAttivi} nota={`${r.annunciTotali} in totale`} />
+            <Riquadro titolo="Ordini in corso" valore={r.ordiniInCorso} nota={`${r.ordiniTotali} in totale`} />
+            <Riquadro titolo="Commissioni" valore={`€ ${r.incassoCommissioni.toFixed(2)}`} nota="10% sugli ordini conclusi" />
+            <Riquadro titolo="Controversie aperte" valore={r.controversieAperte} nota="da giudicare" allerta={r.controversieAperte > 0} />
+            <Riquadro titolo="Segnalazioni" valore={r.segnalazioniDaEsaminare} nota="da esaminare" allerta={r.segnalazioniDaEsaminare > 0} />
+            <Riquadro titolo="In contestazione" valore={r.ordiniInContestazione} nota="ordini bloccati" allerta={r.ordiniInContestazione > 0} />
+            <Riquadro titolo="Baratti" valore={dati.baratti.length} nota="scambi registrati" />
+          </div>
+        )}
+
+        {/* ----------------------------------------------------------- UTENTI */}
+        {scheda === 'utenti' && (
+          <Elenco vuoto="Nessun utente trovato.">
+            {filtra(dati.profili, p => [p.email, p.nickname, p.first_name, p.last_name, p.city]).map(p => (
+              <Riga key={p.id}>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-black text-stone-900 truncate">{p.nickname || p.first_name || 'Senza nome'}</span>
+                    {p.is_banned && <Etichetta tono="rosso">Bloccato</Etichetta>}
+                    {p.role === 'staff' && <Etichetta tono="scuro">Staff</Etichetta>}
+                    {p.stripe_account_id && <Etichetta tono="verde">Stripe</Etichetta>}
+                  </div>
+                  <p className="text-[11px] font-bold text-stone-500 truncate mt-0.5">{p.email}</p>
+                  {p.is_banned && p.banned_reason && (
+                    <p className="text-[10px] font-bold text-rose-600 mt-1">Motivo: {p.banned_reason}</p>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2 shrink-0">
+                  <Link href={`/staff/users/${p.id}`} className="h-9 px-3 flex items-center bg-stone-100 text-stone-600 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-stone-200 transition-colors">
+                    Scheda
+                  </Link>
+                  <Bottone
+                    tono={p.is_banned ? 'verde' : 'ambra'}
+                    attivo={inCorso === `ban-${p.id}`}
+                    onClick={() => {
+                      if (p.is_banned) {
+                        esegui(`ban-${p.id}`, { azione: 'sblocca-utente', userId: p.id }, 'Sbloccare questo utente?', 'Utente sbloccato.')
+                      } else {
+                        const motivo = prompt('Motivo del blocco (lo vedrà anche l\'utente):', 'Violazione delle regole della community')
+                        if (motivo === null) return
+                        esegui(`ban-${p.id}`, { azione: 'blocca-utente', userId: p.id, motivo }, undefined, 'Utente bloccato.')
+                      }
+                    }}
+                  >
+                    {p.is_banned ? <><CheckCircle2 size={12} /> Sblocca</> : <><Ban size={12} /> Blocca</>}
+                  </Bottone>
+                  <Bottone
+                    tono="scuro"
+                    attivo={inCorso === `ruolo-${p.id}`}
+                    onClick={() => esegui(
+                      `ruolo-${p.id}`,
+                      { azione: 'cambia-ruolo', userId: p.id, ruolo: p.role === 'staff' ? 'user' : 'staff' },
+                      p.role === 'staff' ? 'Togliere i permessi di staff?' : 'Dare i permessi di staff a questo utente?',
+                      'Ruolo aggiornato.'
+                    )}
+                  >
+                    {p.role === 'staff' ? 'Togli staff' : 'Rendi staff'}
+                  </Bottone>
+                  <Bottone
+                    tono="rosso"
+                    attivo={inCorso === `del-${p.id}`}
+                    onClick={() => esegui(
+                      `del-${p.id}`,
+                      { azione: 'elimina-utente', userId: p.id },
+                      `ELIMINARE DEFINITIVAMENTE ${p.email}?\n\nVengono rimossi profilo, annunci, messaggi e accesso. Non si torna indietro.`,
+                      'Utente eliminato.'
+                    )}
+                  >
+                    <Trash2 size={12} />
+                  </Bottone>
+                </div>
+              </Riga>
+            ))}
+          </Elenco>
+        )}
+
+        {/* ----------------------------------------------------------- ORDINI */}
+        {scheda === 'ordini' && (
+          <Elenco vuoto="Nessun ordine trovato.">
+            {filtra(dati.transazioni, t => [t.buyerEmail, t.sellerEmail, t.status, t.announcements?.title]).map(t => (
+              <Riga key={t.id} colonna>
+                <div className="flex items-start justify-between gap-3 w-full">
+                  <div className="min-w-0">
+                    <p className="text-sm font-black text-stone-900 truncate">{t.announcements?.title || 'Annuncio rimosso'}</p>
+                    <p className="text-[11px] font-bold text-stone-500 mt-0.5 truncate">
+                      {t.buyerEmail} → {t.sellerEmail}
+                    </p>
+                    <p className="text-[10px] font-bold text-stone-400 mt-1">
+                      € {Number(t.announcements?.price || 0).toFixed(2)} · {new Date(t.created_at).toLocaleDateString('it-IT')}
+                    </p>
+                  </div>
+                  <Etichetta tono={t.status === 'In Contestazione' ? 'rosso' : t.status === 'Concluso' ? 'verde' : 'ambra'}>
+                    {t.status}
+                  </Etichetta>
+                </div>
+
+                <div className="flex flex-wrap gap-2 w-full">
+                  <select
+                    defaultValue=""
+                    onChange={e => {
+                      const stato = e.target.value
+                      e.target.value = ''
+                      if (!stato) return
+                      esegui(`stato-${t.id}`, { azione: 'stato-ordine', transactionId: t.id, stato }, `Forzare lo stato a "${stato}"?`, 'Stato aggiornato.')
+                    }}
+                    className="h-9 px-3 bg-stone-100 border border-stone-200 rounded-lg text-[10px] font-black uppercase tracking-widest outline-none cursor-pointer"
+                  >
+                    <option value="">Forza stato...</option>
+                    {STATI_ORDINE.filter(s => s !== t.status).map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+
+                  <Bottone
+                    tono="scuro"
+                    attivo={inCorso === `sped-${t.id}`}
+                    onClick={() => {
+                      const corriere = prompt('Corriere:', t.courier_name || '')
+                      if (corriere === null) return
+                      const tracking = prompt('Numero di tracking:', t.tracking_number || '')
+                      if (tracking === null) return
+                      esegui(`sped-${t.id}`, { azione: 'spedizione', transactionId: t.id, corriere, tracking }, undefined, 'Spedizione registrata.')
+                    }}
+                  >
+                    <Truck size={12} /> Spedizione
+                  </Bottone>
+
+                  {t.tracking_number && (
+                    <span className="h-9 px-3 flex items-center bg-stone-50 border border-stone-200 rounded-lg text-[10px] font-bold text-stone-500">
+                      {t.courier_name} · {t.tracking_number}
+                    </span>
+                  )}
+                </div>
+              </Riga>
+            ))}
+          </Elenco>
+        )}
+
+        {/* ---------------------------------------------------------- ANNUNCI */}
+        {scheda === 'annunci' && (
+          <Elenco vuoto="Nessun annuncio trovato.">
+            {filtra(dati.annunci, a => [a.title, a.autore, a.condition, a.city]).map(a => (
+              <Riga key={a.id}>
+                <img src={a.image_url || '/usato.png'} alt="" className="w-14 h-14 rounded-xl object-cover border border-stone-200 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Link href={`/announcement/${a.id}`} className="text-sm font-black text-stone-900 truncate hover:text-rose-600 transition-colors">{a.title}</Link>
+                    {a.is_sponsored && <Etichetta tono="ambra">Vetrina</Etichetta>}
+                    {a.is_arena && <Etichetta tono="scuro">Arena</Etichetta>}
+                    {(a.quantity ?? 1) <= 0 && <Etichetta tono="rosso">Esaurito</Etichetta>}
+                  </div>
+                  <p className="text-[11px] font-bold text-stone-500 truncate mt-0.5">
+                    € {Number(a.price).toFixed(2)} · {a.condition} · {a.autore}
+                  </p>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <Bottone tono="scuro" onClick={() => setModificaAnnuncio(a)}>
+                    <Pencil size={12} /> Modifica
+                  </Bottone>
+                  <Bottone
+                    tono="rosso"
+                    attivo={inCorso === `ann-${a.id}`}
+                    onClick={() => esegui(
+                      `ann-${a.id}`,
+                      { azione: 'elimina-annuncio', announcementId: a.id },
+                      `Rimuovere l'annuncio "${a.title}"? L'autore riceverà un avviso.`,
+                      'Annuncio rimosso.'
+                    )}
+                  >
+                    <Trash2 size={12} />
+                  </Bottone>
+                </div>
+              </Riga>
+            ))}
+          </Elenco>
+        )}
+
+        {/* ------------------------------------------------------- TRIBUNALE */}
+        {scheda === 'tribunale' && (
+          <Elenco vuoto="Nessuna controversia.">
+            {filtra(dati.controversie, d => [d.reason, d.description, d.status]).map(d => {
+              const chiusa = String(d.status || '').startsWith('Risolta')
+              return (
+                <Riga key={d.id} colonna>
+                  <div className="flex items-start justify-between gap-3 w-full">
+                    <div className="min-w-0">
+                      <p className="text-sm font-black text-stone-900">{d.reason || 'Contestazione'}</p>
+                      <p className="text-[11px] font-bold text-stone-500 mt-1 line-clamp-3">{d.description}</p>
+                      <p className="text-[10px] font-bold text-stone-400 mt-1.5">
+                        {d.transaction?.announcements?.title || 'Ordine non collegato'} · {new Date(d.created_at).toLocaleDateString('it-IT')}
+                      </p>
+                    </div>
+                    <Etichetta tono={chiusa ? 'verde' : 'rosso'}>{chiusa ? 'Chiusa' : 'Aperta'}</Etichetta>
+                  </div>
+
+                  {!chiusa && (
+                    <div className="flex flex-wrap gap-2 w-full">
+                      <Bottone
+                        tono="verde"
+                        attivo={inCorso === `disp-${d.id}`}
+                        onClick={() => esegui(
+                          `disp-${d.id}`,
+                          { azione: 'risolvi-controversia', disputeId: d.id, esitoScelto: 'Fondi al Venditore', buyerId: d.buyer_id, sellerId: d.seller_id },
+                          'Chiudere a favore del VENDITORE?',
+                          'Pratica chiusa.'
+                        )}
+                      >
+                        Dai ragione al venditore
+                      </Bottone>
+                      <Bottone
+                        tono="ambra"
+                        attivo={inCorso === `disp-${d.id}`}
+                        onClick={() => esegui(
+                          `disp-${d.id}`,
+                          { azione: 'risolvi-controversia', disputeId: d.id, esitoScelto: 'Rimborso Acquirente', buyerId: d.buyer_id, sellerId: d.seller_id },
+                          'Chiudere a favore dell\'ACQUIRENTE?',
+                          'Pratica chiusa.'
+                        )}
+                      >
+                        Dai ragione all&apos;acquirente
+                      </Bottone>
+                    </div>
+                  )}
+                </Riga>
+              )
+            })}
+          </Elenco>
+        )}
+
+        {/* ---------------------------------------------------- SEGNALAZIONI */}
+        {scheda === 'segnalazioni' && (
+          <Elenco vuoto="Nessuna segnalazione.">
+            {filtra(dati.segnalazioni, v => [v.senderEmail, v.receiverEmail, v.message_content]).map(v => (
+              <Riga key={v.id} colonna>
+                <div className="flex items-start justify-between gap-3 w-full">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-bold text-stone-500">
+                      {v.senderEmail} → {v.receiverEmail}
+                    </p>
+                    <p className="text-sm font-bold text-stone-900 mt-1 bg-stone-50 border border-stone-200 rounded-lg p-3 break-words">
+                      {v.message_content}
+                    </p>
+                  </div>
+                  <Etichetta tono={v.reviewed ? 'verde' : 'rosso'}>{v.reviewed ? 'Esaminata' : 'Nuova'}</Etichetta>
+                </div>
+                <div className="flex flex-wrap gap-2 w-full">
+                  {!v.reviewed && (
+                    <Bottone tono="scuro" attivo={inCorso === `viol-${v.id}`}
+                      onClick={() => esegui(`viol-${v.id}`, { azione: 'archivia-segnalazione', violationId: v.id }, undefined, 'Segnalazione archiviata.')}>
+                      <CheckCircle2 size={12} /> Archivia
+                    </Bottone>
+                  )}
+                  <Bottone tono="ambra" attivo={inCorso === `vban-${v.sender_id}`}
+                    onClick={() => {
+                      const motivo = prompt('Motivo del blocco:', 'Scambio di contatti in chat')
+                      if (motivo === null) return
+                      esegui(`vban-${v.sender_id}`, { azione: 'blocca-utente', userId: v.sender_id, motivo }, undefined, 'Mittente bloccato.')
+                    }}>
+                    <Ban size={12} /> Blocca mittente
+                  </Bottone>
+                  <Bottone tono="rosso" attivo={inCorso === `vdel-${v.id}`}
+                    onClick={() => esegui(`vdel-${v.id}`, { azione: 'elimina-segnalazione', violationId: v.id }, 'Eliminare questa segnalazione?', 'Segnalazione eliminata.')}>
+                    <Trash2 size={12} />
+                  </Bottone>
+                </div>
+              </Riga>
+            ))}
+          </Elenco>
+        )}
+
+        {/* ------------------------------------------------------- RECENSIONI */}
+        {scheda === 'recensioni' && (
+          <Elenco vuoto="Nessuna recensione.">
+            {filtra(dati.recensioni, x => [x.comment, x.reviewerEmail, x.reviewedEmail]).map(x => (
+              <Riga key={x.id}>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-stone-900">{'★'.repeat(Number(x.rating) || 0)}<span className="text-stone-300">{'★'.repeat(5 - (Number(x.rating) || 0))}</span></p>
+                  <p className="text-[13px] font-medium text-stone-700 mt-1 break-words">{x.comment}</p>
+                  <p className="text-[10px] font-bold text-stone-400 mt-1.5 truncate">{x.reviewerEmail} → {x.reviewedEmail}</p>
+                </div>
+                <Bottone tono="rosso" attivo={inCorso === `rev-${x.id}`}
+                  onClick={() => esegui(`rev-${x.id}`, { azione: 'elimina-recensione', reviewId: x.id }, 'Eliminare questa recensione?', 'Recensione rimossa.')}>
+                  <Trash2 size={12} />
+                </Bottone>
+              </Riga>
+            ))}
+          </Elenco>
+        )}
+
+        {/* ---------------------------------------------------------- VETRINA */}
+        {scheda === 'vetrina' && (
+          <Elenco vuoto="Nessuna voce in Vetrina.">
+            {filtra(dati.vetrina, v => [v.title, v.autore, v.external_url]).map(v => (
+              <Riga key={v.id}>
+                <img src={v.image_url || '/usato.png'} alt="" className="w-14 h-14 rounded-xl object-contain bg-stone-50 border border-stone-200 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-black text-stone-900 truncate">{v.title || 'Annuncio interno'}</span>
+                    <Etichetta tono={v.type === 'esterna' ? 'scuro' : 'ambra'}>{v.type}</Etichetta>
+                    {!v.is_active && <Etichetta tono="rosso">Non attiva</Etichetta>}
+                  </div>
+                  <p className="text-[11px] font-bold text-stone-500 truncate mt-0.5">
+                    {v.price ? `€ ${Number(v.price).toFixed(2)} · ` : ''}{v.autore} · {v.clicks || 0} click
+                  </p>
+                </div>
+                <Bottone tono="rosso" attivo={inCorso === `vet-${v.id}`}
+                  onClick={() => esegui(`vet-${v.id}`, { azione: 'elimina-voce-vetrina', itemId: v.id }, 'Rimuovere questa voce dalla Vetrina?', 'Voce rimossa.')}>
+                  <Trash2 size={12} />
+                </Bottone>
+              </Riga>
+            ))}
+          </Elenco>
+        )}
+
+        {/* ---------------------------------------------------------- SISTEMA */}
+        {scheda === 'sistema' && (
+          <div className="space-y-4">
+            <div className="bg-white border border-stone-200 rounded-2xl p-5">
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div>
+                  <h3 className="text-sm font-black uppercase text-stone-900">Diagnosi pagamenti</h3>
+                  <p className="text-[11px] font-bold text-stone-500 mt-1">
+                    Controlla chiavi, raggiungibilità di Stripe e quali venditori possono davvero incassare.
+                  </p>
+                </div>
+                <button
+                  onClick={caricaDiagnosi}
+                  disabled={caricoDiagnosi}
+                  className="h-10 px-4 bg-stone-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-600 transition-colors disabled:opacity-50"
+                >
+                  {caricoDiagnosi ? 'Controllo...' : 'Esegui diagnosi'}
+                </button>
+              </div>
+            </div>
+
+            {diagnosi && !diagnosi.error && (
+              <>
+                {diagnosi.configurazione?.problemaChiave && (
+                  <div className="bg-rose-50 border-2 border-rose-300 rounded-2xl p-5 flex gap-3">
+                    <AlertTriangle size={20} className="text-rose-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-black uppercase text-rose-700">Pagamenti non funzionanti</p>
+                      <p className="text-[12px] font-bold text-rose-700 mt-1.5">{diagnosi.configurazione.problemaChiave}</p>
+                      <p className="text-[11px] font-bold text-rose-600 mt-2">
+                        Finché non è corretta: nessun acquisto, nessun conto venditore, nessun bonifico.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="bg-white border border-stone-200 rounded-2xl p-5">
+                  <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 mb-4">Configurazione</h4>
+                  <div className="space-y-2">
+                    {Object.entries(diagnosi.configurazione || {})
+                      .filter(([k]) => k !== 'problemaChiave')
+                      .map(([k, v]) => (
+                        <div key={k} className="flex items-center justify-between gap-3 py-2 border-b border-stone-100 last:border-0">
+                          <span className="text-[12px] font-bold text-stone-600">{k}</span>
+                          <Etichetta tono={String(v) === 'ok' ? 'verde' : 'rosso'}>{String(v)}</Etichetta>
+                        </div>
+                      ))}
+                    <div className="flex items-center justify-between gap-3 py-2">
+                      <span className="text-[12px] font-bold text-stone-600">Stripe raggiungibile</span>
+                      <Etichetta tono={diagnosi.stripeRaggiungibile ? 'verde' : 'rosso'}>
+                        {diagnosi.stripeRaggiungibile ? 'sì' : (diagnosi.dettaglioStripe || 'no')}
+                      </Etichetta>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white border border-stone-200 rounded-2xl p-5">
+                  <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 mb-1">Conti venditore</h4>
+                  <p className="text-[11px] font-bold text-stone-500 mb-4">
+                    {diagnosi.venditoriPronti} pronti su {diagnosi.contiCollegati} collegati
+                  </p>
+                  <div className="space-y-2 max-h-80 overflow-y-auto">
+                    {(diagnosi.venditori || []).map((v: VenditoreDiagnosi) => (
+                      <div key={v.email} className="flex items-start justify-between gap-3 py-2 border-b border-stone-100 last:border-0">
+                        <div className="min-w-0">
+                          <p className="text-[12px] font-bold text-stone-700 truncate">{v.email}</p>
+                          {v.mancante && <p className="text-[10px] font-bold text-stone-400 mt-0.5">{v.mancante}</p>}
+                        </div>
+                        <Etichetta tono={v.stato === 'pronto' ? 'verde' : 'ambra'}>{v.stato}</Etichetta>
+                      </div>
+                    ))}
+                    {(diagnosi.venditori || []).length === 0 && (
+                      <p className="text-[11px] font-bold text-stone-400 py-3">
+                        Nessun conto verificabile (Stripe non raggiungibile).
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {diagnosi?.error && (
+              <div className="bg-rose-50 border border-rose-200 rounded-2xl p-5">
+                <p className="text-[12px] font-bold text-rose-700">{diagnosi.error}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ---------------------------------------------------------- BARATTI */}
+        {scheda === 'baratti' && (
+          <Elenco vuoto="Nessun baratto registrato.">
+            {filtra(dati.baratti, b => [b.proponente, b.destinatario, b.status]).map(b => (
+              <Riga key={b.id}>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-black text-stone-900 truncate">{b.proponente} → {b.destinatario}</p>
+                  <p className="text-[10px] font-bold text-stone-400 mt-1">{new Date(b.created_at).toLocaleDateString('it-IT')}</p>
+                </div>
+                <Etichetta tono={b.status === 'accepted_chat_unlocked' ? 'verde' : b.status === 'rejected' ? 'rosso' : 'ambra'}>
+                  {b.status}
+                </Etichetta>
+              </Riga>
+            ))}
+          </Elenco>
+        )}
+      </div>
+
+      {/* ------------------------------------------- MODALE MODIFICA ANNUNCIO */}
+      {modificaAnnuncio && (
+        <ModaleModifica
+          annuncio={modificaAnnuncio}
+          onChiudi={() => setModificaAnnuncio(null)}
+          onSalva={async campi => {
+            const { ok, errore: err } = await azioneStaff({ azione: 'modifica-annuncio', announcementId: modificaAnnuncio.id, campi })
+            if (!ok) { toast.error(err || 'Modifica non riuscita.'); return }
+            toast.success('Annuncio aggiornato.')
+            setModificaAnnuncio(null)
+            carica(true)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+// ============================================================ pezzi riusabili
+
+function Riquadro({ titolo, valore, nota, allerta }: { titolo: string; valore: string | number; nota?: string; allerta?: boolean }) {
+  return (
+    <div className={`bg-white rounded-2xl border p-5 ${allerta ? 'border-rose-300' : 'border-stone-200'}`}>
+      <p className="text-[9px] font-black uppercase tracking-[0.2em] text-stone-400">{titolo}</p>
+      <p className={`text-2xl font-black mt-2 ${allerta ? 'text-rose-600' : 'text-stone-900'}`}>{valore}</p>
+      {nota && <p className="text-[10px] font-bold text-stone-400 mt-1">{nota}</p>}
+    </div>
+  )
+}
+
+function Elenco({ children, vuoto }: { children: React.ReactNode; vuoto: string }) {
+  const vuotoDavvero = !children || (Array.isArray(children) && children.length === 0)
+  if (vuotoDavvero) {
+    return (
+      <div className="bg-white border-2 border-dashed border-stone-200 rounded-[2rem] p-14 text-center">
+        <p className="text-xs font-bold text-stone-400 uppercase tracking-widest">{vuoto}</p>
+      </div>
+    )
+  }
+  return <div className="space-y-3">{children}</div>
+}
+
+function Riga({ children, colonna }: { children: React.ReactNode; colonna?: boolean }) {
+  return (
+    <div className={`bg-white border border-stone-200 rounded-2xl p-4 flex gap-4 ${colonna ? 'flex-col items-start' : 'items-center'}`}>
+      {children}
+    </div>
+  )
+}
+
+function Etichetta({ children, tono }: { children: React.ReactNode; tono: 'rosso' | 'verde' | 'ambra' | 'scuro' }) {
+  const toni = {
+    rosso: 'bg-rose-100 text-rose-700',
+    verde: 'bg-emerald-100 text-emerald-700',
+    ambra: 'bg-orange-100 text-orange-700',
+    scuro: 'bg-stone-900 text-white',
+  }
+  return <span className={`shrink-0 text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full ${toni[tono]}`}>{children}</span>
+}
+
+function Bottone({ children, onClick, tono, attivo }: { children: React.ReactNode; onClick: () => void; tono: 'rosso' | 'verde' | 'ambra' | 'scuro'; attivo?: boolean }) {
+  const toni = {
+    rosso: 'bg-rose-50 text-rose-600 hover:bg-rose-100',
+    verde: 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100',
+    ambra: 'bg-orange-50 text-orange-700 hover:bg-orange-100',
+    scuro: 'bg-stone-100 text-stone-700 hover:bg-stone-200',
+  }
+  return (
+    <button
+      onClick={onClick}
+      disabled={attivo}
+      className={`h-9 px-3 flex items-center gap-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors disabled:opacity-50 ${toni[tono]}`}
+    >
+      {attivo ? '...' : children}
+    </button>
+  )
+}
+
+function ModaleModifica({ annuncio, onChiudi, onSalva }: { annuncio: AnnuncioStaff; onChiudi: () => void; onSalva: (campi: Record<string, unknown>) => void }) {
+  const [titolo, setTitolo] = useState(annuncio.title || '')
+  const [prezzo, setPrezzo] = useState(String(annuncio.price ?? ''))
+  const [quantita, setQuantita] = useState(String(annuncio.quantity ?? 1))
+  const [citta, setCitta] = useState(annuncio.city || '')
+  const [vetrina, setVetrina] = useState(!!annuncio.is_sponsored)
+  const [arena, setArena] = useState(!!annuncio.is_arena)
+
+  return (
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-stone-900/70 backdrop-blur-sm" onClick={onChiudi}>
+      <div className="bg-white rounded-[2rem] shadow-2xl p-7 max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-base font-black uppercase italic text-stone-900">Modifica annuncio</h2>
+          <button onClick={onChiudi} className="w-9 h-9 flex items-center justify-center text-stone-400 hover:text-stone-900 rounded-lg hover:bg-stone-100 transition-colors">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          <Campo etichetta="Titolo"><input value={titolo} onChange={e => setTitolo(e.target.value)} className="w-full h-11 px-3 bg-stone-50 border border-stone-200 rounded-xl text-sm font-bold outline-none focus:border-rose-400 transition-colors" /></Campo>
+          <div className="grid grid-cols-2 gap-3">
+            <Campo etichetta="Prezzo (€)"><input type="number" step="0.01" value={prezzo} onChange={e => setPrezzo(e.target.value)} className="w-full h-11 px-3 bg-stone-50 border border-stone-200 rounded-xl text-sm font-bold outline-none focus:border-rose-400 transition-colors" /></Campo>
+            <Campo etichetta="Quantità"><input type="number" value={quantita} onChange={e => setQuantita(e.target.value)} className="w-full h-11 px-3 bg-stone-50 border border-stone-200 rounded-xl text-sm font-bold outline-none focus:border-rose-400 transition-colors" /></Campo>
+          </div>
+          <Campo etichetta="Città"><input value={citta} onChange={e => setCitta(e.target.value)} className="w-full h-11 px-3 bg-stone-50 border border-stone-200 rounded-xl text-sm font-bold outline-none focus:border-rose-400 transition-colors" /></Campo>
+
+          <label className="flex items-center gap-3 p-3 bg-stone-50 border border-stone-200 rounded-xl cursor-pointer">
+            <input type="checkbox" checked={vetrina} onChange={e => setVetrina(e.target.checked)} className="w-5 h-5 accent-rose-600" />
+            <span className="text-[11px] font-black uppercase tracking-widest text-stone-700">In Vetrina</span>
+          </label>
+          <label className="flex items-center gap-3 p-3 bg-stone-50 border border-stone-200 rounded-xl cursor-pointer">
+            <input type="checkbox" checked={arena} onChange={e => setArena(e.target.checked)} className="w-5 h-5 accent-rose-600" />
+            <span className="text-[11px] font-black uppercase tracking-widest text-stone-700">In Arena</span>
+          </label>
+        </div>
+
+        <button
+          onClick={() => onSalva({
+            title: titolo.trim(),
+            price: Number(prezzo) || 0,
+            quantity: Number(quantita) || 0,
+            city: citta.trim() || null,
+            is_sponsored: vetrina,
+            is_arena: arena,
+          })}
+          className="w-full mt-7 bg-stone-900 text-white h-12 rounded-xl text-[11px] font-black uppercase tracking-widest hover:bg-rose-600 transition-colors"
+        >
+          Salva modifiche
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function Campo({ etichetta, children }: { etichetta: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="text-[9px] font-black uppercase tracking-[0.2em] text-stone-400 ml-1">{etichetta}</label>
+      <div className="mt-1.5">{children}</div>
     </div>
   )
 }
