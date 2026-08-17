@@ -1,3 +1,5 @@
+import { datiProdottoAmazon, credenzialiAmazonPresenti } from './affiliates/amazonGetItems'
+
 // lib/anteprimaLink.ts
 //
 // Lettura dei dati reali di una pagina prodotto esterna (Amazon, eBay,
@@ -865,6 +867,36 @@ export async function leggiAnteprimaLink(parsedUrl: URL): Promise<Anteprima> {
   const urlRisolto = await risolviLinkAccorciato(parsedUrl)
 
   const tentativi: (Anteprima | null)[] = []
+
+  // ==========================================================================
+  // AMAZON: PRIMA SI CHIEDE AD AMAZON STESSA.
+  //
+  // Leggere il prezzo scaricando la pagina funziona da una connessione di
+  // casa ma NON dal sito pubblicato: Amazon blocca gli indirizzi dei
+  // datacenter. Misurato sullo stesso link:
+  //     in locale          -> 269,99  (4 prove su 4)
+  //     dal sito su Vercel -> nessun prezzo (5 prove su 5)
+  //
+  // L'API ufficiale per affiliati non ha questo problema ed è il modo
+  // previsto da Amazon per ottenere questi dati. Se le credenziali non sono
+  // configurate la funzione restituisce null e si prosegue come prima.
+  // ==========================================================================
+  const asin = asinDaUrl(urlRisolto)
+  if (asin && credenzialiAmazonPresenti()) {
+    const daApi = await datiProdottoAmazon(asin, urlRisolto.hostname)
+    if (daApi && (daApi.price !== null || daApi.title)) {
+      tentativi.push({
+        title: daApi.title,
+        description: null,
+        image: daApi.image,
+        price: daApi.price,
+        currency: daApi.currency,
+        // Amazon dichiara solo se la spedizione è gratuita, non quanto costa
+        // quando non lo è: in quel caso resta "non dichiarata".
+        shipping: daApi.spedizioneGratuita === true ? 0 : null,
+      })
+    }
+  }
 
   const serveAncora = () => {
     const parziale = unisci(tentativi)
