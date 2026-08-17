@@ -55,6 +55,103 @@ export async function POST(req: Request) {
     const arenaPromoterPercentage = session.metadata?.arenaPromoterPercentage ? Number(session.metadata.arenaPromoterPercentage) : null
 
     // ==========================================
+    // LOGICA 0: BARATTO (due momenti di pagamento)
+    // ==========================================
+    // NUOVO: il sistema "Baratto" aveva le route server ma nessuna pagina che
+    // le chiamasse e nessuna gestione qui: i pagamenti non sarebbero mai
+    // stati riconosciuti. Sono due passaggi distinti:
+    //
+    //  baratto_auth   -> chi propone ha pre-autorizzato la sua quota. I soldi
+    //                    sono congelati, NON prelevati. La proposta diventa
+    //                    visibile al destinatario, che viene avvisato.
+    //  baratto_accept -> il destinatario ha pagato la sua quota. Solo ORA
+    //                    preleviamo davvero la quota congelata di chi ha
+    //                    proposto, e lo scambio si apre per entrambi.
+    if (checkoutType === 'baratto_auth' || checkoutType === 'baratto_accept') {
+      const barattoId = session.metadata?.barattoId
+      const userA = session.metadata?.userA
+      const userB = session.metadata?.userB
+      const itemId = session.metadata?.itemId
+
+      if (!barattoId) return NextResponse.json({ received: true, baratto: 'metadati mancanti' })
+
+      const { data: oggetto } = await supabaseAdmin
+        .from('announcements')
+        .select('title')
+        .eq('id', itemId || '')
+        .maybeSingle()
+      const titolo = oggetto?.title || 'un oggetto'
+
+      if (checkoutType === 'baratto_auth') {
+        await supabaseAdmin
+          .from('baratti')
+          .update({
+            // Serve conservarlo: e' questo l'identificativo da catturare (o
+            // da annullare, in caso di rifiuto) piu' avanti.
+            stripe_pi_user_a: typeof session.payment_intent === 'string' ? session.payment_intent : null,
+            status: 'pending_user_b',
+          })
+          .eq('id', barattoId)
+
+        await notificaUtente(
+          userB,
+          `🤝 Hai ricevuto una proposta di baratto per "${titolo}". Accettala o rifiutala dalla pagina Baratti.`,
+          'Proposta di baratto 🤝',
+          '/baratti',
+          true
+        )
+
+        return NextResponse.json({ received: true, baratto: 'proposta inviata' })
+      }
+
+      // baratto_accept: ora si preleva davvero la quota congelata di chi ha
+      // proposto. Se questa cattura fallisce NON apriamo lo scambio: meglio
+      // fermarsi che far pagare uno solo dei due.
+      const { data: baratto } = await supabaseAdmin
+        .from('baratti')
+        .select('stripe_pi_user_a, status')
+        .eq('id', barattoId)
+        .maybeSingle()
+
+      if (baratto?.stripe_pi_user_a) {
+        try {
+          await stripe.paymentIntents.capture(baratto.stripe_pi_user_a)
+        } catch (errCattura) {
+          console.error('[Webhook/Baratto] Cattura quota del proponente fallita:', errCattura)
+          return NextResponse.json({ received: true, baratto: 'cattura fallita' })
+        }
+      }
+
+      await supabaseAdmin.from('baratti').update({ status: 'accepted_chat_unlocked' }).eq('id', barattoId)
+
+      // Sblocco della conversazione per entrambi: e' esattamente cio' per cui
+      // hanno pagato la quota.
+      if (itemId) {
+        await supabaseAdmin.from('unlocked_chats').insert([
+          { user_id: userA, announcement_id: itemId },
+          { user_id: userB, announcement_id: itemId },
+        ])
+      }
+
+      // Un primo messaggio di servizio, così la conversazione esiste davvero
+      // e le due persone si trovano già in chat invece di dover ricominciare
+      // da capo a cercarsi.
+      if (userA && userB) {
+        await supabaseAdmin.from('messages').insert([{
+          sender_id: userA,
+          receiver_id: userB,
+          content: `🤝 Baratto attivato per "${titolo}". Mettetevi d'accordo qui su cosa scambiare e come consegnarvi gli oggetti.`,
+        }])
+      }
+
+      const avviso = `🤝 Baratto attivato per "${titolo}"! Potete accordarvi in chat.`
+      await notificaUtente(userA, avviso, 'Baratto attivato 🤝', '/chat', true)
+      await notificaUtente(userB, avviso, 'Baratto attivato 🤝', '/chat', true)
+
+      return NextResponse.json({ received: true, baratto: 'attivato' })
+    }
+
+    // ==========================================
     // LOGICA 1: SPONSORIZZAZIONE VETRINA
     // ==========================================
     if (checkoutType === 'sponsorship' && announcementId) {
@@ -155,13 +252,15 @@ export async function POST(req: Request) {
            ? `🛒 Il tuo oggetto e' stato acquistato tramite il Curatore! Lo scambio e' avviato.`
            : `🛒 Hai venduto un oggetto! Prepara la spedizione: l'importo resta protetto fino alla consegna.`,
          'Oggetto venduto 🛒',
-         '/orders'
+         '/orders',
+         true // anche via email: e' l'evento piu' importante del sito
        )
        await notificaUtente(
          buyerId,
          `✅ Pagamento riuscito! Il venditore e' stato avvisato e prepara la spedizione.`,
          'Acquisto confermato ✅',
-         '/dashboard/acquisti'
+         '/dashboard/acquisti',
+         true // anche via email: vale come ricevuta dell'acquisto
        )
 
        // NUOVO: se la vendita e' avvenuta tramite un promotore Arena,
@@ -173,13 +272,15 @@ export async function POST(req: Request) {
            sellerId,
            `🏆 Il tuo oggetto in Arena e' stato venduto tramite un promotore della community! Lo scambio e' avviato.`,
            'Venduto in Arena 🏆',
-           '/orders'
+           '/orders',
+           true
          )
          await notificaUtente(
            arenaPromoterId,
            `🎉 Hai vinto l'Arena! Il tuo link ha portato alla vendita. Riceverai la tua quota a scambio confermato.`,
            'Hai vinto l\'Arena 🎉',
-           '/arena'
+           '/arena',
+           true // c'e' di mezzo una quota da incassare: merita un'email
          )
        }
     }

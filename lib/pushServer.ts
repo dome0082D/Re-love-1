@@ -114,7 +114,11 @@ export async function notificaUtente(
   userId: string | null | undefined,
   message: string,
   title = 'Re-love',
-  url = '/'
+  url = '/',
+  // NUOVO: manda ANCHE un'email. Da usare solo per gli eventi che contano
+  // davvero (soldi, stato di un ordine, controversie): un'email per ogni
+  // avviso sarebbe spam, e finirebbe per far ignorare anche quelle utili.
+  ancheEmail = false
 ): Promise<void> {
   if (!userId || !message) return
   try {
@@ -126,4 +130,53 @@ export async function notificaUtente(
     console.error('[Notifica] Errore inserimento:', err)
   }
   await inviaPushAUtente(userId, title, message, url)
+  if (ancheEmail) await inviaEmailAUtente(userId, title, message, url)
+}
+
+/**
+ * Manda l'email corrispondente a una notifica.
+ *
+ * FIX: lib/mail.ts esisteva ma NON era importato da nessun file del
+ * progetto, e /api/notofy non veniva chiamata da nessuna parte: l'intero
+ * sistema di posta era scritto e mai collegato: nessun utente ha mai
+ * ricevuto un'email da Re-love. Qui viene agganciato al punto in cui
+ * nascono già tutti gli avvisi.
+ *
+ * Se RESEND_API_KEY non è configurata la funzione esce senza fare nulla e
+ * senza lanciare: notifica in-app e push restano comunque consegnate.
+ */
+async function inviaEmailAUtente(
+  userId: string,
+  titolo: string,
+  messaggio: string,
+  url: string
+): Promise<void> {
+  try {
+    if (!process.env.RESEND_API_KEY) return
+
+    const { data: profilo } = await supabaseAdmin
+      .from('profiles')
+      .select('email, first_name, nickname')
+      .eq('id', userId)
+      .maybeSingle()
+
+    if (!profilo?.email) return
+
+    const sito = process.env.NEXT_PUBLIC_SITE_URL || 'https://re-love-rouge.vercel.app'
+    const nome = profilo.nickname || profilo.first_name
+    const corpo = nome ? `Ciao ${nome},\n\n${messaggio}` : messaggio
+
+    const { sendReLoveEmail } = await import('@/lib/mail')
+    const esito = await sendReLoveEmail(
+      profilo.email,
+      titolo,
+      titolo,
+      corpo,
+      'Apri Re-love',
+      `${sito}${url.startsWith('/') ? url : '/' + url}`
+    )
+    if (!esito.ok) console.warn('[Email] Non inviata:', esito.error)
+  } catch (err) {
+    console.error('[Email] Errore invio:', err)
+  }
 }

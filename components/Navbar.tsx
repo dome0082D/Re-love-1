@@ -607,6 +607,12 @@ export default function Navbar() {
                     <Link href="/chat" onClick={() => setIsSidebarOpen(false)} className="flex justify-between items-center p-4 text-base font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all">
                       <div className="flex items-center gap-4"><MessageCircle size={20} className="text-stone-500" /> Messaggi</div>
                     </Link>
+                    {/* NUOVO: ingresso al sistema Baratto. Le sue pagine e le
+                        sue route esistevano ma nessun link nel sito ci
+                        portava, quindi era irraggiungibile. */}
+                    <Link href="/baratti" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-4 p-4 text-base font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all">
+                      <Handshake size={20} className="text-stone-500" /> Baratti
+                    </Link>
                     <Link href="/dashboard/preferiti" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-4 p-4 text-base font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all">
                       <Heart size={20} className="text-stone-500" /> Preferiti
                     </Link>

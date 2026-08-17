@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
+import { notificaUtente } from '@/lib/pushServer';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
   apiVersion: '2026-03-25.dahlia',
@@ -224,6 +225,20 @@ export async function POST(req: Request) {
         }
       }
 
+      // FIX: qui non veniva mandata NESSUNA notifica. Il compratore
+      // confermava la ricezione, i soldi partivano davvero verso il
+      // venditore, e il venditore non veniva avvisato in alcun modo:
+      // doveva accorgersene da solo guardando il conto Stripe. Ora
+      // riceve avviso in-app, push ed email - ci sono di mezzo soldi
+      // appena incassati.
+      await notificaUtente(
+        transaction.seller_id,
+        "\u{1F4B0} Il compratore ha confermato la ricezione: il pagamento e' stato sbloccato e trasferito sul tuo conto.",
+        'Pagamento sbloccato \u{1F4B0}',
+        '/orders',
+        true
+      );
+
       return NextResponse.json({ success: true, message: "Pacco confermato! I fondi sono stati inviati al venditore." });
     }
 
@@ -243,10 +258,25 @@ export async function POST(req: Request) {
       // FIX: se questa seconda query non restituisce dati (hiccup transitorio
       // del database), checkTx era null/undefined e leggere le sue proprietà
       // lanciava un'eccezione invece di una risposta chiara.
+      const altroUtente = userRole === 'buyer' ? transaction.seller_id : transaction.buyer_id;
+
       if (checkTx?.barter_confirmed_buyer && checkTx?.barter_confirmed_seller) {
         await supabaseAdmin.from('transactions').update({ status: 'Concluso' }).eq('id', transactionId);
+        // Avvisiamo entrambi: lo scambio e' chiuso per davvero.
+        const chiuso = '\u{1F91D} Baratto concluso: avete confermato entrambi lo scambio.';
+        await notificaUtente(transaction.buyer_id, chiuso, 'Baratto concluso \u{1F91D}', '/orders', true);
+        await notificaUtente(transaction.seller_id, chiuso, 'Baratto concluso \u{1F91D}', '/orders', true);
         return NextResponse.json({ success: true, message: "Entrambi avete confermato! Scambio concluso." });
       }
+
+      // Manca ancora la conferma dell'altro: senza questo avviso poteva
+      // restare in attesa all'infinito senza sapere che tocca a lui.
+      await notificaUtente(
+        altroUtente,
+        "\u{1F91D} L'altra persona ha confermato il baratto. Manca solo la tua conferma per chiudere lo scambio.",
+        'Conferma il baratto \u{1F91D}',
+        '/orders'
+      );
 
       return NextResponse.json({ success: true, message: "Conferma inviata. In attesa dell'altro utente." });
     }
@@ -265,6 +295,14 @@ export async function POST(req: Request) {
         .from('transactions')
         .update({ status: 'In Contestazione' })
         .eq('id', transactionId);
+
+      await notificaUtente(
+        transaction.seller_id,
+        "\u26A0\uFE0F Il compratore ha aperto un reclamo su un tuo ordine. I fondi restano bloccati finche' lo staff non decide.",
+        'Reclamo aperto \u26A0\uFE0F',
+        '/orders',
+        true
+      );
 
       return NextResponse.json({ success: true, message: "Reclamo aperto. Il team di Re-love analizzerà la situazione. I fondi restano bloccati." });
     }

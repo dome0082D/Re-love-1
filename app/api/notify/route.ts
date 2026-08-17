@@ -30,16 +30,10 @@
 // ============================================================================
 
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { verificaUtente } from '@/lib/serverAuth'
-import { inviaPushAUtente } from '@/lib/pushServer'
+import { notificaUtente } from '@/lib/pushServer'
 
 export const dynamic = 'force-dynamic'
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL as string,
-  process.env.SUPABASE_SERVICE_ROLE_KEY as string
-)
 
 // Limite di lunghezza: il messaggio finisce sia in una notifica di sistema
 // del telefono sia in un popup. Oltre questa soglia è comunque troncato
@@ -59,33 +53,24 @@ export async function POST(req: Request) {
     // richiesta evita due giri di rete dal telefono.
     const richieste: unknown[] = Array.isArray(body?.notifiche) ? body.notifiche : [body]
 
-    const esiti: { userId: string; ok: boolean; push: number }[] = []
+    const esiti: { userId: string; ok: boolean }[] = []
 
     for (const voce of richieste) {
-      const n = voce as { userId?: string; message?: string; title?: string; url?: string }
+      const n = voce as { userId?: string; message?: string; title?: string; url?: string; email?: boolean }
       if (!n?.userId || !n?.message) continue
 
       const messaggio = String(n.message).slice(0, MAX_MESSAGGIO)
 
-      const { error } = await supabaseAdmin.from('notifications').insert([{
-        user_id: n.userId,
-        message: messaggio,
-        is_read: false,
-      }])
-
-      if (error) {
-        console.error('[Notify] Inserimento notifica fallito:', error)
-        esiti.push({ userId: n.userId, ok: false, push: 0 })
-        continue
-      }
-
-      const esitoPush = await inviaPushAUtente(
+      // Una sola chiamata copre notifica in-app + push + (se richiesto)
+      // email: prima erano tre cose separate da ricordarsi ogni volta.
+      await notificaUtente(
         n.userId,
-        n.title || 'Re-love',
         messaggio,
-        n.url || '/'
+        n.title || 'Re-love',
+        n.url || '/',
+        !!n.email
       )
-      esiti.push({ userId: n.userId, ok: true, push: esitoPush.inviate })
+      esiti.push({ userId: n.userId, ok: true })
     }
 
     if (esiti.length === 0) {

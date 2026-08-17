@@ -121,7 +121,8 @@ export async function POST(req: NextRequest) {
       mandate.curator_id,
       `⚠️ Il Proprietario ha revocato la delega per "${datiOggetto.title}". L'annuncio non è più pubblico.`,
       'Delega revocata ⚠️',
-      '/curatore'
+      '/curatore',
+      true // il Curatore perde un annuncio che gestiva: va avvisato davvero
     )
 
     return NextResponse.json({ ok: true })

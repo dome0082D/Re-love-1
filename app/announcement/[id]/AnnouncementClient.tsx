@@ -372,6 +372,43 @@ function AnnouncementContent() {
     toast.success('Link copiato negli appunti!')
   }
 
+  // NUOVO: avvia una vera proposta di baratto (vedi app/api/baratto/request).
+  const handleProponiBaratto = async () => {
+    if (!ann) return
+    if (!user) { toast.error('Devi accedere per proporre un baratto.'); router.push('/login'); return }
+    if (user.id === ann.user_id) { toast.error('Non puoi barattare un tuo stesso oggetto.'); return }
+
+    setActionLoading(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        toast.error('Sessione scaduta: rientra e riprova.')
+        return
+      }
+
+      const res = await fetch('/api/baratto/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ itemId: ann.id }),
+      })
+      const data = await res.json()
+
+      if (!res.ok || data.error) {
+        toast.error(data.error || 'Non è stato possibile avviare il baratto.')
+        // Se una richiesta esiste già, mandiamolo dove può vederla.
+        if (res.status === 409) router.push('/baratti')
+        return
+      }
+
+      if (data.url) window.location.href = data.url
+    } catch (err) {
+      console.error('Errore proposta baratto:', err)
+      toast.error('Errore di connessione.')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
   const handleSecureBuy = async () => {
     if (!ann) return;
     if (!user) { toast.error("Devi accedere per acquistare."); return; }
@@ -800,9 +837,30 @@ function AnnouncementContent() {
                          💬 Scrivi al venditore
                        </button>
                      </div>
+                   ) : ann.condition === 'Baratto' ? (
+                     /* NUOVO: questo pulsante apriva solo una chat, esattamente
+                        come "Contatta il venditore" qui sotto - il sistema
+                        Baratto (route /api/baratto/*, tabella "baratti") non
+                        veniva mai coinvolto e restava inutilizzato. Ora avvia
+                        davvero una proposta di scambio. */
+                     <div className="space-y-3">
+                       <button
+                         onClick={handleProponiBaratto}
+                         disabled={actionLoading}
+                         className="w-full bg-rose-500 text-white p-5 rounded-2xl font-black uppercase text-sm tracking-[0.1em] shadow-xl hover:bg-stone-900 transition-all disabled:opacity-30"
+                       >
+                         {actionLoading ? 'In corso...' : 'Proponi Baratto'}
+                       </button>
+                       <div className="bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3">
+                         <p className="text-[10px] font-bold text-blue-800 leading-relaxed">
+                           Blocchi 2,50 € sulla carta, senza pagarli. L&apos;addebito scatta solo se l&apos;altra
+                           persona accetta lo scambio: se rifiuta, i soldi tornano subito disponibili.
+                         </p>
+                       </div>
+                     </div>
                    ) : (
                      <button onClick={handleContact} disabled={actionLoading} className="w-full bg-rose-500 text-white p-5 rounded-2xl font-black uppercase text-sm tracking-[0.1em] shadow-xl hover:bg-stone-900 transition-all disabled:opacity-30">
-                        {ann.condition === 'Regalo' ? 'Prendi Regalo' : 'Inizia Baratto'}
+                        Prendi Regalo
                      </button>
                    )}
                    
