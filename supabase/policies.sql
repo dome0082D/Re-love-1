@@ -197,6 +197,19 @@ create policy "vetrina: elimino le mie"
   using (auth.uid() = user_id);
 
 
+-- --------------------------------------------------------------- CATEGORIE
+-- L'elenco delle categorie e' un dato pubblico del sito (serve nel menu
+-- laterale). Senza una policy di lettura la tabella rispondeva 200 con un
+-- elenco VUOTO anche a chi era autenticato, e la sezione "Categorie" del
+-- menu restava sempre vuota senza che nulla segnalasse un errore.
+alter table public.categories enable row level security;
+
+drop policy if exists "categorie: sono pubbliche" on public.categories;
+create policy "categorie: sono pubbliche"
+  on public.categories for select
+  using (true);
+
+
 -- ------------------------------------------------------------------ BARATTI
 -- Riguarda solo le due persone coinvolte nello scambio.
 alter table public.baratti enable row level security;
@@ -221,6 +234,6 @@ from pg_policies
 where schemaname = 'public'
   and tablename in (
     'notifications','messages','favorites','bids','reviews',
-    'hidden_conversations','vetrina_items','baratti'
+    'hidden_conversations','vetrina_items','baratti','categories'
   )
 order by tablename, cmd, policyname;

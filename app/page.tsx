@@ -723,7 +723,19 @@ function HomePageContent() {
       (item.description || '').toLowerCase().includes(testoRicerca) ||
       (item.category || '').toLowerCase().includes(testoRicerca) ||
       (item.category_id || '').toString().toLowerCase().includes(testoRicerca)
-    const categoryMatch = catFilter ? item.category_id?.toString() === catFilter : (searchCategory === 'all' || item.category === searchCategory)
+    // FIX: il filtro per categoria (quello che arriva dai link del menu
+    // laterale, "/?cat=...") confrontava il parametro con "category_id", che
+    // su TUTTI gli annunci del database è null: la categoria è salvata come
+    // testo nella colonna "category". Nessun annuncio poteva quindi mai
+    // corrispondere, e toccare una categoria nel menu dava sempre "Nessun
+    // risultato". Ora confrontiamo con il nome, che è il valore vero; per
+    // compatibilità accettiamo anche un eventuale category_id, se un domani
+    // quella colonna venisse popolata.
+    const categoriaRichiesta = catFilter ? decodeURIComponent(catFilter).toLowerCase() : null
+    const categoryMatch = categoriaRichiesta
+      ? (item.category || '').toLowerCase() === categoriaRichiesta ||
+        (item.category_id || '').toString().toLowerCase() === categoriaRichiesta
+      : (searchCategory === 'all' || item.category === searchCategory)
     const conditionMatch = condition === 'all' || item.condition === condition
     const typeMatch = !typeFilter || item.type === typeFilter
     const availableMatch = item.quantity > 0 
