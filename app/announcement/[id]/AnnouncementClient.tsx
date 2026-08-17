@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { Timer, Gavel, ShoppingCart, Sparkles } from 'lucide-react'
 import { inviaNotifica } from '@/lib/pushNotify'
 import { registraRilancio } from '@/lib/azioniUtente'
+import BottoneCondividi from '@/components/BottoneCondividi'
 import { useCartStore } from '@/store/cartStore'
 import type { User } from '@supabase/supabase-js'
 
@@ -864,6 +865,16 @@ function AnnouncementContent() {
                      </button>
                    )}
                    
+                   {/* NUOVO: tasto condividi. Sul telefono apre il pannello
+                       di sistema (WhatsApp, Telegram...), su computer copia
+                       il link negli appunti. */}
+                   <BottoneCondividi
+                     percorso={`/announcement/${ann.id}`}
+                     titolo={ann.title}
+                     testo={`${ann.title} - ${ann.condition === 'Regalo' ? 'in regalo' : ann.condition === 'Baratto' ? 'in baratto' : `€ ${Number(ann.price).toFixed(2)}`} su Re-love`}
+                     className="w-full bg-white/40 border-2 border-white/60 text-stone-900 p-4 rounded-2xl text-xs hover:bg-white/80 mt-3"
+                   />
+
                    <button onClick={handleContact} disabled={actionLoading} className="text-stone-900 font-black text-xs underline hover:text-rose-600 transition-all mt-4 w-full text-center disabled:opacity-30">
                      Hai dubbi? Contatta il venditore in chat
                    </button>
@@ -873,6 +884,15 @@ function AnnouncementContent() {
                     <div className="p-4 bg-white/40 rounded-2xl text-center border border-white/50">
                       <p className="text-[10px] font-black uppercase text-stone-900">Questo è il tuo annuncio</p>
                     </div>
+
+                    {/* Anche sul proprio annuncio: è il caso in cui serve di
+                        più, per farlo girare fra amici e social. */}
+                    <BottoneCondividi
+                      percorso={`/announcement/${ann.id}`}
+                      titolo={ann.title}
+                      testo={`${ann.title} - € ${Number(ann.price).toFixed(2)} su Re-love`}
+                      className="w-full bg-white/40 border-2 border-white/60 text-stone-900 p-4 rounded-2xl text-xs hover:bg-white/80"
+                    />
                     {!ann.is_sponsored && (
                       <Link
                         href={`/vetrina/interna?ad_id=${ann.id}`}

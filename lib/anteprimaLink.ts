@@ -613,23 +613,43 @@ async function provaLetturaDiretta(parsedUrl: URL, userAgent: string = USER_AGEN
 // passati a microlink, che apre la pagina con un browser vero: è l'unico
 // modo di leggere il prezzo da siti come Amazon, che a una semplice
 // richiesta HTTP rispondono con una pagina anti-bot.
-const SELETTORI_PREZZO = [
-  // Amazon: prima i contenitori del riquadro d'acquisto, che contengono
-  // SOLO il prezzo dell'articolo richiesto. Il generico ".a-price" viene
-  // dopo, perché su una pagina Amazon esistono decine di prezzi di altri
-  // prodotti (accessori, caroselli, "altri venditori").
-  '#corePrice_feature_div .a-offscreen',
+// ============================================================================
+// SELETTORI DEL PREZZO — divisi in due gruppi, e non è un dettaglio.
+//
+// PROBLEMA TROVATO: sullo stesso identico link, il prezzo importato cambiava
+// da una prova all'altra (11,98 € corretto, poi 62,89 € sbagliato). Il
+// colpevole era il selettore generico ".a-price .a-offscreen" passato a
+// microlink: su una pagina Amazon ci sono decine di elementi ".a-price"
+// (prodotti sponsorizzati, accessori, "altri venditori", caroselli), e
+// quello preso era semplicemente il primo che capitava nel DOM - quasi mai
+// quello dell'articolo richiesto. Verificato con chiavi distinte:
+//
+//     #corePrice_feature_div .a-offscreen -> null
+//     .a-price .a-offscreen              -> "€62.89"   <-- altro prodotto
+//
+// I selettori generici restano utili sui negozi piccoli, dove esiste un solo
+// prezzo in pagina. Su Amazon, eBay e simili vanno esclusi: meglio nessun
+// prezzo che il prezzo di un altro articolo.
+// ============================================================================
+
+/** Ancorati al riquadro d'acquisto: contengono SOLO il prezzo dell'articolo. */
+const SELETTORI_PREZZO_SPECIFICI = [
+  '#corePrice_feature_div .a-offscreen',              // Amazon
   '#corePriceDisplay_desktop_feature_div .a-offscreen',
   '#apex_desktop .a-offscreen',
   '#buybox .a-offscreen',
-  '.a-price .a-offscreen',              // Amazon (ripiego)
-  '#priceblock_ourprice',               // Amazon (schede vecchie)
-  '[itemprop="price"]',                 // microdata schema.org
-  '.x-price-primary .ux-textspans',     // eBay
-  '.price_color',                       // molti negozi basati su template comuni
+  '#priceblock_ourprice',                             // Amazon (schede vecchie)
+  '.x-price-primary .ux-textspans',                   // eBay
+]
+
+/** Generici: buoni sui negozi con un solo prezzo in pagina, pessimi altrove. */
+const SELETTORI_PREZZO_GENERICI = [
+  '[itemprop="price"]',
+  '.price_color',
   '.product-price',
   '.price',
 ]
+
 
 async function provaViaMicrolink(parsedUrl: URL): Promise<Anteprima | null> {
   try {
@@ -642,8 +662,20 @@ async function provaViaMicrolink(parsedUrl: URL): Promise<Anteprima | null> {
     // dai datacenter), l'anteprima risultava semplicemente vuota.
     // I selettori del prezzo si passano ripetendo la stessa chiave: microlink
     // li prova in ordine e tiene il primo che trova qualcosa.
-    const selettori = SELETTORI_PREZZO
-      .map(s => `data.prezzo.selector=${encodeURIComponent(s)}`)
+    // Sui siti difficili niente selettori generici: vedi il commento sopra
+    // l'elenco: e' proprio da li' che arrivava il prezzo di un altro prodotto.
+    const selettoriUsati = isSitoDifficile(parsedUrl.hostname)
+      ? SELETTORI_PREZZO_SPECIFICI
+      : [...SELETTORI_PREZZO_SPECIFICI, ...SELETTORI_PREZZO_GENERICI]
+
+    // Chiavi DISTINTE (p0, p1, ...) invece della stessa chiave ripetuta.
+    // Ripetendola, microlink non prova i selettori nell'ordine dato - come
+    // avevo assunto - e restituiva il risultato di uno qualsiasi di essi:
+    // era questo a far comparire prezzi diversi a ogni tentativo sullo
+    // stesso link. Con chiavi distinte l'ordine di priorita' lo decidiamo
+    // qui sotto, leggendole nella sequenza giusta.
+    const selettori = selettoriUsati
+      .map((s, i) => `data.p${i}.selector=${encodeURIComponent(s)}`)
       .join('&')
 
     const res = await fetch(
@@ -674,13 +706,16 @@ async function provaViaMicrolink(parsedUrl: URL): Promise<Anteprima | null> {
     const immagineGrezza: string | null = data.data.image?.url || data.data.screenshot?.url || null
     const image = immagineGrezza && sembraUnaFotoVera(immagineGrezza) ? immagineGrezza : null
 
-    // Microlink espone il prezzo quando riesce a riconoscerlo, in forme
-    // diverse a seconda del sito: a volte un numero, a volte un oggetto
-    // { amount, currency }. Lo accettiamo in entrambe le forme.
+    // Leggiamo i selettori NELL'ORDINE in cui li abbiamo mandati: il primo
+    // che ha trovato qualcosa vince. Cosi' un selettore ancorato al riquadro
+    // d'acquisto batte sempre uno generico, indipendentemente da come
+    // microlink ordina la risposta.
     let price: number | null = null
     let currency: string | null = null
-    const grezzo = data.data.prezzo ?? data.data.price
-    if (grezzo !== undefined && grezzo !== null) {
+    for (let i = 0; i < selettoriUsati.length; i++) {
+      const grezzo = data.data[`p${i}`]
+      if (grezzo === undefined || grezzo === null) continue
+
       if (typeof grezzo === 'object') {
         price = normalizzaPrezzo(String(grezzo.amount ?? grezzo.value ?? ''))
         currency = grezzo.currency || null
@@ -690,7 +725,12 @@ async function provaViaMicrolink(parsedUrl: URL): Promise<Anteprima | null> {
         const simbolo = Object.keys(SIMBOLI_VALUTA).find(s => testo.includes(s))
         if (simbolo) currency = SIMBOLI_VALUTA[simbolo]
       }
+      if (price) break
     }
+
+    // NOTA: il campo "price" che microlink ricava per conto suo NON viene
+    // piu' usato. Su Amazon restituiva il prezzo di prodotti sponsorizzati
+    // in pagina, ed era una delle vie da cui entrava il valore sbagliato.
 
     if (!title && !image && !description && price === null) return null
     // microlink non espone le spese di spedizione: restano da leggere dalla
@@ -766,16 +806,47 @@ export async function leggiAnteprimaLink(parsedUrl: URL): Promise<Anteprima> {
   tentativi.push(await provaLetturaDiretta(urlRisolto))
   if (serveAncora()) tentativi.push(await provaLetturaDiretta(urlRisolto, USER_AGENT_MOBILE))
 
-  // I siti che limitano gli scraper (Amazon in testa) rispondono a raffica
-  // con pagine di blocco anche quando la richiesta successiva andrebbe
-  // benissimo: una singola pausa breve fa passare parecchi di questi casi,
-  // ed è la differenza fra "prezzo importato" e "riprova".
-  if (serveAncora() && isSitoDifficile(urlRisolto.hostname)) {
-    await new Promise(r => setTimeout(r, 1200))
-    tentativi.push(await provaLetturaDiretta(urlRisolto))
+  // I siti che limitano gli scraper (Amazon in testa) alternano la pagina
+  // vera e una pagina di blocco: misurato, la pagina buona arriva circa una
+  // volta su due. Siccome per questi siti la lettura diretta è l'UNICA fonte
+  // di cui ci si possa fidare per il prezzo (i selettori generici prendono
+  // articoli sbagliati - vedi il commento sui selettori), insistere qualche
+  // volta in più è la differenza fra "prezzo importato" e "riprova". Con
+  // quattro tentativi la probabilità di restare a mani vuote scende sotto il
+  // 10%. Ci si ferma appena il prezzo arriva.
+  if (isSitoDifficile(urlRisolto.hostname)) {
+    for (let tentativo = 0; tentativo < 3; tentativo++) {
+      if (unisci(tentativi).price !== null) break
+      await new Promise(r => setTimeout(r, 900))
+      tentativi.push(await provaLetturaDiretta(urlRisolto))
+    }
   }
 
-  if (serveAncora()) tentativi.push(await provaViaMicrolink(urlRisolto))
+  if (serveAncora()) {
+    const daMicrolink = await provaViaMicrolink(urlRisolto)
+
+    // ========================================================================
+    // SUI SITI DIFFICILI, DA MICROLINK NON SI PRENDE IL PREZZO.
+    //
+    // Microlink apre la pagina con un browser proprio e viene rimandato alla
+    // versione internazionale (".../-/en/..."), che può mostrare una
+    // variante diversa dell'articolo - altra taglia, altro colore, altro
+    // venditore - e quindi un altro prezzo. Misurato sullo stesso zaino:
+    //
+    //     lettura diretta (5 prove) -> 16,99  16,99  16,99   (prezzo vero)
+    //     via microlink             -> 13,93                 (altra variante)
+    //
+    // Titolo, descrizione e immagine restano utilissimi: quelli valgono
+    // anche se arrivano dalla versione internazionale. Il prezzo no: è un
+    // dato su cui la gente decide se comprare, e uno sbagliato è peggio di
+    // uno mancante.
+    // ========================================================================
+    if (daMicrolink && isSitoDifficile(urlRisolto.hostname)) {
+      tentativi.push({ ...daMicrolink, price: null, currency: null })
+    } else {
+      tentativi.push(daMicrolink)
+    }
+  }
 
   return unisci(tentativi)
 }

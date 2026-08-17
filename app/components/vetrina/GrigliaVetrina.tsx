@@ -11,6 +11,7 @@
 import Link from 'next/link'
 import { ExternalLink, Eye, X, Truck } from 'lucide-react'
 import type { VoceInterna, VoceEsterna } from './datiVetrina'
+import BottoneCondividi from '@/components/BottoneCondividi'
 
 export function IntestazioneVetrina({
   titolo,
@@ -68,15 +69,25 @@ export function GrigliaInterna({
             ✨ Vetrina
           </div>
 
-          {onElimina && (
-            <button
-              onClick={() => onElimina(voce)}
-              title="Togli dalla Vetrina"
-              className="absolute top-3 right-3 z-10 bg-stone-900/80 text-white w-7 h-7 rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
-            >
-              <X size={14} />
-            </button>
-          )}
+          {/* NUOVO: tasto condividi. Sta in colonna con la X per non
+              sovrapporsi ad essa quando ci sono entrambi. */}
+          <div className="absolute top-3 right-3 z-20 flex flex-col gap-2">
+            {onElimina && (
+              <button
+                onClick={() => onElimina(voce)}
+                title="Togli dalla Vetrina"
+                className="bg-stone-900/80 text-white w-9 h-9 rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
+              >
+                <X size={14} />
+              </button>
+            )}
+            <BottoneCondividi
+              aspetto="icona"
+              percorso={`/announcement/${voce.announcements.id}`}
+              titolo={voce.announcements.title}
+              testo={`${voce.announcements.title} - € ${Number(voce.announcements.price).toFixed(2)} su Re-love`}
+            />
+          </div>
 
           <Link href={`/announcement/${voce.announcements.id}`} className="contents">
             <div className="aspect-square bg-stone-50 relative">
@@ -118,15 +129,27 @@ export function GrigliaEsterna({
             <ExternalLink size={9} /> Link Esterno
           </div>
 
-          {onElimina && (
-            <button
-              onClick={() => onElimina(voce)}
-              title="Togli dalla Vetrina"
-              className="absolute top-3 right-3 z-10 bg-stone-900/80 text-white w-7 h-7 rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
-            >
-              <X size={14} />
-            </button>
-          )}
+          <div className="absolute top-3 right-3 z-20 flex flex-col gap-2">
+            {onElimina && (
+              <button
+                onClick={() => onElimina(voce)}
+                title="Togli dalla Vetrina"
+                className="bg-stone-900/80 text-white w-9 h-9 rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
+              >
+                <X size={14} />
+              </button>
+            )}
+            {/* Si condivide la Vetrina Re-love di chi ha pubblicato, non
+                l'indirizzo del negozio esterno: chi apre il link arriva sul
+                sito e vede l'articolo nel suo contesto - ed e' esattamente
+                il motivo per cui la Vetrina esiste. */}
+            <BottoneCondividi
+              aspetto="icona"
+              percorso={`/vetrina/utente/${voce.user_id}`}
+              titolo={voce.title}
+              testo={`${voce.title} - € ${Number(voce.price).toFixed(2)} - trovato su Re-love`}
+            />
+          </div>
 
           <div onClick={() => onApri(voce)} className="contents cursor-pointer">
             <div className="aspect-square bg-stone-50 relative">
