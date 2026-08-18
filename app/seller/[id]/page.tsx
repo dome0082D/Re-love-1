@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { MessageCircle, MapPin } from 'lucide-react'
-import { srcFoto, srcSetFoto } from '@/lib/immagini'
+import { srcFoto, srcSetFoto, fotoQuadrata } from '@/lib/immagini'
 
 interface SellerProfile {
   id: string
@@ -159,7 +159,7 @@ export default function SellerProfilePage() {
             {announcements.map(item => (
               <Link key={item.id} href={`/announcement/${item.id}`} className="group bg-white rounded-[2rem] overflow-hidden shadow-sm border border-stone-200 hover:shadow-md transition-all flex flex-col">
                 <div className="aspect-square bg-stone-100 relative">
-                  <img src={srcFoto(item.image_url, 400) || '/usato.png'} srcSet={srcSetFoto(item.image_url, 400)} className="w-full h-full object-contain" alt={item.title} loading="lazy" decoding="async" />
+                  <img src={fotoQuadrata(item.image_url, 400).src || '/usato.png'} srcSet={fotoQuadrata(item.image_url, 400).srcSet} className="w-full h-full object-cover" alt={item.title} loading="lazy" decoding="async" />
                 </div>
                 <div className="p-3">
                   <h4 className="text-[10px] font-black uppercase line-clamp-2 text-stone-800 leading-tight mb-1">{item.title}</h4>

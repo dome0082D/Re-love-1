@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { srcFoto, srcSetFoto } from '@/lib/immagini'
+import { srcFoto, srcSetFoto, fotoQuadrata } from '@/lib/immagini'
 
 export default function PublicProfilePage() {
   const { id } = useParams()
@@ -149,7 +149,7 @@ export default function PublicProfilePage() {
               {announcements.map(ann => (
                 <Link href={`/announcement/${ann.id}`} key={ann.id} className="bg-white rounded-xl overflow-hidden border border-stone-200 shadow-sm flex flex-col group hover:border-stone-400 transition-all">
                   <div className="h-32 bg-stone-50 relative border-b border-stone-100">
-                    <img loading="lazy" decoding="async" src={srcFoto(ann.image_url, 400) || "/usato.png"} srcSet={srcSetFoto(ann.image_url, 400)} className="w-full h-full object-cover" />
+                    <img loading="lazy" decoding="async" src={fotoQuadrata(ann.image_url, 400).src || "/usato.png"} srcSet={fotoQuadrata(ann.image_url, 400).srcSet} className="w-full h-full object-cover" />
                     {ann.type === 'offered' && <span className="absolute top-2 right-2 bg-emerald-500 text-white text-[8px] font-black px-2 py-1 rounded uppercase shadow-sm">Regalo</span>}
                   </div>
                   <div className="p-3 flex flex-col flex-grow justify-between">

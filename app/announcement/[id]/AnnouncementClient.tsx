@@ -548,7 +548,13 @@ function AnnouncementContent() {
                </div>
              )}
              <div className="rounded-[2rem] overflow-hidden bg-transparent">
-               <img loading="lazy" decoding="async" src={srcFoto(ann.image_url, 900) || "/usato.png"} srcSet={srcSetFoto(ann.image_url, 900)} className="w-full h-auto object-cover aspect-square" alt={ann.title} />
+               {/* Qui la foto va vista INTERA, non tagliata: e' il momento in
+                   cui si decide se comprare. Le schede negli elenchi fanno il
+                   contrario (riempiono il quadrato tagliando) perche' li'
+                   conta l'ordine visivo, e una fila di foto tutte della stessa
+                   forma si guarda meglio di una fila di strisce con le fasce
+                   grigie ai lati - il difetto segnalato. */}
+               <img loading="lazy" decoding="async" src={srcFoto(ann.image_url, 900, { taglio: 'contain' }) || "/usato.png"} srcSet={srcSetFoto(ann.image_url, 900, { taglio: 'contain' })} className="w-full h-auto object-contain aspect-square bg-stone-50" alt={ann.title} />
              </div>
              {ann.image_urls && ann.image_urls.length > 1 && (
                <div className="flex gap-3 p-4 overflow-x-auto custom-scrollbar">

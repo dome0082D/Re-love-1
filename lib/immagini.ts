@@ -35,6 +35,19 @@ export interface OpzioniFoto {
   taglio?: 'cover' | 'contain'
   /** 1-100. Sotto 70 si iniziano a vedere gli artefatti. */
   qualita?: number
+  /**
+   * Altezza in pixel. Serve per ottenere un ritaglio VERO.
+   *
+   * Senza altezza, il ridimensionamento e' solo proporzionale: una foto da
+   * telefono 1080x1920 arriva 450x800, cioe' ancora verticale. Messa dentro
+   * una scheda quadrata diventa una striscia stretta fra due fasce grigie -
+   * il difetto segnalato ("che brutte le foto cosi").
+   *
+   * Passando anche l'altezza, insieme a taglio 'cover', il ritaglio lo fa il
+   * SERVER: arriva gia' un quadrato, centrato, senza fasce. Pesa anche meno
+   * (non si scarica la parte di foto che verrebbe comunque nascosta).
+   */
+  altezza?: number
 }
 
 /**
@@ -52,14 +65,17 @@ export function srcFoto(
   if (!url) return ''
   if (!url.includes(PERCORSO_ORIGINALE)) return url
 
-  const { taglio = 'cover', qualita = 75 } = opzioni
+  const { taglio = 'cover', qualita = 75, altezza } = opzioni
   const w = Math.min(Math.round(larghezza), LARGHEZZA_MASSIMA)
 
   const base = url.replace(PERCORSO_ORIGINALE, PERCORSO_TRASFORMATO)
   // Un indirizzo di Supabase Storage non ha già parametri, ma se un domani
   // ne avesse (un token di firma) non li buttiamo via.
   const separatore = base.includes('?') ? '&' : '?'
-  return `${base}${separatore}width=${w}&resize=${taglio}&quality=${qualita}`
+  const parteAltezza = altezza
+    ? `&height=${Math.min(Math.round(altezza), LARGHEZZA_MASSIMA)}`
+    : ''
+  return `${base}${separatore}width=${w}${parteAltezza}&resize=${taglio}&quality=${qualita}`
 }
 
 /**
@@ -74,10 +90,27 @@ export function srcSetFoto(
   opzioni: OpzioniFoto = {}
 ): string | undefined {
   if (!url || !url.includes(PERCORSO_ORIGINALE)) return undefined
+  const doppia: OpzioniFoto = opzioni.altezza
+    ? { ...opzioni, altezza: opzioni.altezza * 2 }
+    : opzioni
   return [
     `${srcFoto(url, larghezza, opzioni)} 1x`,
-    `${srcFoto(url, larghezza * 2, opzioni)} 2x`,
+    `${srcFoto(url, larghezza * 2, doppia)} 2x`,
   ].join(', ')
+}
+
+/**
+ * Ritaglio quadrato, pronto per le schede degli annunci: la foto riempie
+ * tutto il riquadro senza fasce vuote, tagliata al centro dal server.
+ */
+export function fotoQuadrata(url: string | null | undefined, lato: number) {
+  const opzioni: OpzioniFoto = { taglio: 'cover', altezza: lato }
+  return {
+    src: srcFoto(url, lato, opzioni),
+    srcSet: srcSetFoto(url, lato, opzioni),
+    loading: 'lazy' as const,
+    decoding: 'async' as const,
+  }
 }
 
 /**

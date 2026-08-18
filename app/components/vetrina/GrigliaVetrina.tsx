@@ -12,7 +12,7 @@ import Link from 'next/link'
 import { ExternalLink, Eye, X, Truck } from 'lucide-react'
 import type { VoceInterna, VoceEsterna } from './datiVetrina'
 import BottoneCondividi from '@/components/BottoneCondividi'
-import { srcFoto, srcSetFoto } from '@/lib/immagini'
+import { srcFoto, srcSetFoto, fotoQuadrata } from '@/lib/immagini'
 
 export function IntestazioneVetrina({
   titolo,
@@ -93,7 +93,7 @@ export function GrigliaInterna({
           <Link href={`/announcement/${voce.announcements.id}`} className="contents">
             <div className="aspect-square bg-stone-50 relative">
               <img
-                src={srcFoto(voce.announcements.image_url, 400) || '/usato.png'} srcSet={srcSetFoto(voce.announcements.image_url, 400)}
+                src={fotoQuadrata(voce.announcements.image_url, 400).src || '/usato.png'} srcSet={fotoQuadrata(voce.announcements.image_url, 400).srcSet}
                 className="w-full h-full object-cover"
                 alt={voce.announcements.title}
                 loading="lazy"
@@ -155,7 +155,7 @@ export function GrigliaEsterna({
           <div onClick={() => onApri(voce)} className="contents cursor-pointer">
             <div className="aspect-square bg-stone-50 relative">
               {voce.image_url ? (
-                <img src={srcFoto(voce.image_url, 400)} srcSet={srcSetFoto(voce.image_url, 400)} className="w-full h-full object-contain p-2" alt={voce.title} loading="lazy" />
+                <img src={fotoQuadrata(voce.image_url, 400).src} srcSet={fotoQuadrata(voce.image_url, 400).srcSet} className="w-full h-full object-contain p-2" alt={voce.title} loading="lazy" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-stone-300">
                   <ExternalLink size={40} />

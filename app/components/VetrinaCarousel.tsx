@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import { Sparkles, ExternalLink } from 'lucide-react'
-import { srcFoto, srcSetFoto } from '@/lib/immagini'
+import { srcFoto, srcSetFoto, fotoQuadrata } from '@/lib/immagini'
 
 interface VoceVetrina {
   userId: string
@@ -146,7 +146,7 @@ export default function VetrinaCarousel() {
                     className="block bg-stone-50 rounded-xl overflow-hidden border border-stone-100 hover:border-rose-300 transition-all relative"
                   >
                     <div className="aspect-square bg-stone-100 relative">
-                      <img src={srcFoto(item.image, 200) || '/usato.png'} srcSet={srcSetFoto(item.image, 200)} className="w-full h-full object-cover" alt={item.title} loading="lazy" decoding="async" />
+                      <img src={fotoQuadrata(item.image, 200).src || '/usato.png'} srcSet={fotoQuadrata(item.image, 200).srcSet} className="w-full h-full object-cover" alt={item.title} loading="lazy" decoding="async" />
                       {item.external && (
                         <div className="absolute top-1 right-1 bg-blue-600 text-white rounded-full p-1 shadow-sm">
                           <ExternalLink size={8} />
