@@ -7,10 +7,25 @@
 // Gira sul server con la chiave di servizio: cancellare un annuncio
 // pubblico è un'azione delicata che merita gli stessi controlli di
 // sicurezza già usati per l'approvazione del mandato.
+//
+// ============================================================================
+// COSA È STATO CORRETTO
+//
+// Questa route prendeva "ownerId" dal corpo della richiesta e lo confrontava
+// con il proprietario del mandato. Ma nessuno verificava che chi chiamava
+// FOSSE quell'utente: bastava scrivere nel corpo l'id giusto - e "owner_id"
+// è una colonna leggibile di "announcements" - per far sparire l'annuncio di
+// chiunque, senza nemmeno aver fatto accesso. Ora l'identità viene dal token
+// di sessione firmato; l'"ownerId" del corpo non viene più letto.
+//
+// Lo staff può revocare comunque: serve per sbloccare le situazioni in cui il
+// Proprietario non riesce a farlo da solo.
+// ============================================================================
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { notificaUtente } from '@/lib/pushServer'
+import { verificaUtente } from '@/lib/serverAuth'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,9 +36,13 @@ const supabaseAdmin = createClient(
 
 export async function POST(req: NextRequest) {
   try {
-    const { mandateId, ownerId } = await req.json()
+    const utente = await verificaUtente(req)
+    if (!utente) {
+      return NextResponse.json({ error: 'Devi accedere.' }, { status: 401 })
+    }
 
-    if (!mandateId || !ownerId) {
+    const { mandateId } = await req.json()
+    if (!mandateId) {
       return NextResponse.json({ error: 'Dati mancanti.' }, { status: 400 })
     }
 
@@ -31,15 +50,16 @@ export async function POST(req: NextRequest) {
       .from('curator_mandates')
       .select('*')
       .eq('id', mandateId)
-      .single()
+      .maybeSingle()
 
     if (mandateError || !mandate) {
       return NextResponse.json({ error: 'Mandato non trovato.' }, { status: 404 })
     }
 
-    if (mandate.owner_id !== ownerId) {
+    if (mandate.owner_id !== utente.id && !utente.isStaff) {
       return NextResponse.json({ error: 'Non sei il Proprietario di questo mandato.' }, { status: 403 })
     }
+    const ownerId = mandate.owner_id
 
     if (mandate.status !== 'attivo') {
       return NextResponse.json({ error: 'Questo mandato non è più attivo.' }, { status: 400 })

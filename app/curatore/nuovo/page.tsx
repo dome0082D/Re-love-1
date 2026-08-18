@@ -8,6 +8,8 @@ import { verificaContoStripe } from '@/lib/contoStripeClient'
 import { toast } from 'sonner'
 import QRCode from 'qrcode'
 import Link from 'next/link'
+import { linkApprovazione, OPZIONI_QR } from '@/lib/mandato'
+import BottoneCondividi from '@/components/BottoneCondividi'
 
 // Pagina del Curatore: crea la bozza dell'oggetto di un Proprietario e
 // genera il QR di delega da fargli scansionare di persona. Nessuna vendita
@@ -217,21 +219,16 @@ export default function NuovoMandatoPage() {
         return
       }
 
-      // Il QR contiene solo il token, con un prefisso per riconoscerlo
-      // dallo scanner ed evitare di confonderlo con un QR qualsiasi
-      // inquadrato per sbaglio.
+      // FIX: il QR conteneva "RELOVE_MANDATE:<codice>", che non è un
+      // indirizzo web. Inquadrandolo con la fotocamera normale del telefono
+      // non si apriva niente, e non esisteva nessun link da mandare al
+      // Proprietario: l'unica strada era che le due persone fossero nello
+      // stesso posto, con due telefoni. Ora il QR contiene il link di
+      // approvazione vero, che si apre da qualsiasi fotocamera e si può
+      // anche inviare per messaggio.
       const tokenEffettivo = mandate.qr_token || qrToken
-      const qrContent = `RELOVE_MANDATE:${tokenEffettivo}`
-      // Correzione di livello alto e margine ampio: un QR con correzione
-      // bassa e bordo stretto è molto più difficile da leggere quando viene
-      // inquadrato da un secondo telefono sullo schermo di un altro (riflessi,
-      // moiré, messa a fuoco).
-      const dataUrl = await QRCode.toDataURL(qrContent, {
-        width: 420,
-        margin: 4,
-        errorCorrectionLevel: 'H',
-        color: { dark: '#000000', light: '#FFFFFF' },
-      })
+      const qrContent = linkApprovazione(tokenEffettivo, window.location.origin)
+      const dataUrl = await QRCode.toDataURL(qrContent, OPZIONI_QR)
       setQrDataUrl(dataUrl)
       setQrToken(tokenEffettivo)
       setQrExpiresAt(mandate.qr_expires_at || qrExpiry)
@@ -272,36 +269,38 @@ export default function NuovoMandatoPage() {
           </div>
 
           <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-6">
-            Il Proprietario apre Re-love sul suo telefono, va su &ldquo;Approva Delega&rdquo; e inquadra questo codice.
+            Il Proprietario lo inquadra con la fotocamera del telefono e arriva
+            direttamente alla schermata di approvazione.
             {qrExpiresAt && ` Valido per 30 minuti.`}
           </p>
 
-          {/* NUOVO: alternativa alla scansione. Serve davvero: con un solo
-              telefono è fisicamente impossibile inquadrare il proprio
-              schermo, e su alcuni display (luminosità bassa, pellicola
-              opaca, riflessi) la lettura fallisce comunque. Il Proprietario
-              può digitare questo codice nella stessa pagina "Approva
-              Delega". Il codice non è un segreto in sé: da solo non
-              approva niente, va comunque confermato dal Proprietario
-              autenticato, e scade in 30 minuti. */}
+          {/* NUOVO: il link, non solo il codice. È la strada che funziona
+              quando le due persone non sono nella stessa stanza - il caso
+              normale, non l'eccezione. Il link non è un segreto: da solo non
+              approva niente, va comunque confermato dal Proprietario dopo
+              aver fatto accesso, e scade in 30 minuti. */}
           {qrToken && (
             <div className="bg-stone-50 border border-stone-200 rounded-2xl p-5 mb-8 text-left">
               <p className="text-[9px] font-black uppercase text-stone-400 tracking-widest mb-2">
-                Non riesce a inquadrarlo? Codice da digitare
+                Oppure mandagli questo link
               </p>
-              <p className="font-mono text-[11px] font-bold text-stone-900 break-all select-all bg-white border border-stone-200 rounded-lg p-3">
+              <p className="font-mono text-[10px] font-bold text-stone-900 break-all select-all bg-white border border-stone-200 rounded-lg p-3">
+                {linkApprovazione(qrToken, typeof window !== 'undefined' ? window.location.origin : '')}
+              </p>
+
+              <BottoneCondividi
+                percorso={`/curatore/scansiona?codice=${qrToken}`}
+                titolo={`Approva la delega per "${title}"`}
+                testo={`Ti ho preparato l'annuncio su Re-love. Apri il link per approvarlo: ti spetta il ${ownerPercentage}% della vendita.`}
+                className="w-full mt-3 bg-stone-900 text-white py-3 rounded-lg text-[9px] tracking-widest hover:bg-rose-600"
+              />
+
+              <p className="text-[9px] font-black uppercase text-stone-400 tracking-widest mt-5 mb-2">
+                Se preferisce digitarlo a mano
+              </p>
+              <p className="font-mono text-[11px] font-bold text-stone-500 break-all select-all bg-white border border-stone-200 rounded-lg p-3">
                 {qrToken}
               </p>
-              <button
-                type="button"
-                onClick={() => {
-                  navigator.clipboard.writeText(qrToken)
-                  toast.success('Codice copiato.')
-                }}
-                className="w-full mt-3 bg-stone-900 text-white py-2.5 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-rose-600 transition-all"
-              >
-                Copia il codice
-              </button>
             </div>
           )}
 

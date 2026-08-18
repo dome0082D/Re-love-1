@@ -13,6 +13,26 @@ export default function LoginPage() {
   const [status, setStatus] = useState({ type: '', msg: '' })
   const router = useRouter()
 
+  // FIX: dopo l'accesso si finiva SEMPRE in home, anche quando si era
+  // arrivati qui da un link preciso - per esempio il link di approvazione di
+  // una delega, che porta con se' il codice. Chi lo apriva senza aver fatto
+  // accesso perdeva il codice e doveva farselo rimandare. Ora si torna dove
+  // si era diretti. Accettiamo solo percorsi interni (che iniziano con una
+  // sola "/"): un indirizzo esterno qui sarebbe un invito a spedire la gente
+  // altrove partendo da un link Re-love.
+  // Letto da window.location al momento dell'invio, non con
+  // useSearchParams(): quello obbligherebbe a chiudere la pagina d'ingresso
+  // dentro un <Suspense>, lasciandola vuota finche' il browser non ha finito
+  // di agganciare il codice.
+  function destinazioneDopoAccesso() {
+    if (typeof window === 'undefined') return '/'
+    const richiesto = new URLSearchParams(window.location.search).get('redirect')
+    // Solo percorsi interni: un indirizzo esterno qui sarebbe un invito a
+    // spedire la gente altrove partendo da un link Re-love.
+    if (!richiesto || !richiesto.startsWith('/') || richiesto.startsWith('//')) return '/'
+    return richiesto
+  }
+
   const handleLogin = async (e?: React.FormEvent) => {
     // FIX: gestiamo anche l'invio del modulo col tasto Invio della tastiera
     // (prima funzionava solo cliccando il pulsante: su Android, dove la
@@ -40,7 +60,7 @@ export default function LoginPage() {
             : error.message
         })
       } else {
-        router.push('/')
+        router.push(destinazioneDopoAccesso())
         router.refresh()
       }
     } catch (err: any) {

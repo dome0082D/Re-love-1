@@ -7,11 +7,21 @@ import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import jsQR from 'jsqr'
 import Link from 'next/link'
+import { estraiTokenMandato, PARAMETRO_CODICE } from '@/lib/mandato'
 
 // Pagina del Proprietario: apre la fotocamera VERA del telefono dentro
 // l'app (non rimanda al browser/fotocamera di sistema), legge il QR
 // generato dal Curatore, mostra un'anteprima di cosa sta per approvare, e
 // solo dopo un tap esplicito conferma il mandato.
+//
+// NUOVO: la scansione non è più l'unica strada. Il QR contiene ora un vero
+// link, quindi il Proprietario può anche:
+//   - inquadrarlo con la fotocamera normale del telefono e finire qui;
+//   - ricevere il link su WhatsApp e toccarlo;
+//   - incollare link o codice nel campo qui sotto.
+// In tutti i casi si arriva alla stessa schermata di conferma. Prima solo
+// il codice nudo funzionava: incollare il link rispondeva "Codice QR non
+// riconosciuto", ed era il problema segnalato.
 //
 // FIX: la fotocamera NON parte più da sola all'apertura della pagina
 // (era uno useEffect automatico). Su una PWA installata (schermata Home),
@@ -22,6 +32,7 @@ import Link from 'next/link'
 // richiesta parta sempre da un gesto reale dell'utente.
 
 interface Anteprima {
+  token: string
   title: string
   description?: string
   price: number
@@ -31,8 +42,18 @@ interface Anteprima {
   ownerPercentage: number
   curatorPercentage: number
   curatorName: string
+  scadeIl?: string
+  /** Motivo per cui chi guarda NON può approvare (null = può). */
+  bloccante?: string | null
 }
 
+// NOTA: il codice nell'indirizzo si legge da window.location, NON con
+// useSearchParams(). Quest'ultimo obbligherebbe a chiudere tutta la pagina
+// dentro un <Suspense>, e finche' il browser non ha finito di agganciare il
+// codice l'utente vedrebbe soltanto il riquadro vuoto della schermata di
+// attesa - proprio su una pagina che si apre da un link, spesso su
+// connessione lenta. Cosi' invece la schermata compare subito e il codice
+// viene letto un istante dopo.
 export default function ScansionaMandatoPage() {
   const router = useRouter()
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -157,16 +178,12 @@ export default function ScansionaMandatoPage() {
     return code?.data || null
   }
 
-  /** Accetta sia il contenuto completo del QR sia il solo token digitato. */
-  function estraiToken(contenuto: string): string | null {
-    const pulito = contenuto.trim()
-    if (!pulito) return null
-    if (pulito.startsWith('RELOVE_MANDATE:')) {
-      const token = pulito.slice('RELOVE_MANDATE:'.length).trim()
-      return token && token !== 'undefined' && token !== 'null' ? token : null
-    }
-    return null
-  }
+  // Il riconoscimento del codice vive in lib/mandato.ts, condiviso con il
+  // server: link, contenuto del QR e codice nudo sono tutti validi.
+  // Dalla fotocamera restiamo severi (secondo argomento false) per non
+  // interrompere la scansione su un QR qualsiasi inquadrato per sbaglio;
+  // da un incolla siamo permissivi, perché lì arriva spesso un messaggio
+  // intero copiato da una chat.
 
   function scanFrame() {
     if (!scanningRef.current) return
@@ -194,7 +211,7 @@ export default function ScansionaMandatoPage() {
       if (ctx) {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
         const contenuto = leggiQrDaCanvas(canvas)
-        const token = contenuto ? estraiToken(contenuto) : null
+        const token = contenuto ? estraiTokenMandato(contenuto) : null
 
         if (token) {
           scanningRef.current = false
@@ -233,7 +250,7 @@ export default function ScansionaMandatoPage() {
       canvas.getContext('2d', { willReadFrequently: true })?.drawImage(img, 0, 0, canvas.width, canvas.height)
 
       const contenuto = leggiQrDaCanvas(canvas)
-      const token = contenuto ? estraiToken(contenuto) : null
+      const token = contenuto ? estraiTokenMandato(contenuto, true) : null
 
       if (!token) {
         toast.error(contenuto
@@ -254,17 +271,17 @@ export default function ScansionaMandatoPage() {
     }
   }
 
-  /** Fallback: il Proprietario digita il codice mostrato sotto il QR. */
+  /** Il Proprietario incolla il link ricevuto, o digita il codice. */
   function handleCodiceManuale() {
     const pulito = codiceManuale.trim()
     if (!pulito) {
-      toast.error('Inserisci il codice mostrato sotto il QR.')
+      toast.error('Incolla il link ricevuto dal Curatore, o il codice sotto il QR.')
       return
     }
-    // Accettiamo sia il codice nudo sia un incolla del contenuto completo.
-    const token = pulito.startsWith('RELOVE_MANDATE:') ? estraiToken(pulito) : pulito
+    // Permissivo: qui arriva spesso un messaggio intero copiato da una chat.
+    const token = estraiTokenMandato(pulito, true)
     if (!token) {
-      toast.error('Codice non valido.')
+      toast.error('Non ho riconosciuto nessun codice di delega qui dentro. Controlla di aver copiato tutto il link.')
       return
     }
     stopCamera()
@@ -272,20 +289,44 @@ export default function ScansionaMandatoPage() {
     fetchPreview(token)
   }
 
+  // Il link di approvazione porta il codice nell'indirizzo: chi lo apre (dal
+  // QR inquadrato con la fotocamera normale, o da un messaggio ricevuto)
+  // trova l'anteprima già caricata, senza dover incollare niente.
+  const linkGiaUsato = useRef(false)
+  useEffect(() => {
+    if (linkGiaUsato.current) return
+    const codiceDaLink = new URLSearchParams(window.location.search).get(PARAMETRO_CODICE)
+    if (!codiceDaLink) return
+    const token = estraiTokenMandato(codiceDaLink, true)
+    if (!token) return
+    linkGiaUsato.current = true
+    setQrToken(token)
+    fetchPreview(token)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   async function fetchPreview(token: string) {
     setLoadingPreview(true)
     try {
+      // Il token di sessione serve al server per dire subito se chi guarda
+      // può approvare (per esempio: non può, è lui stesso il Curatore).
+      const { data: { session } } = await supabase.auth.getSession()
       const res = await fetch('/api/curatore/preview', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
         body: JSON.stringify({ qrToken: token }),
       })
       const data = await res.json()
       if (!res.ok || data.error) {
-        toast.error(data.error || "QR non valido.")
+        toast.error(data.error || 'Codice non valido.')
         resetScanner()
         return
       }
+      // Usiamo il codice normalizzato dal server, non quello incollato.
+      setQrToken(data.token || token)
       setPreview(data)
     } catch (err) {
       console.error('Errore anteprima:', err)
@@ -310,17 +351,24 @@ export default function ScansionaMandatoPage() {
     if (!qrToken) return
     setSubmitting(true)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        toast.error('Devi accedere per approvare un mandato.')
-        router.push('/login')
+      // Il server non accetta più un id scritto nel corpo della richiesta:
+      // l'identità di chi approva deve arrivare dal token di sessione.
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        toast.error('Devi accedere per approvare una delega.')
+        // Ci portiamo dietro il codice, così dopo l'accesso si torna qui e
+        // l'anteprima si riapre da sola invece di far ricominciare tutto.
+        router.push(`/login?redirect=${encodeURIComponent(`/curatore/scansiona?${PARAMETRO_CODICE}=${qrToken}`)}`)
         return
       }
 
       const res = await fetch('/api/curatore/approve', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ qrToken, ownerId: user.id, azione }),
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ qrToken, azione }),
       })
       const data = await res.json()
 
@@ -388,22 +436,37 @@ export default function ScansionaMandatoPage() {
               : 'L\'oggetto resta a casa tua. Sei tu il responsabile della sua conformità.'}
           </p>
 
-          <div className="flex flex-col gap-3">
-            <button
-              onClick={() => handleDecision('approva')}
-              disabled={submitting}
-              className="w-full bg-emerald-600 text-white py-4 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-emerald-700 transition-all disabled:opacity-50"
-            >
-              {submitting ? 'Approvazione...' : '✅ Approva Delega'}
-            </button>
-            <button
-              onClick={() => handleDecision('rifiuta')}
-              disabled={submitting}
-              className="w-full bg-stone-100 text-stone-600 py-4 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-stone-200 transition-all disabled:opacity-50"
-            >
-              Rifiuta
-            </button>
-          </div>
+          {/* Se chi guarda non può approvare, lo diciamo QUI invece di
+              lasciarglielo scoprire premendo il pulsante. Il caso più
+              frequente è il Curatore che apre il proprio link per provarlo. */}
+          {preview.bloccante ? (
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 text-center">
+              <p className="text-xs font-bold text-amber-800 leading-relaxed">{preview.bloccante}</p>
+              <Link
+                href={`/login?redirect=${encodeURIComponent(`/curatore/scansiona?${PARAMETRO_CODICE}=${preview.token || qrToken || ''}`)}`}
+                className="inline-block mt-4 bg-stone-900 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-600 transition-all"
+              >
+                Accedi con l&apos;altro account
+              </Link>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => handleDecision('approva')}
+                disabled={submitting}
+                className="w-full bg-emerald-600 text-white py-4 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-emerald-700 transition-all disabled:opacity-50"
+              >
+                {submitting ? 'Approvazione...' : '✅ Approva Delega'}
+              </button>
+              <button
+                onClick={() => handleDecision('rifiuta')}
+                disabled={submitting}
+                className="w-full bg-stone-100 text-stone-600 py-4 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-stone-200 transition-all disabled:opacity-50"
+              >
+                Rifiuta
+              </button>
+            </div>
+          )}
         </div>
       </div>
     )
@@ -463,7 +526,7 @@ export default function ScansionaMandatoPage() {
           </p>
 
           <label className="text-[9px] font-black uppercase text-stone-500 tracking-widest">
-            Codice mostrato sotto il QR
+            Link ricevuto, o codice sotto il QR
           </label>
           <div className="flex gap-2 mt-2 mb-5">
             <input
@@ -471,7 +534,7 @@ export default function ScansionaMandatoPage() {
               value={codiceManuale}
               onChange={(e) => setCodiceManuale(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') handleCodiceManuale() }}
-              placeholder="Incolla o digita il codice"
+              placeholder="Incolla qui il link o il codice"
               autoCapitalize="off"
               autoCorrect="off"
               spellCheck={false}
