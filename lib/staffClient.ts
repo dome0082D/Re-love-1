@@ -47,7 +47,8 @@ export interface AnnuncioStaff {
   city?: string | null
   image_url?: string | null
   is_sponsored?: boolean | null
-  is_arena?: boolean | null
+  cerca_curatore?: boolean | null
+  curator_percentage?: number | null
   user_id?: string
   autore?: string
   created_at?: string

@@ -199,7 +199,7 @@ export async function POST(req: Request) {
 
         // Solo i campi che ha senso correggere in moderazione: nessuna
         // possibilità di riscrivere l'annuncio a piacere.
-        const consentiti = ['title', 'description', 'price', 'quantity', 'condition', 'city', 'is_sponsored', 'is_arena']
+        const consentiti = ['title', 'description', 'price', 'quantity', 'condition', 'city', 'is_sponsored', 'cerca_curatore', 'curator_percentage']
         const aggiornamento: Record<string, unknown> = {}
         for (const c of consentiti) if (c in campi) aggiornamento[c] = campi[c]
         if (Object.keys(aggiornamento).length === 0) {

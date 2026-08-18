@@ -387,7 +387,7 @@ export default function PannelloStaff() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <Link href={`/announcement/${a.id}`} className="text-sm font-black text-stone-900 truncate hover:text-rose-600 transition-colors">{a.title}</Link>
                     {a.is_sponsored && <Etichetta tono="ambra">Vetrina</Etichetta>}
-                    {a.is_arena && <Etichetta tono="scuro">Arena</Etichetta>}
+                    {a.cerca_curatore && <Etichetta tono="scuro">Cerca curatore</Etichetta>}
                     {(a.quantity ?? 1) <= 0 && <Etichetta tono="rosso">Esaurito</Etichetta>}
                   </div>
                   <p className="text-[11px] font-bold text-stone-500 truncate mt-0.5">
@@ -762,7 +762,7 @@ function ModaleModifica({ annuncio, onChiudi, onSalva }: { annuncio: AnnuncioSta
   const [quantita, setQuantita] = useState(String(annuncio.quantity ?? 1))
   const [citta, setCitta] = useState(annuncio.city || '')
   const [vetrina, setVetrina] = useState(!!annuncio.is_sponsored)
-  const [arena, setArena] = useState(!!annuncio.is_arena)
+  const [cercaCuratore, setCercaCuratore] = useState(!!annuncio.cerca_curatore)
 
   return (
     <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-stone-900/70 backdrop-blur-sm" onClick={onChiudi}>
@@ -787,8 +787,8 @@ function ModaleModifica({ annuncio, onChiudi, onSalva }: { annuncio: AnnuncioSta
             <span className="text-[11px] font-black uppercase tracking-widest text-stone-700">In Vetrina</span>
           </label>
           <label className="flex items-center gap-3 p-3 bg-stone-50 border border-stone-200 rounded-xl cursor-pointer">
-            <input type="checkbox" checked={arena} onChange={e => setArena(e.target.checked)} className="w-5 h-5 accent-rose-600" />
-            <span className="text-[11px] font-black uppercase tracking-widest text-stone-700">In Arena</span>
+            <input type="checkbox" checked={cercaCuratore} onChange={e => setCercaCuratore(e.target.checked)} className="w-5 h-5 accent-rose-600" />
+            <span className="text-[11px] font-black uppercase tracking-widest text-stone-700">Cerca un curatore</span>
           </label>
         </div>
 
@@ -799,7 +799,7 @@ function ModaleModifica({ annuncio, onChiudi, onSalva }: { annuncio: AnnuncioSta
             quantity: Number(quantita) || 0,
             city: citta.trim() || null,
             is_sponsored: vetrina,
-            is_arena: arena,
+            cerca_curatore: cercaCuratore,
           })}
           className="w-full mt-7 bg-stone-900 text-white h-12 rounded-xl text-[11px] font-black uppercase tracking-widest hover:bg-rose-600 transition-colors"
         >

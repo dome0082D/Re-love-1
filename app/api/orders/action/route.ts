@@ -144,65 +144,14 @@ export async function POST(req: Request) {
             })
             console.log(`Fondi sbloccati (Curatore Locale): €${ownerShareCents / 100} al Proprietario, €${curatorShareCents / 100} al Curatore.`)
           } catch (stripeErr: any) {
-            console.error(`Errore sblocco fondi Stripe (mandato) per transazione ${transactionId} (stato già 'Ricevuto', richiede controllo manuale):`, stripeErr);
+            console.error(`Errore sblocco fondi Stripe (curatore) per transazione ${transactionId} (stato già 'Ricevuto', richiede controllo manuale):`, stripeErr);
             return NextResponse.json({ error: "Errore durante il trasferimento dei fondi. Lo staff è stato avvisato." }, { status: 500 });
           }
 
           return NextResponse.json({ success: true, message: "Pacco confermato! I fondi sono stati divisi tra Proprietario e Curatore." });
         }
 
-        // NUOVO: se questa transazione riguarda un oggetto venduto tramite
-        // un promotore Arena, invece di UN trasferimento al venditore ne
-        // servono DUE: 60% al Proprietario, 30% al Promotore vincitore. Il
-        // restante 10% (commissione ReLove) non viene mai trasferito,
-        // esattamente come per una vendita normale.
-        if (transaction.arena_promoter_id) {
-          const [ownerProfileRes, promoterProfileRes] = await Promise.all([
-            supabaseAdmin.from('profiles').select('stripe_account_id').eq('id', transaction.seller_id).single(),
-            supabaseAdmin.from('profiles').select('stripe_account_id').eq('id', transaction.arena_promoter_id).single(),
-          ])
-
-          const ownerStripeId = ownerProfileRes.data?.stripe_account_id
-          const promoterStripeId = promoterProfileRes.data?.stripe_account_id
-
-          const [statoOwnerArena, statoPromotore] = await Promise.all([
-            statoContoStripe(ownerStripeId),
-            statoContoStripe(promoterStripeId),
-          ]);
-          if (!statoOwnerArena.pronto || !statoPromotore.pronto) {
-            console.error(`Arena: Proprietario o Promotore senza stripe_account_id - transazione ${transactionId} confermata ma fondi NON trasferiti.`);
-            return NextResponse.json({ error: "Il Proprietario o il Promotore non hanno un conto Stripe collegato. Contatta lo staff." }, { status: 400 });
-          }
-
-          const ownerPct = transaction.arena_owner_percentage_snapshot ?? 60
-          const promoterPct = transaction.arena_promoter_percentage_snapshot ?? 30
-
-          const ownerShareCents = Math.round((transaction.amount * (ownerPct / 100)) * 100)
-          const promoterShareCents = Math.round((transaction.amount * (promoterPct / 100)) * 100)
-
-          try {
-            await stripe.transfers.create({
-              amount: ownerShareCents,
-              currency: 'eur',
-              destination: ownerStripeId,
-              transfer_group: transaction.announcement_id,
-            })
-            await stripe.transfers.create({
-              amount: promoterShareCents,
-              currency: 'eur',
-              destination: promoterStripeId,
-              transfer_group: transaction.announcement_id,
-            })
-            console.log(`Fondi sbloccati (Arena ReLove): €${ownerShareCents / 100} al Proprietario, €${promoterShareCents / 100} al Promotore.`)
-          } catch (stripeErr: any) {
-            console.error(`Errore sblocco fondi Stripe (Arena) per transazione ${transactionId} (stato già 'Ricevuto', richiede controllo manuale):`, stripeErr);
-            return NextResponse.json({ error: "Errore durante il trasferimento dei fondi. Lo staff è stato avvisato." }, { status: 500 });
-          }
-
-          return NextResponse.json({ success: true, message: "Pacco confermato! I fondi sono stati divisi tra Proprietario e Promotore vincitore." });
-        }
-
-        // Percorso normale (nessun mandato, nessuna Arena) - invariato rispetto a prima.
+        // Percorso normale: nessun curatore, un solo trasferimento al venditore.
         const { data: seller } = await supabaseAdmin
           .from('profiles')
           .select('stripe_account_id')

@@ -9,16 +9,14 @@ import {
   quotaProprietario,
   GIORNI_VALIDITA_INCARICO,
   type AnnuncioPerCandidatura,
-  type ContestoCandidatura,
 } from '@/lib/candidature'
 
 // ============================================================================
 // "CANDIDATI COME CURATORE"
 //
-// Un solo componente per i due posti in cui si può fare: la scheda di un
-// annuncio normale e la pagina Arena. Il "contesto" dice da quale dei due
-// arriva la richiesta, perché la regola è che un oggetto in Arena si candida
-// SOLO dall'Arena - e viceversa.
+// Si fa da un posto solo: la scheda dell'oggetto. (C'era anche la pagina
+// Arena, con la regola che gli oggetti in gara si candidavano solo da lì:
+// l'Arena è stata tolta dal sito e con lei quella distinzione.)
 //
 // Non serve incollare nessun id: il sito sa già chi sei da quando hai fatto
 // accesso, e l'id di chi si candida viene preso dal token di sessione sul
@@ -32,14 +30,13 @@ interface Props {
   /** Percentuale offerta dal proprietario, per dirlo prima di candidarsi. */
   percentualeOfferta?: number | null
   utenteId: string | null
-  contesto: ContestoCandidatura
   /** Richiamata dopo un invio riuscito, per ricaricare la pagina chiamante. */
   alTermine?: () => void
   className?: string
 }
 
 export default function BottoneCandidatura({
-  annuncioId, annuncio, percentualeOfferta, utenteId, contesto, alTermine, className = '',
+  annuncioId, annuncio, percentualeOfferta, utenteId, alTermine, className = '',
 }: Props) {
   const router = useRouter()
   const [aperto, setAperto] = useState(false)
@@ -47,7 +44,7 @@ export default function BottoneCandidatura({
   const [invio, setInvio] = useState(false)
   const [inviata, setInviata] = useState(false)
 
-  const motivo = motivoNonCandidabile(annuncio, utenteId, contesto)
+  const motivo = motivoNonCandidabile(annuncio, utenteId)
 
   // Se non si può proprio, non mostriamo un pulsante che non farebbe nulla.
   // L'unica eccezione è "devi accedere": quella vale la pena mostrarla, così
@@ -67,7 +64,7 @@ export default function BottoneCandidatura({
   async function invia() {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session?.access_token) {
-      router.push(`/login?redirect=${encodeURIComponent(contesto === 'arena' ? '/arena' : `/announcement/${annuncioId}`)}`)
+      router.push(`/login?redirect=${encodeURIComponent(`/announcement/${annuncioId}`)}`)
       return
     }
 
@@ -76,7 +73,7 @@ export default function BottoneCandidatura({
       const res = await fetch('/api/curatore/candidatura', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ announcementId: annuncioId, contesto, messaggio }),
+        body: JSON.stringify({ announcementId: annuncioId, messaggio }),
       })
       const dati = await res.json()
       if (!res.ok || dati.error) {

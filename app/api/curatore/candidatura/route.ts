@@ -38,17 +38,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Accedi per candidarti come curatore.' }, { status: 401 })
     }
 
-    const { announcementId, contesto, messaggio } = await req.json()
+    const { announcementId, messaggio } = await req.json()
     if (!announcementId) {
       return NextResponse.json({ error: 'Oggetto mancante.' }, { status: 400 })
-    }
-    if (contesto !== 'arena' && contesto !== 'annuncio') {
-      return NextResponse.json({ error: 'Richiesta non valida.' }, { status: 400 })
     }
 
     const { data: annuncio } = await supabaseAdmin
       .from('announcements')
-      .select('id, user_id, title, cerca_curatore, curator_percentage, curator_id, is_arena')
+      .select('id, user_id, title, cerca_curatore, curator_percentage, curator_id')
       .eq('id', announcementId)
       .maybeSingle()
 
@@ -58,7 +55,7 @@ export async function POST(req: Request) {
 
     // Le stesse regole che l'interfaccia usa per mostrare o nascondere il
     // pulsante, ricontrollate qui: il pulsante nascosto non è una difesa.
-    const motivo = motivoNonCandidabile(annuncio, utente.id, contesto)
+    const motivo = motivoNonCandidabile(annuncio, utente.id)
     if (motivo) {
       return NextResponse.json({ error: motivo }, { status: 400 })
     }

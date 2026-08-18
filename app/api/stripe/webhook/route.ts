@@ -3,8 +3,8 @@
 // FIX: esistevano DUE endpoint webhook Stripe attivi contemporaneamente,
 // /api/stripe/webhook (questo) e /api/webhooks/stripe. Erano nati come
 // copie dello stesso file, ma solo il secondo è stato aggiornato con la
-// logica dei sistemi "Curatore Locale" e "Arena ReLove": percentuali
-// concordate salvate sulla transazione, sblocco di arena_locked_until,
+// logica del sistema "Curatore Locale": percentuali
+// concordate salvate sulla transazione,
 // notifiche a Proprietario e Promotore.
 //
 // Il risultato era che, a seconda di quale dei due indirizzi fosse

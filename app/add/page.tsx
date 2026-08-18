@@ -31,11 +31,6 @@ const CATEGORIES = [
   'Altro / Varie'
 ]
 
-// Soglia minima per attivare la modalità Arena - stessa identica regola
-// già imposta a livello di database (vedi 01-tabelle-arena.sql), qui
-// serve solo per dare un feedback immediato all'utente mentre scrive.
-const SOGLIA_ARENA = 100
-
 function AddAnnouncementForm() {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<ProfileData | null>(null)
@@ -76,11 +71,6 @@ function AddAnnouncementForm() {
   const [isAuction, setIsAuction] = useState(false)
   const [auctionDurationDays, setAuctionDurationDays] = useState('3') // 1, 3 o 7 giorni
 
-  // --- STATO PER ARENA RELOVE ---
-  // NUOVO: attivabile solo a prezzo fisso (non aste) e solo da 100€ in su -
-  // stessa regola già imposta anche a livello di database come rete di
-  // sicurezza finale.
-  const [isArena, setIsArena] = useState(false)
 
   const [images, setImages] = useState<File[]>([])
   const [imageUrls, setImageUrls] = useState<string[]>([])
@@ -134,7 +124,6 @@ function AddAnnouncementForm() {
       setExchangeItem('')
       setAcceptsReturns(false)
       setIsAuction(false)
-      setIsArena(false)
       setAddress('')
       setCoords(null)
     } else {
@@ -142,22 +131,10 @@ function AddAnnouncementForm() {
       if (modeParam === 'gift' || modeParam === 'barter') {
         setPrice('0')
         setIsAuction(false) // Niente aste per regali e baratti
-        setIsArena(false) // Niente Arena per regali e baratti
       }
     }
   }, [modeParam])
 
-  // NUOVO: se il prezzo scende sotto i 100€ (o si passa ad asta) mentre
-  // Arena era già selezionata, la disattiviamo automaticamente - non deve
-  // mai restare spuntata su una combinazione non più valida.
-  useEffect(() => {
-    if (isArena) {
-      const numPrice = parseFloat(price) || 0
-      if (numPrice < SOGLIA_ARENA || isAuction) {
-        setIsArena(false)
-      }
-    }
-  }, [price, isAuction, isArena])
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -268,15 +245,6 @@ function AddAnnouncementForm() {
     }
 
     // NUOVO: rete di sicurezza lato client, oltre a quella già presente nel
-    // database - non dovrebbe mai scattare (l'interfaccia già disattiva
-    // Arena in questi casi), ma se scattasse per un motivo imprevisto è
-    // meglio bloccare qui con un messaggio chiaro invece di far fallire la
-    // richiesta con un errore SQL poco comprensibile.
-    const numPriceCheck = parseFloat(price) || 0
-    if (isArena && (numPriceCheck < SOGLIA_ARENA || isAuction)) {
-      toast.error(`La modalità Arena richiede un prezzo fisso di almeno €${SOGLIA_ARENA}.`)
-      return
-    }
 
     setUploading(true)
     try {
@@ -336,14 +304,12 @@ function AddAnnouncementForm() {
           is_auction: isAuction,
           auction_end: auctionEndTime,
           current_bid: isAuction ? numPrice : 0,
-          // CAMPO ARENA RELOVE
-          is_arena: isArena,
         }
       ]).select()
 
       if (error) throw error
 
-      toast.success(isAuction ? 'Asta creata con successo! ⏳' : isArena ? 'Oggetto messo in Arena! 🏆' : 'Annuncio pubblicato! 🚀')
+      toast.success(isAuction ? 'Asta creata con successo! ⏳' : 'Annuncio pubblicato! 🚀')
       router.push(`/announcement/${insertedData[0].id}`)
     } catch (error: any) {
       toast.error('Errore durante la pubblicazione: ' + error.message)
@@ -543,44 +509,12 @@ function AddAnnouncementForm() {
                         <div className="space-y-2">
                           <label className="text-[10px] font-black uppercase text-emerald-600 tracking-widest ml-2">Tu Guadagni</label>
                           <div className="w-full p-5 bg-emerald-50 border border-emerald-100 rounded-2xl font-black text-emerald-700 text-xl flex items-center h-[68px]">
-                            € {price ? (parseFloat(price) * (isArena ? 0.60 : 0.90)).toFixed(2) : '0.00'}
+                            € {price ? (parseFloat(price) * (cercaCuratore ? (90 - Number(percentualeCuratore)) / 100 : 0.90)).toFixed(2) : '0.00'}
                           </div>
                         </div>
                       )}
                    </div>
 
-                   {/* NUOVO: TOGGLE ARENA RELOVE - solo a prezzo fisso
-                       (non in asta), e solo da 100€ in su. Sotto soglia
-                       mostriamo un riquadro informativo al posto del
-                       toggle, invece di un checkbox disattivato senza
-                       spiegazione - più chiaro per chi non sa perché non
-                       può selezionarlo. */}
-                   {!isAuction && (
-                     <div className="mt-6">
-                       {(parseFloat(price) || 0) >= SOGLIA_ARENA ? (
-                         <label className="flex items-start gap-4 p-6 bg-gradient-to-br from-rose-50 to-orange-50 border border-rose-200 rounded-2xl cursor-pointer hover:shadow-md transition-all">
-                           <input
-                             type="checkbox"
-                             checked={isArena}
-                             onChange={(e) => setIsArena(e.target.checked)}
-                             className="w-6 h-6 accent-rose-600 rounded mt-1 shrink-0"
-                           />
-                           <div className="flex flex-col">
-                             <span className="text-xs font-black uppercase text-stone-900 flex items-center gap-2">🏆 Metti in Arena</span>
-                             <span className="text-[10px] font-bold text-stone-600 mt-1 leading-relaxed">
-                               La community competerà per trovarti un acquirente. Se un promotore chiude la vendita, tu guadagni il <span className="font-black text-rose-600">60%</span> invece del 90% (30% al promotore, 10% alla piattaforma). Se nessuno la promuove, resta comunque un annuncio normale.
-                             </span>
-                           </div>
-                         </label>
-                       ) : (
-                         <div className="p-5 bg-stone-50 border border-stone-200 rounded-2xl">
-                           <p className="text-[9px] font-bold uppercase text-stone-400 tracking-widest">
-                             🏆 La modalità Arena è disponibile solo per oggetti da €{SOGLIA_ARENA} in su.
-                           </p>
-                         </div>
-                       )}
-                     </div>
-                   )}
                  </>
                )}
 
@@ -716,8 +650,8 @@ function AddAnnouncementForm() {
             </div>
 
             <div className="pt-8">
-              <button disabled={uploading || (!contoStripe?.pronto && condition !== 'Regalo' && condition !== 'Baratto')} type="submit" className={`w-full text-white py-6 rounded-2xl font-black uppercase text-sm tracking-[0.2em] shadow-lg transition-all disabled:opacity-50 ${isAuction ? 'bg-rose-500 hover:bg-rose-600' : isArena ? 'bg-gradient-to-r from-rose-600 to-orange-500 hover:opacity-90' : 'bg-stone-900 hover:bg-stone-800'}`}>
-                {uploading ? 'Pubblicazione in corso...' : (isAuction ? 'Avvia L\'Asta Ora ⏳' : isArena ? 'Metti in Arena 🏆' : 'Pubblica il tuo annuncio 🚀')}
+              <button disabled={uploading || (!contoStripe?.pronto && condition !== 'Regalo' && condition !== 'Baratto')} type="submit" className={`w-full text-white py-6 rounded-2xl font-black uppercase text-sm tracking-[0.2em] shadow-lg transition-all disabled:opacity-50 ${isAuction ? 'bg-rose-500 hover:bg-rose-600' : 'bg-stone-900 hover:bg-stone-800'}`}>
+                {uploading ? 'Pubblicazione in corso...' : (isAuction ? 'Avvia L\'Asta Ora ⏳' : 'Pubblica il tuo annuncio 🚀')}
               </button>
               <p className="text-center mt-6 text-[10px] font-bold uppercase text-stone-400 tracking-widest">
                 Cliccando accetti il manifesto etico di Re-love.

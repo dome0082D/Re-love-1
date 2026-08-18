@@ -42,7 +42,6 @@ interface Candidatura {
   titolo: string
   prezzo: number | null
   immagine: string | null
-  inArena: boolean
   curatoreId: string
   curatoreNome: string
   proprietarioId: string
@@ -164,9 +163,6 @@ export default function CuratoreLocalePage() {
             <li>A vendita conclusa l&apos;incasso si divide da solo: la quota del curatore, il resto al proprietario, meno il 10% di Re-love.</li>
             <li>Se in {GIORNI_VALIDITA_INCARICO} giorni non arriva nessuna vendita, l&apos;incarico decade e l&apos;oggetto torna disponibile per altri.</li>
           </ol>
-          <p className="text-[10px] font-bold text-stone-400 mt-4 leading-relaxed">
-            Gli oggetti in Arena si candidano solo dalla <Link href="/arena" className="text-rose-600 hover:underline">pagina Arena</Link>, dove sono spiegate le loro condizioni.
-          </p>
         </div>
 
         {/* -------------------------------------------- RICEVUTE (decido io) */}
@@ -316,7 +312,6 @@ function RigaCandidatura({
           <p className="text-sm font-black text-stone-900 uppercase truncate">{c.titolo}</p>
           <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mt-0.5">
             {personaEtichetta}: {personaNome}
-            {c.inArena && <span className="ml-2 text-rose-500">· Arena</span>}
           </p>
           <p className="text-xs font-bold text-stone-600 mt-1">
             {c.prezzo !== null && <span className="text-rose-600">€ {Number(c.prezzo).toFixed(2)}</span>}

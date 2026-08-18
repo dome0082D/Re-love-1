@@ -46,13 +46,6 @@ export async function POST(req: Request) {
     const ownerPercentage = session.metadata?.ownerPercentage ? Number(session.metadata.ownerPercentage) : null
     const curatorPercentage = session.metadata?.curatorPercentage ? Number(session.metadata.curatorPercentage) : null
 
-    // NUOVO: dati del sistema "Arena ReLove", presenti solo se questo
-    // acquisto è avvenuto tramite il link tracciato di un promotore su un
-    // oggetto in Arena (vedi app/api/stripe/checkout).
-    const isArena = session.metadata?.isArena === 'true'
-    const arenaPromoterId = session.metadata?.arenaPromoterId || null
-    const arenaOwnerPercentage = session.metadata?.arenaOwnerPercentage ? Number(session.metadata.arenaOwnerPercentage) : null
-    const arenaPromoterPercentage = session.metadata?.arenaPromoterPercentage ? Number(session.metadata.arenaPromoterPercentage) : null
 
     // ==========================================
     // LOGICA 0: BARATTO (due momenti di pagamento)
@@ -187,7 +180,7 @@ export async function POST(req: Request) {
     // ==========================================
     if (announcementId && buyerId && checkoutType !== 'chat_unlock' && checkoutType !== 'sponsorship') {
        // Salva la transazione. NUOVO: se l'acquisto riguarda un annuncio
-       // delegato (Curatore Locale) o un oggetto in Arena vinto da un
+       // delegato (Curatore Locale) o un
        // promotore, salviamo anche i dati e le percentuali concordate al
        // momento dell'acquisto ("fotografate" qui, così se le regole
        // generali cambiano più avanti, questo ordine già in corso non ne
@@ -204,9 +197,6 @@ export async function POST(req: Request) {
          curator_id: isDelegated ? curatorId : null,
          owner_percentage_snapshot: isDelegated ? ownerPercentage : null,
          curator_percentage_snapshot: isDelegated ? curatorPercentage : null,
-         arena_promoter_id: isArena ? arenaPromoterId : null,
-         arena_owner_percentage_snapshot: isArena ? arenaOwnerPercentage : null,
-         arena_promoter_percentage_snapshot: isArena ? arenaPromoterPercentage : null,
        }]);
 
        // Scala la quantità
@@ -224,17 +214,6 @@ export async function POST(req: Request) {
            .eq('id', announcementId);
        }
 
-       // NUOVO: se l'oggetto era in Arena, la vendita si è appena conclusa
-       // per davvero - togliamo il blocco "in trattativa", non serve più
-       // tenerlo (la quantità appena azzerata basta a far sparire
-       // l'oggetto dagli elenchi, questo è solo per pulizia dei dati).
-       // Per un annuncio normale questo campo è comunque già vuoto, quindi
-       // l'aggiornamento non ha alcun effetto collaterale.
-       await supabaseAdmin
-         .from('announcements')
-         .update({ arena_locked_until: null })
-         .eq('id', announcementId)
-
        // NUOVO: se questa vendita riguarda un annuncio delegato (Curatore
        // Locale), avvisiamo il Proprietario che lo scambio e' partito -
        // "sellerId" nei metadata e' gia' il suo id per una vendita
@@ -243,8 +222,7 @@ export async function POST(req: Request) {
        // pubblicato l'annuncio, quindi non cambia nulla per lui.
        // FIX: per una vendita NORMALE non veniva avvisato nessuno - ne'
        // il venditore che aveva appena venduto, ne' il compratore che
-       // aveva appena pagato. Erano previste notifiche solo per i casi
-       // Curatore e Arena. Ora l'evento piu' importante del sito avvisa
+       // aveva appena pagato. Ora l'evento piu' importante del sito avvisa
        // sempre entrambe le parti, con notifica in-app e push.
        await notificaUtente(
          sellerId,
@@ -263,26 +241,6 @@ export async function POST(req: Request) {
          true // anche via email: vale come ricevuta dell'acquisto
        )
 
-       // NUOVO: se la vendita e' avvenuta tramite un promotore Arena,
-       // avvisiamo sia il Proprietario (che conoscera' il valore finale)
-       // sia il Promotore vincitore, in trasparenza reciproca - stessa
-       // logica di trasparenza gia' applicata al Curatore Locale.
-       if (isArena && arenaPromoterId && sellerId) {
-         await notificaUtente(
-           sellerId,
-           `🏆 Il tuo oggetto in Arena e' stato venduto tramite un promotore della community! Lo scambio e' avviato.`,
-           'Venduto in Arena 🏆',
-           '/orders',
-           true
-         )
-         await notificaUtente(
-           arenaPromoterId,
-           `🎉 Hai vinto l'Arena! Il tuo link ha portato alla vendita. Riceverai la tua quota a scambio confermato.`,
-           'Hai vinto l\'Arena 🎉',
-           '/arena',
-           true // c'e' di mezzo una quota da incassare: merita un'email
-         )
-       }
     }
   }
 

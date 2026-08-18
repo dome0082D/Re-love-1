@@ -45,7 +45,7 @@ export async function GET(req: Request) {
 
     const [{ data: annunci }, { data: persone }] = await Promise.all([
       idAnnunci.length
-        ? supabaseAdmin.from('announcements').select('id, title, price, image_url, is_arena').in('id', idAnnunci)
+        ? supabaseAdmin.from('announcements').select('id, title, price, image_url').in('id', idAnnunci)
         : Promise.resolve({ data: [] as any[] }),
       idPersone.length
         ? supabaseAdmin.from('profiles').select('id, first_name, nickname, email').in('id', idPersone)
@@ -77,7 +77,6 @@ export async function GET(req: Request) {
         titolo: a?.title || 'Oggetto non più disponibile',
         prezzo: a?.price ?? null,
         immagine: a?.image_url || null,
-        inArena: !!a?.is_arena,
         curatoreId: c.curator_id,
         curatoreNome: nomeDi(c.curator_id),
         proprietarioId: c.owner_id,

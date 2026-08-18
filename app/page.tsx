@@ -97,10 +97,10 @@ function HomePageContent() {
 
   const [courses, setCourses] = useState<any[]>([])
 
-  // NUOVO: oggetti in Arena da mostrare nel widget in cima alla Home -
+  // Oggetti il cui proprietario cerca un curatore, per il riquadro in cima -
   // stato separato e indipendente dal resto, così un eventuale problema
   // qui non tocca il caricamento degli annunci normali.
-  const [arenaItems, setArenaItems] = useState<any[]>([])
+  const [cercanoCuratore, setCercanoCuratore] = useState<any[]>([])
   
   const [newCourseTitle, setNewCourseTitle] = useState('')
   
@@ -308,24 +308,25 @@ function HomePageContent() {
     }
   }, [chatMessages])
 
-  // NUOVO: caricamento indipendente degli oggetti in Arena per il widget
-  // in Home - la funzione è dichiarata QUI DENTRO (non fuori, come
-  // funzione a parte) apposta per evitare lo stesso tipo di errore già
-  // capitato altre volte in questo progetto ("variabile usata prima di
-  // essere dichiarata").
+  // Caricamento indipendente degli oggetti che cercano un curatore, per il
+  // riquadro in cima alla Home - la funzione è dichiarata QUI DENTRO (non
+  // fuori, come funzione a parte) apposta per evitare lo stesso tipo di
+  // errore già capitato altre volte in questo progetto ("variabile usata
+  // prima di essere dichiarata").
   useEffect(() => {
-    async function fetchArenaItems() {
+    async function caricaCercanoCuratore() {
       const { data } = await supabase
         .from('announcements')
-        .select('id, title, price, image_url')
-        .eq('is_arena', true)
+        .select('id, title, price, image_url, curator_percentage')
+        .eq('cerca_curatore', true)
+        .is('curator_id', null)
         .gt('quantity', 0)
-        .order('price', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(6)
 
-      if (data) setArenaItems(data)
+      if (data) setCercanoCuratore(data)
     }
-    fetchArenaItems()
+    caricaCercanoCuratore()
   }, [])
 
   async function fetchInitialData() {
@@ -898,17 +899,18 @@ function HomePageContent() {
 
         <main className="flex-1 w-full overflow-hidden order-1 lg:order-2">
 
-          {/* NUOVO: widget Arena ReLove, in cima al feed principale come
-              richiesto. Mostrato solo se c'è almeno un oggetto in Arena -
-              nessun riquadro vuoto quando l'Arena non ha ancora nulla. */}
           {/* ==========================================================
-              ORDINE DELLA HOME (richiesto esplicitamente):
-                1. Arena ReLove
+              ORDINE DELLA HOME:
+                1. Oggetti che cercano un curatore
                 2. Vetrine degli utenti (scorrimento laterale)
                 3. Tutti gli Annunci
                 4. Riquadro di ricerca e filtri
                 5. Laboratori & Corsi (creazione eventi e corsi)
                 6. Tutto il resto
+
+              Al primo posto c'era l'Arena ReLove, tolta dal sito. Al suo
+              posto il riquadro dei curatori, che occupa lo stesso ruolo:
+              far vedere subito che si puo' guadagnare aiutando a vendere.
 
               I filtri continuano a valere anche stando SOTTO agli
               annunci: agiscono sullo stato del componente, non sulla
@@ -916,24 +918,24 @@ function HomePageContent() {
               aggiorna comunque a ogni modifica dei filtri.
               ========================================================== */}
 
-          {arenaItems.length > 0 && (
+          {cercanoCuratore.length > 0 && (
             <section className="mb-8 max-w-[1300px] mx-auto px-2">
-              <div className="bg-gradient-to-br from-rose-600 to-orange-500 rounded-[2.5rem] p-6 md:p-8 shadow-lg relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-6 opacity-10 text-8xl">🏆</div>
+              <div className="bg-gradient-to-br from-amber-500 to-orange-500 rounded-[2.5rem] p-6 md:p-8 shadow-lg relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-6 opacity-10 text-8xl">🤝</div>
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-5 relative z-10">
                   <div>
-                    <h2 className="text-xl md:text-2xl font-black uppercase italic text-white tracking-tight">Arena ReLove</h2>
-                    <p className="text-white/80 font-bold text-[10px] uppercase tracking-[0.2em] mt-1">Promuovi e guadagna il 30%</p>
+                    <h2 className="text-xl md:text-2xl font-black uppercase italic text-white tracking-tight">Cercano un curatore</h2>
+                    <p className="text-white/80 font-bold text-[10px] uppercase tracking-[0.2em] mt-1">Vendi per loro, guadagna una percentuale</p>
                   </div>
                   <Link
-                    href="/arena"
-                    className="bg-white text-rose-600 px-5 py-2.5 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-stone-900 hover:text-white transition-all shadow-md whitespace-nowrap"
+                    href="/curatore"
+                    className="bg-white text-amber-700 px-5 py-2.5 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-stone-900 hover:text-white transition-all shadow-md whitespace-nowrap"
                   >
-                    Vai all'Arena →
+                    Come funziona →
                   </Link>
                 </div>
                 <div className="flex gap-4 overflow-x-auto pb-1 custom-scrollbar relative z-10">
-                  {arenaItems.map(item => (
+                  {cercanoCuratore.map(item => (
                     <Link
                       key={item.id}
                       href={`/announcement/${item.id}`}
@@ -944,7 +946,9 @@ function HomePageContent() {
                       </div>
                       <div className="p-2.5">
                         <p className="text-[9px] font-black uppercase text-stone-800 truncate">{item.title}</p>
-                        <p className="text-xs font-black text-rose-600 mt-0.5">€ {Number(item.price).toFixed(2)}</p>
+                        <p className="text-xs font-black text-amber-700 mt-0.5">
+                          {item.curator_percentage != null ? `${item.curator_percentage}% a te` : 'Candidati'}
+                        </p>
                       </div>
                     </Link>
                   ))}

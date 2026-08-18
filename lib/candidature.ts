@@ -79,24 +79,19 @@ export interface AnnuncioPerCandidatura {
   user_id: string
   cerca_curatore?: boolean | null
   curator_id?: string | null
-  is_arena?: boolean | null
 }
-
-/** Da dove è partita la candidatura: le due pagine che possono ospitarla. */
-export type ContestoCandidatura = 'arena' | 'annuncio'
 
 /**
  * Perché questo utente NON può candidarsi su questo annuncio. null = può.
  *
- * La regola sull'Arena viene dalla richiesta: un oggetto in Arena si candida
- * solo dalla pagina Arena, dove sono spiegate le sue condizioni (la gara di
- * promozione, il blocco temporale), e non dalla scheda normale dove non se ne
- * vede traccia.
+ * NOTA: qui c'era anche una regola sull'Arena - gli oggetti in gara si
+ * candidavano solo dalla pagina Arena, e non dalla loro scheda. L'Arena è
+ * stata tolta dal sito, quindi la candidatura ha un solo percorso: la scheda
+ * dell'oggetto. Una strada sola, una regola sola.
  */
 export function motivoNonCandidabile(
   annuncio: AnnuncioPerCandidatura,
-  utenteId: string | null,
-  contesto: ContestoCandidatura
+  utenteId: string | null
 ): string | null {
   if (!utenteId) return 'Accedi per candidarti come curatore.'
   if (annuncio.user_id === utenteId) return 'Questo oggetto è già tuo: non puoi candidarti a venderlo per conto tuo.'
@@ -106,13 +101,5 @@ export function motivoNonCandidabile(
       : 'Questo oggetto ha già un curatore.'
   }
   if (!annuncio.cerca_curatore) return 'Il proprietario di questo oggetto non sta cercando un curatore.'
-
-  const inArena = !!annuncio.is_arena
-  if (inArena && contesto !== 'arena') {
-    return 'Questo oggetto è in Arena: puoi candidarti solo dalla pagina Arena.'
-  }
-  if (!inArena && contesto !== 'annuncio') {
-    return "Questo oggetto non è in Arena: puoi candidarti solo dalla sua scheda."
-  }
   return null
 }

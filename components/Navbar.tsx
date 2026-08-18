@@ -805,7 +805,7 @@ export default function Navbar() {
               </div>
             </section>
 
-            {/* NUOVO: sezione che mancava del tutto. Vetrina, Arena,
+            {/* NUOVO: sezione che mancava del tutto. Vetrina, Curatore,
                 Laboratori e "Come funziona" erano pagine vere e funzionanti
                 ma raggiungibili solo indovinando l'indirizzo (o, per la
                 Vetrina, solo dalla barra in fondo su Android): dal menu non
@@ -817,8 +817,8 @@ export default function Navbar() {
                 <Link href="/vetrina" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-4 px-4 py-3 text-[15px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
                   <Sparkles size={20} className="text-stone-500 shrink-0" /> Vetrina
                 </Link>
-                <Link href="/arena" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-4 px-4 py-3 text-[15px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
-                  <TrendingUp size={20} className="text-stone-500 shrink-0" /> Arena ReLove
+                <Link href="/curatore" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-4 px-4 py-3 text-[15px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
+                  <TrendingUp size={20} className="text-stone-500 shrink-0" /> Curatore Locale
                 </Link>
                 <Link href="/laboratori" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-4 px-4 py-3 text-[15px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
                   <FileText size={20} className="text-stone-500 shrink-0" /> Laboratori e Corsi

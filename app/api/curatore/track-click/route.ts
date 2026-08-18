@@ -8,7 +8,7 @@
 //
 // Passa dal server con la chiave di servizio perché aggiorna una riga che non
 // appartiene a chi sta visitando (il visitatore non è il curatore, e spesso
-// non ha nemmeno fatto accesso) - stesso principio di /api/arena/track-click.
+// non ha nemmeno fatto accesso).
 
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
