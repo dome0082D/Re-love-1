@@ -6,161 +6,123 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import Link from 'next/link'
-import QRCode from 'qrcode'
-import { linkApprovazione, OPZIONI_QR } from '@/lib/mandato'
-import BottoneCondividi from '@/components/BottoneCondividi'
+import { ETICHETTE_STATO, STATI_CANDIDATURA, quotaProprietario, type StatoCandidatura } from '@/lib/candidature'
 
-interface Mandate {
+// ============================================================================
+// CURATORE LOCALE
+//
+// Sostituisce la vecchia pagina dei "mandati di delega" col QR. Qui si vedono
+// le due facce della stessa cosa:
+//
+//   - le candidature che HO INVIATO, per gestire la vendita di oggetti altrui;
+//   - le candidature che HO RICEVUTO sui miei oggetti, da accettare o rifiutare.
+//
+// Tutte le scritture passano dalle route server, che verificano chi sta
+// chiedendo dal token di sessione e rispondono con quante righe hanno
+// davvero toccato. Leggendo e scrivendo dal browser, una policy RLS mancante
+// non da' errore - PostgREST risponde "200 con zero righe" - e la pagina
+// direbbe "fatto" senza che sia successo niente.
+// ============================================================================
+
+interface Candidatura {
   id: string
-  curator_id: string
-  owner_id: string | null
-  announcement_id: string | null
-  custody_type: 'in_sede' | 'in_custodia'
-  owner_percentage: number
-  curator_percentage: number
-  status: 'in_attesa_qr' | 'attivo' | 'revocato' | 'concluso'
-  qr_token: string
-  qr_expires_at: string
-  draft_title: string
-  draft_price: number
-  draft_image_url: string | null
-  created_at: string
+  stato: StatoCandidatura
+  percentualeCuratore: number
+  messaggio: string | null
+  creataIl: string
+  decisaIl: string | null
+  annuncioId: string
+  titolo: string
+  prezzo: number | null
+  immagine: string | null
+  inArena: boolean
+  curatoreId: string
+  curatoreNome: string
+  proprietarioId: string
+  proprietarioNome: string
 }
 
-// Funzione "pura" dichiarata FUORI dal componente: genera un nuovo token
-// e la sua scadenza. Non tocca nessuno stato React, quindi puo' usare
-// liberamente crypto.randomUUID() e Date.now() senza che il linter la
-// scambi per codice eseguito "durante il render".
-function generaNuovoTokenQr() {
-  return {
-    token: crypto.randomUUID(),
-    expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
-  }
-}
-
-const STATO_LABEL: Record<Mandate['status'], { testo: string; colore: string }> = {
-  in_attesa_qr: { testo: 'In attesa di approvazione', colore: 'bg-orange-100 text-orange-600' },
-  attivo: { testo: 'Attivo', colore: 'bg-emerald-100 text-emerald-600' },
-  revocato: { testo: 'Revocato', colore: 'bg-stone-200 text-stone-500' },
-  concluso: { testo: 'Concluso', colore: 'bg-blue-100 text-blue-600' },
-}
-
-export default function CuratoreDashboardPage() {
+export default function CuratoreLocalePage() {
   const router = useRouter()
-  const [user, setUser] = useState<any>(null)
-  const [asCurator, setAsCurator] = useState<Mandate[]>([])
-  const [asOwner, setAsOwner] = useState<Mandate[]>([])
-  const [loading, setLoading] = useState(true)
-  const [actionLoading, setActionLoading] = useState<string | null>(null)
-  // Il token viene tenuto insieme all'immagine: serve a mostrarlo anche in
-  // chiaro, come alternativa alla scansione (vedi app/curatore/scansiona).
-  const [qrPreview, setQrPreview] = useState<{ mandateId: string; dataUrl: string; token: string } | null>(null)
+  const [inviate, setInviate] = useState<Candidatura[]>([])
+  const [ricevute, setRicevute] = useState<Candidatura[]>([])
+  const [caricamento, setCaricamento] = useState(true)
+  const [inCorso, setInCorso] = useState<string | null>(null)
 
-  async function fetchMandates(userId: string) {
-    setLoading(true)
-    const [curatorRes, ownerRes] = await Promise.all([
-      supabase.from('curator_mandates').select('*').eq('curator_id', userId).order('created_at', { ascending: false }),
-      supabase.from('curator_mandates').select('*').eq('owner_id', userId).order('created_at', { ascending: false }),
-    ])
-    setAsCurator(curatorRes.data || [])
-    setAsOwner(ownerRes.data || [])
-    setLoading(false)
+  async function token(): Promise<string | null> {
+    const { data: { session } } = await supabase.auth.getSession()
+    return session?.access_token || null
   }
 
-  async function init() {
-    const { data: { user: currentUser } } = await supabase.auth.getUser()
-    if (!currentUser) {
-      router.push('/login')
+  async function carica() {
+    const t = await token()
+    if (!t) {
+      router.push('/login?redirect=%2Fcuratore')
       return
     }
-    setUser(currentUser)
-    await fetchMandates(currentUser.id)
-  }
-
-  useEffect(() => {
-    init()
-  }, [])
-
-  async function handleShowQr(mandate: Mandate) {
-    // Un mandato vecchio potrebbe non avere il token (prima veniva lasciato
-    // generare al database): meglio dirlo e offrire la rigenerazione, che
-    // mostrare un QR contenente la scritta "undefined" - illeggibile per il
-    // sistema ma indistinguibile a occhio da uno valido.
-    if (!mandate.qr_token) {
-      toast.error('Questo mandato non ha un codice valido: premi "Rigenera QR".')
-      return
-    }
-    // Il QR contiene il link di approvazione vero: si apre con la
-    // fotocamera normale del telefono e si puo' anche mandare per messaggio.
-    const dataUrl = await QRCode.toDataURL(linkApprovazione(mandate.qr_token, window.location.origin), OPZIONI_QR)
-    setQrPreview({ mandateId: mandate.id, dataUrl, token: mandate.qr_token })
-  }
-
-  async function handleRegenerateQr(mandate: Mandate) {
-    setActionLoading(mandate.id)
+    setCaricamento(true)
     try {
-      const { token: newToken, expiresAt: newExpiry } = generaNuovoTokenQr()
-
-      const { error } = await supabase
-        .from('curator_mandates')
-        .update({ qr_token: newToken, qr_expires_at: newExpiry })
-        .eq('id', mandate.id)
-
-      if (error) throw error
-
-      const dataUrl = await QRCode.toDataURL(linkApprovazione(newToken, window.location.origin), OPZIONI_QR)
-      setQrPreview({ mandateId: mandate.id, dataUrl, token: newToken })
-      toast.success('Nuovo QR generato, valido 30 minuti.')
-      fetchMandates(user.id)
-    } catch (err) {
-      console.error('Errore rigenerazione QR:', err)
-      toast.error('Errore durante la rigenerazione del QR.')
-    } finally {
-      setActionLoading(null)
-    }
-  }
-
-  async function handleRevoke(mandate: Mandate) {
-    if (!confirm(`Vuoi revocare la delega per "${mandate.draft_title}"? L'annuncio sparirà subito e tornerà una bozza privata solo tua.`)) return
-
-    setActionLoading(mandate.id)
-    try {
-      // Il server non accetta piu' un "ownerId" scritto nel corpo: l'identita'
-      // deve arrivare dal token di sessione firmato (chiunque poteva far
-      // sparire l'annuncio di chiunque, scrivendo l'id giusto).
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.access_token) {
-        toast.error('Sessione scaduta: rientra e riprova.')
+      const res = await fetch('/api/curatore/elenco', { headers: { Authorization: `Bearer ${t}` } })
+      const dati = await res.json()
+      if (!res.ok || dati.error) {
+        toast.error(dati.error || 'Errore nel caricamento.')
         return
       }
-
-      const res = await fetch('/api/curatore/revoke', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ mandateId: mandate.id }),
-      })
-      const data = await res.json()
-
-      if (!res.ok || data.error) {
-        toast.error(data.error || 'Errore durante la revoca.')
-        return
-      }
-
-      toast.success('Delega revocata. L\'oggetto è tornato una tua bozza privata.')
-      fetchMandates(user.id)
+      setInviate(dati.inviate || [])
+      setRicevute(dati.ricevute || [])
     } catch (err) {
-      console.error('Errore revoca:', err)
+      console.error('Errore caricamento candidature:', err)
       toast.error('Errore di connessione.')
     } finally {
-      setActionLoading(null)
+      setCaricamento(false)
     }
   }
 
-  if (loading) {
-    return <div className="min-h-screen flex items-center justify-center font-black uppercase text-xs tracking-widest text-stone-400 animate-pulse">Caricamento...</div>
+  useEffect(() => { carica() }, [])
+
+  async function agisci(
+    percorso: string,
+    corpo: Record<string, unknown>,
+    idRiga: string,
+    messaggioRiuscito: string
+  ) {
+    const t = await token()
+    if (!t) {
+      toast.error('Sessione scaduta: rientra e riprova.')
+      return
+    }
+    setInCorso(idRiga)
+    try {
+      const res = await fetch(percorso, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${t}` },
+        body: JSON.stringify(corpo),
+      })
+      const dati = await res.json()
+      if (!res.ok || dati.error) {
+        toast.error(dati.error || 'Operazione non riuscita.')
+        if (dati.requiresPayoutSetup) router.push('/profile')
+        return
+      }
+      toast.success(messaggioRiuscito)
+      await carica()
+    } catch (err) {
+      console.error('Errore azione candidatura:', err)
+      toast.error('Errore di connessione.')
+    } finally {
+      setInCorso(null)
+    }
+  }
+
+  const daRispondere = ricevute.filter(c => c.stato === STATI_CANDIDATURA.inAttesa)
+  const attiveComeCuratore = inviate.filter(c => c.stato === STATI_CANDIDATURA.accettata)
+
+  if (caricamento) {
+    return (
+      <div className="min-h-screen flex items-center justify-center font-black uppercase text-xs tracking-widest text-stone-400 animate-pulse">
+        Caricamento...
+      </div>
+    )
   }
 
   return (
@@ -168,13 +130,15 @@ export default function CuratoreDashboardPage() {
       <div className="w-full py-14 bg-[#f5efdf] border-b border-stone-200 flex items-center justify-center">
         <div className="text-center max-w-2xl px-6">
           <h1 className="text-3xl md:text-4xl font-black uppercase italic text-stone-900 tracking-tight">Curatore Locale</h1>
-          <p className="text-stone-500 font-bold text-[10px] uppercase tracking-[0.3em] mt-2">I tuoi mandati di delega</p>
-          <div className="flex gap-3 justify-center mt-6">
-            <Link href="/curatore/nuovo" className="bg-rose-600 text-white px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-stone-900 transition-all shadow-md">
-              + Nuovo Mandato
+          <p className="text-stone-500 font-bold text-[10px] uppercase tracking-[0.3em] mt-2">
+            Vendi per altri, o fatti aiutare a vendere
+          </p>
+          <div className="flex flex-wrap gap-3 justify-center mt-6">
+            <Link href="/?cerca_curatore=1" className="bg-rose-600 text-white px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-stone-900 transition-all shadow-md">
+              Oggetti che cercano un curatore
             </Link>
-            <Link href="/curatore/scansiona" className="bg-stone-900 text-white px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-rose-600 transition-all shadow-md">
-              📷 Approva Delega
+            <Link href="/add" className="bg-stone-900 text-white px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-rose-600 transition-all shadow-md">
+              + Pubblica e cerca un curatore
             </Link>
           </div>
         </div>
@@ -182,147 +146,181 @@ export default function CuratoreDashboardPage() {
 
       <div className="max-w-4xl mx-auto px-4 mt-10 space-y-14">
 
-        {/* SEZIONE: MANDATI COME CURATORE */}
+        {/* Spiegazione breve: senza, la pagina vuota non dice cosa fare. */}
+        <div className="bg-white rounded-[2rem] border border-stone-200 shadow-sm p-6 md:p-8">
+          <h2 className="text-xs font-black uppercase tracking-[0.3em] text-stone-900 mb-4">Come funziona</h2>
+          <ol className="space-y-2 text-xs font-bold text-stone-500 leading-relaxed list-decimal list-inside">
+            <li>Chi ha un oggetto lo pubblica e spunta &ldquo;cerco un curatore&rdquo;, scegliendo che percentuale cedergli.</li>
+            <li>Chi vuole occuparsene apre l&apos;oggetto e preme &ldquo;Candidati come curatore&rdquo;.</li>
+            <li>Il proprietario accetta o rifiuta. Solo con l&apos;accettazione il curatore è autorizzato a gestire la vendita.</li>
+            <li>A vendita conclusa l&apos;incasso si divide da solo: la quota del curatore, il resto al proprietario, meno il 10% di Re-love.</li>
+          </ol>
+          <p className="text-[10px] font-bold text-stone-400 mt-4 leading-relaxed">
+            Gli oggetti in Arena si candidano solo dalla <Link href="/arena" className="text-rose-600 hover:underline">pagina Arena</Link>, dove sono spiegate le loro condizioni.
+          </p>
+        </div>
+
+        {/* -------------------------------------------- RICEVUTE (decido io) */}
         <section>
-          <h2 className="text-[14px] font-black uppercase tracking-[0.4em] text-stone-900 border-b border-stone-300 pb-4 mb-6">
-            Oggetti che gestisci (come Curatore)
+          <h2 className="text-[14px] font-black uppercase tracking-[0.4em] text-stone-900 border-b border-stone-300 pb-4 mb-6 flex items-center gap-3">
+            Candidature sui miei oggetti
+            {daRispondere.length > 0 && (
+              <span className="bg-rose-600 text-white text-[10px] font-black px-2.5 py-1 rounded-full">
+                {daRispondere.length}
+              </span>
+            )}
           </h2>
-          {asCurator.length === 0 ? (
-            <p className="text-xs font-bold text-stone-400 uppercase tracking-widest text-center py-10">Non hai ancora creato nessun mandato.</p>
+
+          {ricevute.length === 0 ? (
+            <p className="text-xs font-bold text-stone-400 uppercase tracking-widest text-center py-10">
+              Nessuno si è ancora candidato sui tuoi oggetti.
+            </p>
           ) : (
             <div className="space-y-3">
-              {asCurator.map(m => (
-                <div key={m.id} className="bg-white rounded-2xl border border-stone-200 shadow-sm p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                  <div className="flex items-center gap-4 flex-1 min-w-0">
-                    {m.draft_image_url && (
-                      <img src={m.draft_image_url} className="w-14 h-14 rounded-xl object-cover border border-stone-100 shrink-0" alt={m.draft_title} />
-                    )}
-                    <div className="min-w-0">
-                      <p className="text-sm font-black text-stone-900 uppercase truncate">{m.draft_title}</p>
-                      <p className="text-xs font-bold text-rose-600">€ {Number(m.draft_price).toFixed(2)}</p>
-                      <span className={`inline-block mt-1 text-[9px] font-black uppercase px-2 py-0.5 rounded-md ${STATO_LABEL[m.status].colore}`}>
-                        {STATO_LABEL[m.status].testo}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-2 shrink-0">
-                    {m.status === 'in_attesa_qr' && (
-                      <>
-                        <button
-                          onClick={() => handleShowQr(m)}
-                          className="bg-stone-100 text-stone-700 text-[9px] font-black uppercase px-3 py-2 rounded-lg hover:bg-stone-200 transition-all"
-                        >
-                          Mostra QR
-                        </button>
-                        <button
-                          onClick={() => handleRegenerateQr(m)}
-                          disabled={actionLoading === m.id}
-                          className="bg-stone-900 text-white text-[9px] font-black uppercase px-3 py-2 rounded-lg hover:bg-rose-600 transition-all disabled:opacity-50"
-                        >
-                          Rigenera QR
-                        </button>
-                      </>
-                    )}
-                    {m.status === 'attivo' && m.announcement_id && (
-                      <Link href={`/announcement/${m.announcement_id}`} className="bg-stone-900 text-white text-[9px] font-black uppercase px-3 py-2 rounded-lg hover:bg-rose-600 transition-all">
-                        Vedi Annuncio
-                      </Link>
-                    )}
-                  </div>
-                </div>
+              {ricevute.map(c => (
+                <RigaCandidatura
+                  key={c.id}
+                  c={c}
+                  personaEtichetta="Si è candidato"
+                  personaNome={c.curatoreNome}
+                  occupato={inCorso === c.id}
+                >
+                  {c.stato === STATI_CANDIDATURA.inAttesa && (
+                    <>
+                      <button
+                        onClick={() => agisci('/api/curatore/decidi', { candidaturaId: c.id, azione: 'accetta' }, c.id, 'Curatore accettato: ora può gestire la vendita.')}
+                        disabled={inCorso === c.id}
+                        className="bg-emerald-600 text-white text-[9px] font-black uppercase px-3 py-2 rounded-lg hover:bg-emerald-700 transition-all disabled:opacity-50"
+                      >
+                        Accetta
+                      </button>
+                      <button
+                        onClick={() => agisci('/api/curatore/decidi', { candidaturaId: c.id, azione: 'rifiuta' }, c.id, 'Candidatura rifiutata.')}
+                        disabled={inCorso === c.id}
+                        className="bg-stone-100 text-stone-600 text-[9px] font-black uppercase px-3 py-2 rounded-lg hover:bg-stone-200 transition-all disabled:opacity-50"
+                      >
+                        Rifiuta
+                      </button>
+                    </>
+                  )}
+                  {c.stato === STATI_CANDIDATURA.accettata && (
+                    <button
+                      onClick={() => {
+                        if (!confirm(`Vuoi revocare l'incarico di ${c.curatoreNome} per "${c.titolo}"? L'annuncio resta tuo e torna senza curatore.`)) return
+                        agisci('/api/curatore/revoke', { candidaturaId: c.id }, c.id, 'Incarico revocato.')
+                      }}
+                      disabled={inCorso === c.id}
+                      className="bg-rose-500/10 border border-rose-500/40 text-rose-600 text-[9px] font-black uppercase px-3 py-2 rounded-lg hover:bg-rose-600 hover:text-white transition-all disabled:opacity-50"
+                    >
+                      Revoca
+                    </button>
+                  )}
+                </RigaCandidatura>
               ))}
             </div>
           )}
         </section>
 
-        {/* SEZIONE: MANDATI COME PROPRIETARIO */}
+        {/* ---------------------------------------------- INVIATE (mi candido) */}
         <section>
           <h2 className="text-[14px] font-black uppercase tracking-[0.4em] text-stone-900 border-b border-stone-300 pb-4 mb-6">
-            Oggetti che hai delegato (come Proprietario)
+            Le mie candidature
+            {attiveComeCuratore.length > 0 && (
+              <span className="ml-3 text-[10px] text-emerald-600">{attiveComeCuratore.length} attive</span>
+            )}
           </h2>
-          {asOwner.length === 0 ? (
-            <p className="text-xs font-bold text-stone-400 uppercase tracking-widest text-center py-10">Non hai ancora approvato nessuna delega.</p>
+
+          {inviate.length === 0 ? (
+            <div className="text-center py-10">
+              <p className="text-xs font-bold text-stone-400 uppercase tracking-widest">Non ti sei ancora candidato per nessun oggetto.</p>
+              <Link href="/?cerca_curatore=1" className="inline-block mt-4 bg-stone-900 text-white px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-600 transition-all">
+                Guarda chi cerca un curatore
+              </Link>
+            </div>
           ) : (
             <div className="space-y-3">
-              {asOwner.map(m => (
-                <div key={m.id} className="bg-white rounded-2xl border border-stone-200 shadow-sm p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                  <div className="flex items-center gap-4 flex-1 min-w-0">
-                    {m.draft_image_url && (
-                      <img src={m.draft_image_url} className="w-14 h-14 rounded-xl object-cover border border-stone-100 shrink-0" alt={m.draft_title} />
-                    )}
-                    <div className="min-w-0">
-                      <p className="text-sm font-black text-stone-900 uppercase truncate">{m.draft_title}</p>
-                      <p className="text-xs font-bold text-emerald-600">La tua quota: {m.owner_percentage}%</p>
-                      <span className={`inline-block mt-1 text-[9px] font-black uppercase px-2 py-0.5 rounded-md ${STATO_LABEL[m.status].colore}`}>
-                        {STATO_LABEL[m.status].testo}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-2 shrink-0">
-                    {m.status === 'attivo' && m.announcement_id && (
-                      <Link href={`/announcement/${m.announcement_id}`} className="bg-stone-100 text-stone-700 text-[9px] font-black uppercase px-3 py-2 rounded-lg hover:bg-stone-200 transition-all">
-                        Vedi Annuncio
+              {inviate.map(c => (
+                <RigaCandidatura
+                  key={c.id}
+                  c={c}
+                  personaEtichetta="Proprietario"
+                  personaNome={c.proprietarioNome}
+                  occupato={inCorso === c.id}
+                >
+                  {c.stato === STATI_CANDIDATURA.inAttesa && (
+                    <button
+                      onClick={() => agisci('/api/curatore/decidi', { candidaturaId: c.id, azione: 'ritira' }, c.id, 'Candidatura ritirata.')}
+                      disabled={inCorso === c.id}
+                      className="bg-stone-100 text-stone-600 text-[9px] font-black uppercase px-3 py-2 rounded-lg hover:bg-stone-200 transition-all disabled:opacity-50"
+                    >
+                      Ritira
+                    </button>
+                  )}
+                  {c.stato === STATI_CANDIDATURA.accettata && (
+                    <>
+                      <Link href={`/announcement/${c.annuncioId}`} className="bg-stone-900 text-white text-[9px] font-black uppercase px-3 py-2 rounded-lg hover:bg-rose-600 transition-all">
+                        Vedi oggetto
                       </Link>
-                    )}
-                    {m.status === 'attivo' && (
                       <button
-                        onClick={() => handleRevoke(m)}
-                        disabled={actionLoading === m.id}
-                        className="bg-rose-500/10 border border-rose-500/40 text-rose-600 text-[9px] font-black uppercase px-3 py-2 rounded-lg hover:bg-rose-600 hover:text-white transition-all disabled:opacity-50"
+                        onClick={() => {
+                          if (!confirm(`Vuoi lasciare l'incarico per "${c.titolo}"?`)) return
+                          agisci('/api/curatore/revoke', { candidaturaId: c.id }, c.id, 'Hai lasciato l\'incarico.')
+                        }}
+                        disabled={inCorso === c.id}
+                        className="bg-stone-100 text-stone-500 text-[9px] font-black uppercase px-3 py-2 rounded-lg hover:bg-stone-200 transition-all disabled:opacity-50"
                       >
-                        {actionLoading === m.id ? '...' : 'Revoca'}
+                        Lascia
                       </button>
-                    )}
-                  </div>
-                </div>
+                    </>
+                  )}
+                </RigaCandidatura>
               ))}
             </div>
           )}
         </section>
       </div>
+    </div>
+  )
+}
 
-      {/* MODALE QR */}
-      {qrPreview && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-stone-900/80 backdrop-blur-sm" onClick={() => setQrPreview(null)}>
-          <div className="bg-white rounded-[2rem] p-8 max-w-sm w-full text-center" onClick={(e) => e.stopPropagation()}>
-            <p className="text-xs font-black uppercase text-stone-400 tracking-widest mb-4">Fai inquadrare questo QR al Proprietario</p>
-            <img src={qrPreview.dataUrl} alt="QR di delega" className="w-full h-auto rounded-2xl border border-stone-200 bg-white" />
+function RigaCandidatura({
+  c, personaEtichetta, personaNome, occupato, children,
+}: {
+  c: Candidatura
+  personaEtichetta: string
+  personaNome: string
+  occupato: boolean
+  children: React.ReactNode
+}) {
+  const etichetta = ETICHETTE_STATO[c.stato] || { testo: c.stato, colore: 'bg-stone-200 text-stone-500' }
 
-            {/* Il link, non solo il codice: e' la strada che funziona quando
-                le due persone non sono nella stessa stanza - il caso normale.
-                Il QR stesso contiene questo indirizzo, quindi si apre anche
-                con la fotocamera di sistema. */}
-            <div className="mt-5 bg-stone-50 border border-stone-200 rounded-2xl p-4 text-left">
-              <p className="text-[9px] font-black uppercase text-stone-400 tracking-widest mb-2">
-                Oppure mandagli questo link
-              </p>
-              <p className="font-mono text-[10px] font-bold text-stone-900 break-all select-all bg-white border border-stone-200 rounded-lg p-3">
-                {typeof window !== 'undefined' ? linkApprovazione(qrPreview.token, window.location.origin) : ''}
-              </p>
-
-              <BottoneCondividi
-                percorso={`/curatore/scansiona?codice=${qrPreview.token}`}
-                titolo="Approva la delega su Re-love"
-                testo="Ti ho preparato l'annuncio su Re-love. Apri il link per approvarlo."
-                className="w-full mt-3 bg-stone-900 text-white py-2.5 rounded-lg text-[9px] tracking-widest hover:bg-rose-600"
-              />
-
-              <p className="text-[9px] font-black uppercase text-stone-400 tracking-widest mt-4 mb-2">
-                Se preferisce digitarlo a mano
-              </p>
-              <p className="font-mono text-[11px] font-bold text-stone-500 break-all select-all bg-white border border-stone-200 rounded-lg p-3">
-                {qrPreview.token}
-              </p>
-            </div>
-
-            <button onClick={() => setQrPreview(null)} className="mt-4 w-full bg-stone-100 text-stone-600 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-stone-200 transition-all">
-              Chiudi
-            </button>
-          </div>
+  return (
+    <div className={`bg-white rounded-2xl border border-stone-200 shadow-sm p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 ${occupato ? 'opacity-60' : ''}`}>
+      <div className="flex items-center gap-4 flex-1 min-w-0">
+        {c.immagine && (
+          <img loading="lazy" decoding="async" src={c.immagine} className="w-14 h-14 rounded-xl object-cover border border-stone-100 shrink-0" alt={c.titolo} />
+        )}
+        <div className="min-w-0">
+          <p className="text-sm font-black text-stone-900 uppercase truncate">{c.titolo}</p>
+          <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mt-0.5">
+            {personaEtichetta}: {personaNome}
+            {c.inArena && <span className="ml-2 text-rose-500">· Arena</span>}
+          </p>
+          <p className="text-xs font-bold text-stone-600 mt-1">
+            {c.prezzo !== null && <span className="text-rose-600">€ {Number(c.prezzo).toFixed(2)}</span>}
+            <span className="text-emerald-700 ml-2">
+              curatore {c.percentualeCuratore}% · proprietario {quotaProprietario(c.percentualeCuratore)}%
+            </span>
+          </p>
+          {c.messaggio && (
+            <p className="text-[11px] font-medium text-stone-500 mt-1.5 italic line-clamp-2">&ldquo;{c.messaggio}&rdquo;</p>
+          )}
+          <span className={`inline-block mt-2 text-[9px] font-black uppercase px-2 py-0.5 rounded-md ${etichetta.colore}`}>
+            {etichetta.testo}
+          </span>
         </div>
-      )}
+      </div>
+      <div className="flex gap-2 shrink-0 flex-wrap">{children}</div>
     </div>
   )
 }

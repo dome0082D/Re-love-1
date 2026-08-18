@@ -9,6 +9,7 @@ import { Timer, Gavel, ShoppingCart, Sparkles } from 'lucide-react'
 import { inviaNotifica } from '@/lib/pushNotify'
 import { registraRilancio } from '@/lib/azioniUtente'
 import BottoneCondividi from '@/components/BottoneCondividi'
+import BottoneCandidatura from '@/components/BottoneCandidatura'
 import { useCartStore } from '@/store/cartStore'
 import type { User } from '@supabase/supabase-js'
 
@@ -39,6 +40,8 @@ interface Announcement {
   // Proprietario, diverso da user_id (che resta il Curatore).
   curator_id?: string
   owner_id?: string
+  cerca_curatore?: boolean
+  curator_percentage?: number | null
   mandate_id?: string
   // NUOVO: presenti solo per un oggetto del sistema "Arena ReLove" - per
   // un annuncio normale restano vuoti/false.
@@ -611,12 +614,12 @@ function AnnouncementContent() {
                </div>
              )}
              <div className="rounded-[2rem] overflow-hidden bg-transparent">
-               <img src={ann.image_url || "/usato.png"} className="w-full h-auto object-cover aspect-square" alt={ann.title} />
+               <img loading="lazy" decoding="async" src={ann.image_url || "/usato.png"} className="w-full h-auto object-cover aspect-square" alt={ann.title} />
              </div>
              {ann.image_urls && ann.image_urls.length > 1 && (
                <div className="flex gap-3 p-4 overflow-x-auto custom-scrollbar">
                  {ann.image_urls.map((img: string, i: number) => (
-                    <img key={i} src={img} alt={`${ann.title} - foto ${i + 1}`} className="w-24 h-24 rounded-2xl object-cover border-2 border-white/40 hover:border-rose-400 cursor-pointer transition-all flex-shrink-0 shadow-sm" />
+                    <img loading="lazy" decoding="async" key={i} src={img} alt={`${ann.title} - foto ${i + 1}`} className="w-24 h-24 rounded-2xl object-cover border-2 border-white/40 hover:border-rose-400 cursor-pointer transition-all flex-shrink-0 shadow-sm" />
                  ))}
                </div>
              )}
@@ -875,6 +878,21 @@ function AnnouncementContent() {
                      className="w-full bg-white/40 border-2 border-white/60 text-stone-900 p-4 rounded-2xl text-xs hover:bg-white/80 mt-3"
                    />
 
+                   {/* CURATORE LOCALE: compare solo se il proprietario ha
+                       davvero chiesto aiuto e nessuno se ne sta gia'
+                       occupando. Per gli oggetti in Arena il componente non
+                       si mostra: li' ci si candida dalla pagina Arena. */}
+                   <div className="mt-3">
+                     <BottoneCandidatura
+                       annuncioId={ann.id}
+                       annuncio={ann}
+                       percentualeOfferta={ann.curator_percentage}
+                       utenteId={user?.id || null}
+                       contesto="annuncio"
+                       className="w-full p-4 rounded-2xl text-xs"
+                     />
+                   </div>
+
                    <button onClick={handleContact} disabled={actionLoading} className="text-stone-900 font-black text-xs underline hover:text-rose-600 transition-all mt-4 w-full text-center disabled:opacity-30">
                      Hai dubbi? Contatta il venditore in chat
                    </button>
@@ -884,6 +902,15 @@ function AnnouncementContent() {
                     <div className="p-4 bg-white/40 rounded-2xl text-center border border-white/50">
                       <p className="text-[10px] font-black uppercase text-stone-900">Questo è il tuo annuncio</p>
                     </div>
+
+                    {ann.cerca_curatore && !ann.curator_id && (
+                      <Link href="/curatore" className="block p-4 bg-amber-50 border border-amber-200 rounded-2xl text-center hover:bg-amber-100 transition-colors">
+                        <p className="text-[10px] font-black uppercase text-amber-900">Stai cercando un curatore</p>
+                        <p className="text-[9px] font-bold text-amber-600 uppercase tracking-widest mt-1">
+                          Le candidature arrivano in Curatore Locale
+                        </p>
+                      </Link>
+                    )}
 
                     {/* Anche sul proprio annuncio: è il caso in cui serve di
                         più, per farlo girare fra amici e social. */}

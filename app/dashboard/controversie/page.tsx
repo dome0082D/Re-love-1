@@ -87,21 +87,16 @@ export default function ControversiePage() {
       // chiudere la pratica - questo è solo un suggerimento automatico
       // salvato per dargli il contesto subito, senza doverlo ricostruire
       // a mano ogni volta.
-      let custodyTypeAtTime: string | null = null
-      let liableParty: 'owner' | 'curator' | null = null
-
-      if (tx?.mandate_id) {
-        const { data: mandate } = await supabase
-          .from('curator_mandates')
-          .select('custody_type')
-          .eq('id', tx.mandate_id)
-          .single()
-
-        if (mandate) {
-          custodyTypeAtTime = mandate.custody_type
-          liableParty = mandate.custody_type === 'in_custodia' ? 'curator' : 'owner'
-        }
-      }
+      // NOTA: il suggerimento automatico su chi fosse responsabile nasceva
+      // dal vecchio sistema a delega, dove il mandato diceva se l'oggetto
+      // stesse fisicamente dal Proprietario ("in sede") o dal Curatore ("in
+      // custodia"). Con le candidature quel dato non esiste piu': l'annuncio
+      // e' del Proprietario e l'oggetto sta da lui, salvo accordi presi fuori
+      // dal sito che noi non possiamo conoscere. Lasciamo quindi il campo
+      // vuoto invece di scriverci dentro una supposizione: a decidere e'
+      // sempre stato lo staff, che ora lo fa senza un'indicazione inventata.
+      const custodyTypeAtTime: string | null = null
+      const liableParty: 'owner' | 'curator' | null = null
 
       const { error } = await supabase.from('disputes').insert([{
         transaction_id: selectedTx || null,
@@ -137,10 +132,10 @@ export default function ControversiePage() {
       // oggetto in comune.
       if (tx?.mandate_id) {
         const { data: mandateProfiles } = await supabase
-          .from('curator_mandates')
+          .from('curator_candidature')
           .select('curator_id, owner_id')
           .eq('id', tx.mandate_id)
-          .single()
+          .maybeSingle()
 
         const altroCoinvolto = [mandateProfiles?.curator_id, mandateProfiles?.owner_id].find(id => id && id !== sellerId)
         if (altroCoinvolto) {

@@ -856,7 +856,7 @@ export default function Navbar() {
                 <button onClick={() => removeItem(item.id)} className="absolute -top-3 -right-3 bg-red-500 text-white w-8 h-8 rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-all z-10">
                   <X size={16} strokeWidth={3} />
                 </button>
-                <img src={(item as any).imageUrl || '/usato.png'} alt={item.title} className="w-24 h-24 object-cover rounded-2xl border border-stone-200" />
+                <img loading="lazy" decoding="async" src={(item as any).imageUrl || '/usato.png'} alt={item.title} className="w-24 h-24 object-cover rounded-2xl border border-stone-200" />
                 <div className="flex-1 flex flex-col justify-between py-1">
                   <h3 className="font-bold text-base text-stone-800 line-clamp-2">{item.title}</h3>
                   <div className="flex justify-between items-center mt-3">

@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { supabase } from '@/lib/supabase';
 import { statoContoStripe } from '@/lib/stripeAccount';
+import { STATI_CANDIDATURA, quotaProprietario } from '@/lib/candidature';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
   apiVersion: '2026-03-25.dahlia',
@@ -52,26 +53,36 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Gli articoli in Regalo o Baratto sono gratuiti e non richiedono checkout." }, { status: 400 });
     }
 
-    // NUOVO: se l'annuncio ha un mandato attivo (Curatore Locale), la
-    // "vendita" coinvolge tre incassi (Proprietario, Curatore, piattaforma)
-    // invece di uno solo. Recuperiamo qui il mandato per conoscere le
-    // percentuali concordate, e più sotto verifichiamo che ENTRAMBI
-    // Proprietario e Curatore abbiano un conto Stripe pronto - non basta
-    // più che lo abbia solo chi ha pubblicato l'annuncio.
+    // Se l'annuncio ha un curatore, la "vendita" coinvolge tre incassi
+    // (Proprietario, Curatore, piattaforma) invece di uno solo. Le
+    // percentuali concordate stanno nella candidatura accettata, e più sotto
+    // verifichiamo che ENTRAMBI Proprietario e Curatore abbiano un conto
+    // Stripe pronto - non basta che lo abbia solo chi ha pubblicato.
+    //
+    // FIX: prima queste percentuali venivano lette da "curator_mandates", la
+    // tabella del vecchio sistema a QR, ormai in disuso. "mandate_id" punta
+    // adesso alla candidatura accettata (vedi lib/candidature.ts): il nome
+    // della colonna è rimasto quello per non dover riscrivere tutta la
+    // catena dei pagamenti, dal carrello fino allo storico degli ordini.
     const isDelegated = !!announcement.mandate_id
     let mandate: { owner_percentage: number; curator_percentage: number } | null = null
 
     if (isDelegated) {
-      const { data: mandateData } = await supabase
-        .from('curator_mandates')
-        .select('owner_percentage, curator_percentage, status')
+      const { data: incarico } = await supabase
+        .from('curator_candidature')
+        .select('curator_percentage, stato')
         .eq('id', announcement.mandate_id)
-        .single()
+        .maybeSingle()
 
-      if (!mandateData || mandateData.status !== 'attivo') {
-        return NextResponse.json({ error: "Questo mandato di delega non è più attivo." }, { status: 400 })
+      if (!incarico || incarico.stato !== STATI_CANDIDATURA.accettata) {
+        return NextResponse.json({ error: "L'incarico di curatore su questo oggetto non è più attivo." }, { status: 400 })
       }
-      mandate = mandateData
+      const quotaCuratore = Number(incarico.curator_percentage)
+      mandate = {
+        curator_percentage: quotaCuratore,
+        // Al Proprietario va il resto, tolta la commissione fissa Re-love.
+        owner_percentage: quotaProprietario(quotaCuratore),
+      }
     }
 
     // NUOVO: gestione ARENA RELOVE. Un annuncio può essere sia Curatore

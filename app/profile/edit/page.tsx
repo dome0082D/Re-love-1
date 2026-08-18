@@ -118,7 +118,7 @@ export default function EditProfilePage() {
           {/* SEZIONE FOTO PROFILO */}
           <div className="flex flex-col items-center gap-4">
             <div className="w-24 h-24 bg-stone-100 rounded-full overflow-hidden border-4 border-white shadow-lg relative group flex-shrink-0">
-              <img 
+              <img loading="lazy" decoding="async" 
                 src={profile.avatar_url || `https://ui-avatars.com/api/?name=${profile.nickname || 'U'}`} 
                 className="w-full h-full object-cover" 
                 alt="Avatar"

@@ -125,7 +125,7 @@ export default function OrdersPage() {
                     offer.status === 'Accettata' ? 'bg-emerald-50/50 border-emerald-200' : 'bg-rose-50/50 border-rose-200'}`}>
                   
                   <div className="flex items-center gap-5">
-                    <img src={ann.image_url} className="w-16 h-16 object-cover rounded-2xl border border-stone-200 shadow-sm" alt="Item" />
+                    <img loading="lazy" decoding="async" src={ann.image_url} className="w-16 h-16 object-cover rounded-2xl border border-stone-200 shadow-sm" alt="Item" />
                     <div>
                       <p className="text-[10px] font-black text-stone-500 uppercase tracking-widest">{isBuyer ? 'Hai proposto' : 'Ti hanno proposto'}</p>
                       <h3 className="text-base font-black uppercase italic text-stone-900 mt-1">{ann.title}</h3>
@@ -189,7 +189,7 @@ export default function OrdersPage() {
                         Ruolo: <span className="text-stone-900">{isBuyer ? 'Acquirente' : 'Venditore'}</span> | Stato: <span className="text-rose-500 font-black">{order.status}</span>
                       </p>
                     </div>
-                    <img src={ann.image_url} className="w-20 h-20 object-cover rounded-2xl border border-stone-100 shadow-sm" alt="Item" />
+                    <img loading="lazy" decoding="async" src={ann.image_url} className="w-20 h-20 object-cover rounded-2xl border border-stone-100 shadow-sm" alt="Item" />
                   </div>
 
                   {/* BOX TRACCIAMENTO SPEDIZIONE MIGLIORATO */}

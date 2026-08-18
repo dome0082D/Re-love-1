@@ -50,6 +50,10 @@ interface Announcement {
   user_id: string;
   created_at: string;
   is_sponsored?: boolean;
+  /** Il proprietario sta cercando un curatore che ne gestisca la vendita. */
+  cerca_curatore?: boolean;
+  /** Chi e' gia' stato scelto come curatore, se qualcuno lo e' stato. */
+  curator_id?: string | null;
 }
 
 const Tooltip = ({ children, text, wrapperClass = "relative w-full h-full" }: { children: React.ReactNode, text: string, wrapperClass?: string }) => {
@@ -129,6 +133,10 @@ function HomePageContent() {
   const searchParams = useSearchParams()
   const catFilter = searchParams.get('cat')
   const typeFilter = searchParams.get('type')
+  // "/?cerca_curatore=1": mostra solo gli oggetti il cui proprietario sta
+  // cercando qualcuno che ne gestisca la vendita. E' il punto d'ingresso di
+  // chi vuole fare il curatore, dal riquadro "Curatore Locale" piu' in basso.
+  const soloCercaCuratore = searchParams.get('cerca_curatore') === '1'
   const IS_STAFF = user?.email === 'dome0082@gmail.com';
 
   useEffect(() => { 
@@ -738,14 +746,15 @@ function HomePageContent() {
       : (searchCategory === 'all' || item.category === searchCategory)
     const conditionMatch = condition === 'all' || item.condition === condition
     const typeMatch = !typeFilter || item.type === typeFilter
-    const availableMatch = item.quantity > 0 
+    const availableMatch = item.quantity > 0
+    const curatoreMatch = !soloCercaCuratore || (item.cerca_curatore === true && !item.curator_id)
     
     const itemPrice = Number(item.price);
     const minP = minPrice ? Number(minPrice) : 0;
     const maxP = maxPrice ? Number(maxPrice) : Infinity;
     const priceMatch = itemPrice >= minP && itemPrice <= maxP;
 
-    return titleMatch && categoryMatch && conditionMatch && typeMatch && availableMatch && priceMatch;
+    return titleMatch && categoryMatch && conditionMatch && typeMatch && availableMatch && priceMatch && curatoreMatch;
   })
 
   const sortedData = [...filteredData].sort((a, b) => {
@@ -842,7 +851,7 @@ function HomePageContent() {
       {!isAndroid && (
         <div className="relative w-full aspect-[16/9] max-h-[580px] flex flex-col items-center justify-center overflow-hidden bg-transparent mt-2">
           <div className="absolute inset-0 z-0 w-full h-full">
-            <img 
+            <img loading="lazy" decoding="async" 
               src="/hero-2.png" 
               alt="Re-love Hero Completa"
               className="w-full h-full object-contain object-center scale-100"
@@ -858,7 +867,7 @@ function HomePageContent() {
             <div className="w-full h-full flex flex-col">
               <span className="bg-stone-100 text-stone-500 text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full mb-4 inline-block self-center">Sponsor</span>
               <div className="w-full flex-1 bg-stone-100 rounded-2xl border border-stone-200 flex items-center justify-center mb-4 overflow-hidden relative min-h-[360px]">
-                <img 
+                <img loading="lazy" decoding="async" 
                   src="/adv-riuso-sostenibile.png" 
                   alt="Servizi di Riuso e Riparazione Re-love" 
                   className="w-full h-full object-contain p-2 absolute inset-0"
@@ -930,7 +939,7 @@ function HomePageContent() {
                       className="shrink-0 w-32 bg-white rounded-2xl overflow-hidden shadow-md hover:scale-[1.03] transition-all"
                     >
                       <div className="w-full h-24 bg-stone-50">
-                        <img src={item.image_url || '/usato.png'} className="w-full h-full object-cover" alt={item.title} />
+                        <img loading="lazy" decoding="async" src={item.image_url || '/usato.png'} className="w-full h-full object-cover" alt={item.title} />
                       </div>
                       <div className="p-2.5">
                         <p className="text-[9px] font-black uppercase text-stone-800 truncate">{item.title}</p>
@@ -1394,10 +1403,11 @@ function HomePageContent() {
             </div>
           )}
 
-          {/* NUOVO: riquadro dedicato al sistema "Curatore Locale" - su
-              richiesta, l'ingresso visibile mancava del tutto: le pagine
-              (/curatore, /curatore/nuovo, /curatore/scansiona) esistevano
-              gia' e funzionavano, ma nessun link nel sito ci portava. */}
+          {/* Riquadro dedicato al sistema "Curatore Locale". Il secondo
+              pulsante portava a /curatore/nuovo, la pagina che creava il
+              mandato col QR: non esiste piu'. Adesso si diventa curatore
+              candidandosi su un annuncio che cerca aiuto, quindi si manda
+              alla ricerca di quegli annunci. */}
           <section className="mb-20 max-w-[1300px] mx-auto px-2">
             <div className="bg-white rounded-[2.5rem] border border-stone-200 shadow-md p-8 md:p-10 flex flex-col md:flex-row items-center gap-8">
               <div className="shrink-0 text-6xl">🤝</div>
@@ -1405,8 +1415,8 @@ function HomePageContent() {
                 <span className="inline-block bg-stone-900 text-white text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full mb-3">Novità</span>
                 <h2 className="text-xl md:text-2xl font-black uppercase italic text-stone-900 tracking-tight">Curatore Locale</h2>
                 <p className="text-stone-500 font-bold text-xs mt-2 max-w-xl">
-                  Gestisci la vendita degli oggetti di amici e vicini che non hanno tempo per l&apos;app.
-                  Guadagni una commissione reale su ogni scambio concluso, in totale trasparenza col Proprietario.
+                  Gestisci la vendita degli oggetti di chi non ha tempo di seguirla. Ti candidi con un tocco,
+                  il proprietario accetta, e guadagni una percentuale reale su ogni vendita conclusa.
                 </p>
               </div>
               <div className="flex flex-col sm:flex-row gap-3 shrink-0 w-full md:w-auto">
@@ -1417,10 +1427,10 @@ function HomePageContent() {
                   Scopri di più
                 </Link>
                 <Link
-                  href="/curatore/nuovo"
+                  href="/?cerca_curatore=1"
                   className="bg-rose-600 text-white px-6 py-4 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-stone-900 transition-all shadow-md text-center whitespace-nowrap"
                 >
-                  + Nuovo Mandato
+                  Oggetti che cercano un curatore
                 </Link>
               </div>
             </div>
@@ -1480,7 +1490,7 @@ function HomePageContent() {
             <div className="w-full h-full flex flex-col">
               <span className="bg-stone-100 text-stone-500 text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full mb-4 inline-block self-center">Partner</span>
               <div className="w-full flex-1 bg-stone-100 rounded-2xl border border-stone-200 flex items-center justify-center mb-4 overflow-hidden relative min-h-[360px]">
-                <img 
+                <img loading="lazy" decoding="async" 
                   src="/adv-rete-partner.png" 
                   alt="Rete di Partner Sostenibili Re-love" 
                   className="w-full h-full object-contain p-2 absolute inset-0"
@@ -1583,7 +1593,7 @@ function HomePageContent() {
                   <label className="text-[10px] font-black uppercase text-stone-500 tracking-widest ml-2 block mb-1">Immagine (URL o link)</label>
                   {courseImagePreviewUrl ? (
                     <div className="relative w-24 h-24 rounded-xl overflow-hidden border-2 border-stone-100 group">
-                      <img src={courseImagePreviewUrl} className="w-full h-full object-cover" alt="Anteprima" />
+                      <img loading="lazy" decoding="async" src={courseImagePreviewUrl} className="w-full h-full object-cover" alt="Anteprima" />
                       <button type="button" onClick={removeCourseImage} className="absolute top-1 right-1 bg-stone-900/80 text-white w-5 h-5 rounded-full text-[10px] flex items-center justify-center hover:bg-rose-500 transition-colors">✕</button>
                     </div>
                   ) : (

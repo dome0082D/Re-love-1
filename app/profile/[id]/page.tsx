@@ -92,7 +92,7 @@ export default function PublicProfilePage() {
           {/* AVATAR REALE O FALLBACK */}
           <div className="w-32 h-32 bg-stone-900 rounded-[3rem] overflow-hidden flex items-center justify-center text-white shadow-xl shadow-stone-200">
             {profile.avatar_url ? (
-              <img src={profile.avatar_url} className="w-full h-full object-cover" alt="avatar" />
+              <img loading="lazy" decoding="async" src={profile.avatar_url} className="w-full h-full object-cover" alt="avatar" />
             ) : (
               <span className="text-4xl font-black">{profile.nickname?.[0] || 'U'}</span>
             )}
@@ -139,7 +139,7 @@ export default function PublicProfilePage() {
             {announcements.map(ann => (
               <Link href={`/announcement/${ann.id}`} key={ann.id} className="group bg-white rounded-3xl overflow-hidden border border-stone-100 hover:shadow-xl transition-all">
                 <div className="h-40 bg-stone-100">
-                  <img src={ann.image_url} className="w-full h-full object-cover group-hover:scale-105 transition-all duration-500" alt="img" />
+                  <img loading="lazy" decoding="async" src={ann.image_url} className="w-full h-full object-cover group-hover:scale-105 transition-all duration-500" alt="img" />
                 </div>
                 <div className="p-5">
                   <h3 className="font-black uppercase italic text-sm text-stone-900 truncate">{ann.title}</h3>

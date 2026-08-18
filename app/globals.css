@@ -289,15 +289,32 @@ body {
   trasparenti e sfocati sopra il gradiente, con lo stesso risultato
   visivo morbido, solo senza dettagli di un'immagine sotto da sfocare.
 */
+/*
+  FIX PRESTAZIONI (segnalato: "la trovo lenta e scattosa").
+
+  Queste tre regole avevano un "backdrop-filter: blur(6px)". Sono le classi
+  di sfondo più usate del progetto - bg-white compare 255 volte, bg-stone-50
+  altre 147 - quindi l'effetto finiva su OGNI riquadro, card, campo e
+  pannello: 61 elementi nella sola Home. backdrop-filter è fra le proprietà
+  CSS più costose che esistano: per ognuno di quegli elementi il browser deve
+  fotografare quel che sta dietro, sfocarlo e ricomporlo AD OGNI FOTOGRAMMA
+  mentre si scorre. È esattamente la ricetta dello scorrimento a scatti, e su
+  telefono si sente moltissimo.
+
+  E non serviva a niente. La sfocatura aveva senso quando dietro c'era
+  un'illustrazione; oggi lo sfondo è un gradiente di colore uniforme
+  (.site-fixed-background), e sfocare un gradiente restituisce lo stesso
+  gradiente. Misurato: entro il raggio di 6px il colore cambia al massimo di
+  1 punto su 255, cioè lo 0,39% - impercettibile.
+
+  I colori restano identici, trasparenze comprese: cambia solo che non
+  vengono più ricalcolati sessanta volte al secondo.
+*/
 .bg-white {
   background-color: rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
 }
 .bg-\[\#f5efdf\] {
   background-color: rgba(245, 239, 223, 0.85);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
 }
 /* FIX: estesa la stessa cosa anche a "bg-stone-50" - un altro sfondo di
    riquadro molto diffuso nell'app (es. i box di selezione tipologia nella
@@ -307,8 +324,6 @@ body {
    lasciarlo pieno altrove - stesso identico problema di leggibilità. */
 .bg-stone-50 {
   background-color: rgba(250, 250, 249, 0.85);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
 }
 
 
@@ -332,7 +347,14 @@ a,
 label[class*="cursor-pointer"],
 select {
   -webkit-tap-highlight-color: transparent;
-  transition: transform 0.16s ease, filter 0.16s ease, background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+  /* FIX PRESTAZIONI: tolta "box-shadow" dall'elenco. Questa regola vale per
+     OGNI pulsante, link e select del sito, e animare un'ombra costringe il
+     browser a ridisegnare l'elemento a ogni fotogramma dell'animazione -
+     mentre transform e filter viaggiano sulla scheda grafica senza
+     ridisegnare nulla. Le ombre cambiano lo stesso al passaggio del mouse,
+     solo di scatto invece che sfumate: sui pulsanti, dove l'animazione dura
+     due decimi di secondo, non si nota. */
+  transition: transform 0.16s ease, filter 0.16s ease, background-color 0.2s ease, color 0.2s ease;
 }
 
 button:active,

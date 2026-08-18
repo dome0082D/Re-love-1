@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import Link from 'next/link'
+import BottoneCandidatura from '@/components/BottoneCandidatura'
 
 // Pagina "Arena ReLove": il catalogo degli oggetti messi in palio dai
 // Proprietari (valore >= 100€). Ogni utente puo' generare il proprio link
@@ -20,6 +21,12 @@ interface OggettoArena {
   user_id: string
   arena_locked_until: string | null
   quantity: number
+  // CURATORE LOCALE: per gli oggetti in Arena la candidatura si fa SOLO qui,
+  // dove sono spiegate le condizioni della gara, e non dalla scheda normale.
+  cerca_curatore?: boolean
+  curator_id?: string | null
+  curator_percentage?: number | null
+  is_arena?: boolean
 }
 
 interface MiaPromozione {
@@ -40,7 +47,7 @@ export default function ArenaPage() {
   async function fetchOggetti() {
     const { data } = await supabase
       .from('announcements')
-      .select('id, title, price, image_url, user_id, arena_locked_until, quantity')
+      .select('*')  // '*' e non l'elenco delle colonne: cosi' la pagina regge anche prima che lo SQL delle candidature sia stato eseguito
       .eq('is_arena', true)
       .gt('quantity', 0)
       .order('price', { ascending: false })
@@ -176,7 +183,7 @@ export default function ArenaPage() {
               return (
                 <div key={oggetto.id} className="bg-white rounded-[2rem] border border-stone-200 shadow-sm overflow-hidden flex flex-col">
                   <Link href={`/announcement/${oggetto.id}`} className="block relative h-40 bg-stone-50">
-                    <img src={oggetto.image_url || '/usato.png'} alt={oggetto.title} className="w-full h-full object-cover" />
+                    <img loading="lazy" decoding="async" src={oggetto.image_url || '/usato.png'} alt={oggetto.title} className="w-full h-full object-cover" />
                     {inTrattativa && (
                       <div className="absolute inset-0 bg-stone-900/70 flex items-center justify-center">
                         <span className="bg-orange-500 text-white text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full">In Trattativa</span>
@@ -221,6 +228,24 @@ export default function ArenaPage() {
                           {generandoQuesto ? 'Generazione...' : inTrattativa ? 'In Trattativa' : 'Partecipa e Promuovi'}
                         </button>
                       )}
+                      {/* CURATORE LOCALE, solo se il proprietario dell'oggetto
+                          in gara ha chiesto aiuto e nessuno se ne occupa gia'. */}
+                      <div className="mt-2">
+                        <BottoneCandidatura
+                          annuncioId={oggetto.id}
+                          annuncio={{
+                            user_id: oggetto.user_id,
+                            cerca_curatore: oggetto.cerca_curatore,
+                            curator_id: oggetto.curator_id,
+                            is_arena: true,
+                          }}
+                          percentualeOfferta={oggetto.curator_percentage}
+                          utenteId={user?.id || null}
+                          contesto="arena"
+                          alTermine={fetchOggetti}
+                          className="w-full py-3 rounded-xl text-[10px]"
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>

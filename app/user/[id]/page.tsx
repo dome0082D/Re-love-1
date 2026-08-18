@@ -148,7 +148,7 @@ export default function PublicProfilePage() {
               {announcements.map(ann => (
                 <Link href={`/announcement/${ann.id}`} key={ann.id} className="bg-white rounded-xl overflow-hidden border border-stone-200 shadow-sm flex flex-col group hover:border-stone-400 transition-all">
                   <div className="h-32 bg-stone-50 relative border-b border-stone-100">
-                    <img src={ann.image_url || "/usato.png"} className="w-full h-full object-cover" />
+                    <img loading="lazy" decoding="async" src={ann.image_url || "/usato.png"} className="w-full h-full object-cover" />
                     {ann.type === 'offered' && <span className="absolute top-2 right-2 bg-emerald-500 text-white text-[8px] font-black px-2 py-1 rounded uppercase shadow-sm">Regalo</span>}
                   </div>
                   <div className="p-3 flex flex-col flex-grow justify-between">

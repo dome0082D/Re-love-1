@@ -77,7 +77,7 @@ export default function Mappa({ announcements = [] }: { announcements?: any[] })
               <Popup>
                 <div className="w-40 font-sans">
                   {ann.image_url ? (
-                    <img src={ann.image_url} alt={ann.title} className="w-full h-20 object-cover rounded mb-2" />
+                    <img loading="lazy" decoding="async" src={ann.image_url} alt={ann.title} className="w-full h-20 object-cover rounded mb-2" />
                   ) : (
                     <div className="w-full h-20 bg-stone-100 rounded mb-2 flex items-center justify-center text-[10px] text-stone-400">No Foto</div>
                   )}

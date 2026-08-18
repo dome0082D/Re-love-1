@@ -353,7 +353,7 @@ export default function DashboardOrdini() {
                 
                 {/* Immagine Oggetto */}
                 <div className="w-24 h-24 rounded-2xl overflow-hidden bg-stone-50 border border-stone-100 flex-shrink-0">
-                  <img src={item.announcements?.image_url || '/usato.png'} className="w-full h-full object-cover" alt="Oggetto" />
+                  <img loading="lazy" decoding="async" src={item.announcements?.image_url || '/usato.png'} className="w-full h-full object-cover" alt="Oggetto" />
                 </div>
 
                 {/* Dettagli Base */}

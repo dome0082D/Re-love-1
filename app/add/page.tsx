@@ -64,6 +64,12 @@ function AddAnnouncementForm() {
   const [coords, setCoords] = useState<{ lat: number; lng: number; city: string; label: string } | null>(null)
   const [geocoding, setGeocoding] = useState(false)
   const [acceptsReturns, setAcceptsReturns] = useState(false)
+  // CURATORE LOCALE: chi non ha tempo di seguire la vendita puo' chiedere che
+  // se ne occupi qualcun altro, cedendogli una fetta dell'incasso. Da qui si
+  // dichiara solo la disponibilita': il curatore vero e proprio si sceglie
+  // dopo, accettando una delle candidature che arrivano.
+  const [cercaCuratore, setCercaCuratore] = useState(false)
+  const [percentualeCuratore, setPercentualeCuratore] = useState('20')
   const [exchangeItem, setExchangeItem] = useState('')
 
   // --- STATI PER LE ASTE ---
@@ -312,6 +318,15 @@ function AddAnnouncementForm() {
           quantity: qty,
           allow_local_pickup: allowLocalPickup,
           accepts_returns: acceptsReturns,
+          // Scritti SOLO se la casella e' spuntata. Cosi' chi pubblica un
+          // annuncio normale non tocca affatto queste due colonne: se il
+          // database non le ha ancora (lo SQL delle candidature va eseguito
+          // a parte), la pubblicazione continua a funzionare invece di
+          // fallire con "colonna sconosciuta".
+          ...(cercaCuratore ? {
+            cerca_curatore: true,
+            curator_percentage: Number(percentualeCuratore),
+          } : {}),
           exchange_item: condition === 'Baratto' ? exchangeItem : null,
           address: address.trim() || null,
           city: coords?.city || profile?.city || null,
@@ -424,7 +439,7 @@ function AddAnnouncementForm() {
               <div className="flex gap-4 overflow-x-auto pb-2 custom-scrollbar">
                 {imageUrls.map((url, i) => (
                   <div key={i} className="relative w-32 h-32 flex-shrink-0 rounded-2xl overflow-hidden border-2 border-stone-100 group">
-                    <img src={url} className="w-full h-full object-cover" alt="Preview" />
+                    <img loading="lazy" decoding="async" src={url} className="w-full h-full object-cover" alt="Preview" />
                     <button type="button" onClick={() => removeImage(i)} className="absolute top-2 right-2 bg-stone-900/80 text-white w-6 h-6 rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-rose-500">✕</button>
                     {i === 0 && <span className="absolute bottom-2 left-2 bg-white/90 px-2 py-0.5 text-[8px] font-black uppercase rounded shadow-sm">Cover</span>}
                   </div>
@@ -647,6 +662,55 @@ function AddAnnouncementForm() {
                         <span className="text-[9px] font-bold uppercase text-blue-500">I clienti comprano più volentieri</span>
                       </div>
                     </label>
+                  )}
+
+                  {/* CURATORE LOCALE: cedo una fetta a chi segue la vendita
+                      al posto mio. Non compare per Regalo e Baratto: lì non
+                      c'è nessun incasso da dividere. */}
+                  {condition !== 'Regalo' && condition !== 'Baratto' && (
+                    <div className="p-5 bg-amber-50 border border-amber-100 rounded-2xl">
+                      <label className="flex items-center gap-4 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={cercaCuratore}
+                          onChange={(e) => setCercaCuratore(e.target.checked)}
+                          className="w-6 h-6 accent-amber-600 rounded shrink-0"
+                        />
+                        <div className="flex flex-col">
+                          <span className="text-xs font-black uppercase text-amber-900">Cerco un curatore</span>
+                          <span className="text-[9px] font-bold uppercase text-amber-600">Qualcun altro segue la vendita per te</span>
+                        </div>
+                      </label>
+
+                      {cercaCuratore && (
+                        <div className="mt-4 pt-4 border-t border-amber-200">
+                          <label className="text-[10px] font-black uppercase text-amber-700 tracking-widest">
+                            Percentuale che cedi al curatore
+                          </label>
+                          <div className="flex items-center gap-3 mt-2">
+                            <input
+                              type="range"
+                              min="0"
+                              max="90"
+                              step="5"
+                              value={percentualeCuratore}
+                              onChange={(e) => setPercentualeCuratore(e.target.value)}
+                              className="flex-1 accent-amber-600"
+                            />
+                            <span className="text-lg font-black text-amber-800 w-14 text-right">{percentualeCuratore}%</span>
+                          </div>
+                          <p className="text-[10px] font-bold text-amber-700 mt-3 leading-relaxed">
+                            Su una vendita da € {(Number(price) || 0).toFixed(2)}: al curatore
+                            € {(((Number(price) || 0) * Number(percentualeCuratore)) / 100).toFixed(2)},
+                            a te € {(((Number(price) || 0) * (90 - Number(percentualeCuratore))) / 100).toFixed(2)},
+                            a Re-love € {(((Number(price) || 0) * 10) / 100).toFixed(2)} (commissione fissa 10%).
+                          </p>
+                          <p className="text-[9px] font-bold text-amber-500 uppercase tracking-widest mt-2">
+                            Nessuno viene autorizzato da solo: le candidature le accetti tu, da Curatore Locale.
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   )}
                </div>
             </div>

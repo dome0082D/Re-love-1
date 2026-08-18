@@ -131,7 +131,7 @@ function DashboardContent() {
                 </div>
               )}
               <div className="h-40 bg-stone-50 relative">
-                <img src={(ad as any).image_url || (ad as any).imageUrl || '/usato.png'} alt={ad.title} className="w-full h-full object-cover" />
+                <img loading="lazy" decoding="async" src={(ad as any).image_url || (ad as any).imageUrl || '/usato.png'} alt={ad.title} className="w-full h-full object-cover" />
                 <span className="absolute top-2 left-2 bg-white/90 text-stone-700 text-[10px] font-bold uppercase px-2 py-1 rounded-md shadow-sm">{ad.condition}</span>
               </div>
               <div className="p-4 flex-1 flex flex-col justify-between">

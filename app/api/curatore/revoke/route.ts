@@ -1,31 +1,32 @@
 // app/api/curatore/revoke/route.ts
-// Il Proprietario revoca la delega. L'annuncio pubblico sparisce subito
-// (viene cancellato) e il suo contenuto torna in "owner_drafts" - una
-// bozza privata visibile solo al Proprietario, da cui potrà ripartire con
-// un altro Curatore o pubblicarlo lui stesso in futuro.
-//
-// Gira sul server con la chiave di servizio: cancellare un annuncio
-// pubblico è un'azione delicata che merita gli stessi controlli di
-// sicurezza già usati per l'approvazione del mandato.
 //
 // ============================================================================
-// COSA È STATO CORRETTO
+// SI SCIOGLIE L'ACCORDO FRA PROPRIETARIO E CURATORE.
 //
-// Questa route prendeva "ownerId" dal corpo della richiesta e lo confrontava
-// con il proprietario del mandato. Ma nessuno verificava che chi chiamava
-// FOSSE quell'utente: bastava scrivere nel corpo l'id giusto - e "owner_id"
-// è una colonna leggibile di "announcements" - per far sparire l'annuncio di
-// chiunque, senza nemmeno aver fatto accesso. Ora l'identità viene dal token
-// di sessione firmato; l'"ownerId" del corpo non viene più letto.
+// Lo possono fare tutti e due: il Proprietario revoca l'incarico, il Curatore
+// si tira indietro. In entrambi i casi l'annuncio RESTA, e torna semplicemente
+// senza curatore.
 //
-// Lo staff può revocare comunque: serve per sbloccare le situazioni in cui il
-// Proprietario non riesce a farlo da solo.
+// ============================================================================
+// COS'È CAMBIATO RISPETTO A PRIMA
+//
+// Nel vecchio sistema a QR era il Curatore a creare l'annuncio, quindi
+// revocare voleva dire CANCELLARLO e salvarne una copia in "owner_drafts".
+// Adesso l'annuncio è del Proprietario fin dall'inizio: cancellarlo sarebbe
+// un danno, non una tutela. Si toglie solo il curatore.
+//
+// Restano due protezioni della versione precedente, perché servono davvero:
+//   - l'identità arriva dal token di sessione firmato (prima bastava scrivere
+//     l'id giusto nel JSON per far sparire l'annuncio di chiunque);
+//   - non si scioglie nulla se c'è una vendita già pagata in corso: si
+//     lascerebbe un compratore che ha pagato senza nessuno che gli spedisce.
 // ============================================================================
 
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { notificaUtente } from '@/lib/pushServer'
 import { verificaUtente } from '@/lib/serverAuth'
+import { STATI_CANDIDATURA } from '@/lib/candidature'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,115 +35,92 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY as string
 )
 
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
     const utente = await verificaUtente(req)
-    if (!utente) {
-      return NextResponse.json({ error: 'Devi accedere.' }, { status: 401 })
-    }
+    if (!utente) return NextResponse.json({ error: 'Devi accedere.' }, { status: 401 })
 
-    const { mandateId } = await req.json()
-    if (!mandateId) {
+    const { candidaturaId } = await req.json()
+    if (!candidaturaId) {
       return NextResponse.json({ error: 'Dati mancanti.' }, { status: 400 })
     }
 
-    const { data: mandate, error: mandateError } = await supabaseAdmin
-      .from('curator_mandates')
+    const { data: candidatura } = await supabaseAdmin
+      .from('curator_candidature')
       .select('*')
-      .eq('id', mandateId)
+      .eq('id', candidaturaId)
       .maybeSingle()
 
-    if (mandateError || !mandate) {
-      return NextResponse.json({ error: 'Mandato non trovato.' }, { status: 404 })
+    if (!candidatura) {
+      return NextResponse.json({ error: 'Incarico non trovato.' }, { status: 404 })
+    }
+    if (candidatura.stato !== STATI_CANDIDATURA.accettata) {
+      return NextResponse.json({ error: 'Questo incarico non è attivo.' }, { status: 400 })
     }
 
-    if (mandate.owner_id !== utente.id && !utente.isStaff) {
-      return NextResponse.json({ error: 'Non sei il Proprietario di questo mandato.' }, { status: 403 })
-    }
-    const ownerId = mandate.owner_id
-
-    if (mandate.status !== 'attivo') {
-      return NextResponse.json({ error: 'Questo mandato non è più attivo.' }, { status: 400 })
+    const eProprietario = utente.id === candidatura.owner_id
+    const eCuratore = utente.id === candidatura.curator_id
+    if (!eProprietario && !eCuratore && !utente.isStaff) {
+      return NextResponse.json({ error: 'Questo incarico non ti riguarda.' }, { status: 403 })
     }
 
-    // Protezione: se c'è una vendita in corso (pagata ma non ancora
-    // confermata ricevuta) su questo annuncio, non permettiamo la revoca
-    // in questo momento - l'oggetto sparirebbe mentre un compratore ha
-    // già pagato per riceverlo, un pasticcio molto peggiore di aspettare
-    // che l'ordine si concluda prima di poter revocare.
-    if (mandate.announcement_id) {
+    const { data: annuncio } = await supabaseAdmin
+      .from('announcements')
+      .select('id, title')
+      .eq('id', candidatura.announcement_id)
+      .maybeSingle()
+
+    const titolo = annuncio?.title || 'oggetto'
+
+    // Una vendita già pagata e non ancora conclusa blocca tutto: togliere ora
+    // il curatore lascerebbe un compratore che ha pagato e nessuno incaricato
+    // di consegnargli la roba.
+    if (annuncio) {
       const { data: venditaInCorso } = await supabaseAdmin
         .from('transactions')
         .select('id')
-        .eq('announcement_id', mandate.announcement_id)
+        .eq('announcement_id', annuncio.id)
         .in('status', ['held', 'Pagato', 'Spedito'])
         .limit(1)
         .maybeSingle()
 
       if (venditaInCorso) {
         return NextResponse.json({
-          error: "C'è una vendita in corso su questo oggetto (già pagata, in attesa di consegna). Non puoi revocare finché l'ordine non si conclude o viene annullato dallo staff.",
+          error: "C'è una vendita in corso su questo oggetto (già pagata, in attesa di consegna). Potrai sciogliere l'incarico quando l'ordine si sarà concluso.",
         }, { status: 400 })
       }
     }
 
-    // Leggiamo l'annuncio pubblico (se esiste ancora) per copiarne i dati
-    // nella bozza privata prima di cancellarlo.
-    let datiOggetto = {
-      title: mandate.draft_title,
-      description: mandate.draft_description,
-      price: mandate.draft_price,
-      condition: mandate.draft_condition,
-      image_url: mandate.draft_image_url,
+    const { data: chiuse } = await supabaseAdmin
+      .from('curator_candidature')
+      .update({ stato: STATI_CANDIDATURA.revocata, decided_at: new Date().toISOString() })
+      .eq('id', candidatura.id)
+      .eq('stato', STATI_CANDIDATURA.accettata)
+      .select('id')
+
+    if (!chiuse?.length) {
+      return NextResponse.json({ error: 'Questo incarico è già stato chiuso.' }, { status: 409 })
     }
 
-    if (mandate.announcement_id) {
-      const { data: annuncio } = await supabaseAdmin
+    // L'annuncio resta, ma senza curatore: torna una vendita normale del
+    // Proprietario. "cerca_curatore" non viene riacceso da solo - se ne vuole
+    // un altro, lo riattiva lui dalla modifica dell'annuncio.
+    if (annuncio) {
+      await supabaseAdmin
         .from('announcements')
-        .select('title, description, price, condition, image_url')
-        .eq('id', mandate.announcement_id)
-        .single()
-      if (annuncio) {
-        datiOggetto = annuncio
-      }
+        .update({ curator_id: null, owner_id: null, mandate_id: null })
+        .eq('id', annuncio.id)
     }
 
-    const { error: draftError } = await supabaseAdmin
-      .from('owner_drafts')
-      .insert([{
-        owner_id: ownerId,
-        title: datiOggetto.title,
-        description: datiOggetto.description,
-        price: datiOggetto.price,
-        condition: datiOggetto.condition,
-        image_url: datiOggetto.image_url,
-        previous_mandate_id: mandate.id,
-      }])
-
-    if (draftError) {
-      console.error('[Curatore/Revoke] Errore creazione bozza:', draftError)
-      return NextResponse.json({ error: 'Errore durante il salvataggio della bozza.' }, { status: 500 })
-    }
-
-    // Cancella l'annuncio pubblico - sparisce subito da Home, ricerca,
-    // profilo del Curatore, ovunque, perché semplicemente non esiste più.
-    if (mandate.announcement_id) {
-      await supabaseAdmin.from('announcements').delete().eq('id', mandate.announcement_id)
-    }
-
-    await supabaseAdmin
-      .from('curator_mandates')
-      .update({ status: 'revocato', revoked_at: new Date().toISOString() })
-      .eq('id', mandate.id)
-
-    // La notifica in-app funzionava gia' (chiave di servizio), ma la push
-    // non partiva: nessuno la mandava. Ora entrambe, in una sola chiamata.
+    // Avvisiamo l'altra persona, chiunque delle due abbia iniziato.
     await notificaUtente(
-      mandate.curator_id,
-      `⚠️ Il Proprietario ha revocato la delega per "${datiOggetto.title}". L'annuncio non è più pubblico.`,
-      'Delega revocata ⚠️',
-      '/curatore',
-      true // il Curatore perde un annuncio che gestiva: va avvisato davvero
+      eProprietario ? candidatura.curator_id : candidatura.owner_id,
+      eProprietario
+        ? `Il proprietario ha revocato il tuo incarico di curatore per "${titolo}".`
+        : `Il curatore di "${titolo}" ha lasciato l'incarico. L'annuncio è tornato solo tuo.`,
+      eProprietario ? 'Incarico revocato' : 'Il curatore si è tirato indietro',
+      eProprietario ? '/curatore' : `/announcement/${candidatura.announcement_id}`,
+      true
     )
 
     return NextResponse.json({ ok: true })

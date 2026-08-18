@@ -183,7 +183,7 @@ function SearchContent() {
               {results.map((annuncio) => (
                 <Link href={`/announcement/${annuncio.id}`} key={annuncio.id} className="group bg-white rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all border border-stone-100 flex flex-col">
                   <div className="relative h-48 w-full overflow-hidden bg-stone-100">
-                    <img 
+                    <img loading="lazy" decoding="async" 
                       src={annuncio.image_url || '/nuovo.png'} 
                       alt={annuncio.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"

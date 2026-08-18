@@ -157,7 +157,7 @@ function BarattiContent() {
     return (
       <div className="bg-white rounded-[2rem] border border-stone-200 shadow-sm p-5 flex flex-col sm:flex-row gap-5 items-start">
         <Link href={`/announcement/${b.item_id}`} className="w-full sm:w-28 h-28 shrink-0 rounded-2xl overflow-hidden bg-stone-50 border border-stone-100">
-          <img src={b.oggetto?.image_url || '/baratto.png'} alt={b.oggetto?.title || 'Oggetto'} className="w-full h-full object-cover" />
+          <img loading="lazy" decoding="async" src={b.oggetto?.image_url || '/baratto.png'} alt={b.oggetto?.title || 'Oggetto'} className="w-full h-full object-cover" />
         </Link>
 
         <div className="flex-1 min-w-0">

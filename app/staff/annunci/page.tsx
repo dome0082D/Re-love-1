@@ -100,7 +100,7 @@ export default function StaffAnnunciPage() {
                   {announcements.map((item) => (
                     <tr key={item.id} className="border-b border-stone-100 hover:bg-stone-50">
                       <td className="p-4">
-                        <img src={item.image_url || '/usato.png'} alt="img" className="w-12 h-12 rounded-lg object-cover" />
+                        <img loading="lazy" decoding="async" src={item.image_url || '/usato.png'} alt="img" className="w-12 h-12 rounded-lg object-cover" />
                       </td>
                       <td className="p-4 text-xs font-bold text-stone-800">{item.title}</td>
                       <td className="p-4 text-xs font-black text-rose-500">€ {item.price}</td>

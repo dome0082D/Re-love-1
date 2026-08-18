@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { User } from '@supabase/supabase-js'
+import { toast } from 'sonner'
 
 interface ProfileData {
   first_name?: string;
@@ -355,7 +356,7 @@ function ProfileContent() {
         {items.map((ann) => (
           <div key={ann.id} className="bg-white rounded-2xl overflow-hidden border border-stone-100 shadow-sm flex flex-col hover:border-rose-300 transition-all">
             <Link href={`/announcement/${ann.id}`} className="aspect-square bg-stone-50 relative block overflow-hidden">
-              <img src={ann.image_url || "/usato.png"} className="w-full h-full object-cover hover:scale-105 transition-transform duration-500" alt={ann.title} />
+              <img loading="lazy" decoding="async" src={ann.image_url || "/usato.png"} className="w-full h-full object-cover hover:scale-105 transition-transform duration-500" alt={ann.title} />
             </Link>
             <div className="p-3 flex flex-col justify-between flex-grow">
                <div>
@@ -407,6 +408,38 @@ function ProfileContent() {
             )}
           </div>
 
+          {/* Il tuo id utente. Non serve per candidarsi come curatore (lì
+              basta il pulsante: il sito sa già chi sei), ma è l'unico modo
+              di farsi identificare senza ambiguità quando si scrive
+              all'assistenza o ci si accorda a voce con qualcuno. */}
+          {user?.id && (
+            <div className="mb-6 bg-stone-50 border border-stone-200 rounded-2xl p-4">
+              <p className="text-[9px] font-black uppercase text-stone-400 tracking-widest mb-2">Il tuo id utente</p>
+              <div className="flex items-center gap-2">
+                <p className="flex-1 min-w-0 font-mono text-[11px] font-bold text-stone-700 break-all select-all bg-white border border-stone-200 rounded-lg px-3 py-2">
+                  {user.id}
+                </p>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(user.id)
+                      toast.success('Id copiato.')
+                    } catch {
+                      // Negli appunti non si può sempre scrivere (navigazione
+                      // privata, browser dentro le app): mostrarlo è meglio
+                      // che non fare niente.
+                      window.prompt('Copia il tuo id utente:', user.id)
+                    }
+                  }}
+                  className="shrink-0 bg-stone-900 text-white px-4 py-2.5 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-rose-600 transition-all"
+                >
+                  Copia
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* NUOVO: riquadro fisso ben visibile, richiesto esplicitamente -
               sempre nel flusso normale della pagina (mai "absolute"), con
               margine proprio sopra e sotto, quindi non si sovrappone mai a
@@ -425,7 +458,7 @@ function ProfileContent() {
               <div className="space-y-4">
                 <div className="flex items-center gap-4 border-b border-stone-100 pb-6">
                   <div className="w-16 h-16 bg-stone-100 rounded-full overflow-hidden relative group shadow-sm flex-shrink-0">
-                    <img src={editForm.avatar_url || `https://ui-avatars.com/api/?name=${editForm.nickname || 'U'}`} className="w-full h-full object-cover" alt="avatar" />
+                    <img loading="lazy" decoding="async" src={editForm.avatar_url || `https://ui-avatars.com/api/?name=${editForm.nickname || 'U'}`} className="w-full h-full object-cover" alt="avatar" />
                     <label className="absolute inset-0 bg-stone-900/40 flex items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity">
                       <span className="text-[8px] font-black text-white uppercase">Foto</span>
                       <input type="file" className="hidden" onChange={uploadAvatar} accept="image/*" />
@@ -470,7 +503,7 @@ function ProfileContent() {
               <div className="space-y-8">
                 <div className="flex items-center gap-6">
                   <div className="w-20 h-20 bg-stone-100 rounded-full overflow-hidden border-2 border-stone-100 shadow-sm flex-shrink-0">
-                    <img src={profile?.avatar_url || `https://ui-avatars.com/api/?name=${profile?.nickname || 'U'}`} className="w-full h-full object-cover" />
+                    <img loading="lazy" decoding="async" src={profile?.avatar_url || `https://ui-avatars.com/api/?name=${profile?.nickname || 'U'}`} className="w-full h-full object-cover" />
                   </div>
                   <div>
                     <p className="text-[9px] font-black uppercase text-stone-400 tracking-widest mb-1">Nickname Pubblico</p>

@@ -314,7 +314,7 @@ export default function VetrinaEsternaPage() {
                 <div className="space-y-4">
                   {dati.image && (
                     <div className="w-full h-40 bg-stone-50 rounded-2xl border border-stone-100 overflow-hidden flex items-center justify-center">
-                      <img src={dati.image} className="max-h-full max-w-full object-contain" alt={dati.title} />
+                      <img loading="lazy" decoding="async" src={dati.image} className="max-h-full max-w-full object-contain" alt={dati.title} />
                     </div>
                   )}
 

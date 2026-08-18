@@ -273,7 +273,7 @@ export default function StaffUserInspectPage() {
               {announcements.map(ann => (
                 <div key={ann.id} className="bg-stone-800 rounded-2xl border border-stone-700/50 overflow-hidden flex flex-col">
                   <div className="h-32 bg-stone-900 relative">
-                    <img src={ann.image_url || '/usato.png'} className="w-full h-full object-cover" alt={ann.title} />
+                    <img loading="lazy" decoding="async" src={ann.image_url || '/usato.png'} className="w-full h-full object-cover" alt={ann.title} />
                   </div>
                   <div className="p-4 flex-1 flex flex-col justify-between">
                     <div>
