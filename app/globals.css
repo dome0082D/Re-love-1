@@ -1,50 +1,36 @@
 @import "tailwindcss";
 
 /*
-  FIX ANDROID: "bordo fantasma" / sliver ai angoli arrotondati.
-  Su Chrome Android (motore di rendering Skia) gli elementi che combinano
-  border-radius + overflow:hidden + box-shadow mostrano spesso una sottile
-  linea chiara/grigia ai bordi arrotondati, perché il livello di clipping
-  e quello dell'ombra vengono composti su layer GPU separati con
-  arrotondamento subpixel leggermente diverso.
-  Promuovendo l'elemento al proprio layer di compositing con una
-  trasformazione GPU (translateZ) e forzando il ricalcolo della maschera
-  del bordo, il gap sparisce su Android senza alcun impatto visivo su
-  desktop/iOS. Non tocca nessuna classe esistente, si applica in automatico
-  a tutti gli elementi con questi border-radius già usati nel progetto.
-*/
-.rounded-\[2rem\],
-.rounded-\[2\.5rem\],
-.rounded-\[1\.5rem\],
-.rounded-\[3rem\],
-.rounded-\[4rem\],
-.rounded-3xl,
-.rounded-2xl {
-  transform: translateZ(0);
-  -webkit-backface-visibility: hidden;
-  backface-visibility: hidden;
-}
+  FIX PRESTAZIONI E TOCCO (segnalato: "sui lati della vetrina non c'e' tocco,
+  e' impiantata").
 
-/* -webkit-mask-image isolata in un blocco @supports: Firefox non la
-   riconosce e la ignorava comunque (nessun cambio di comportamento), ma
-   così lo dichiariamo esplicitamente invece di lasciarlo implicito. */
-@supports (-webkit-mask-image: -webkit-radial-gradient(white, black)) {
-  .rounded-\[2rem\],
-  .rounded-\[2\.5rem\],
-  .rounded-\[1\.5rem\],
-  .rounded-\[3rem\],
-  .rounded-\[4rem\],
-  .rounded-3xl,
-  .rounded-2xl {
-    -webkit-mask-image: -webkit-radial-gradient(white, black);
-  }
-}
+  Qui c'era una regola che dava "transform: translateZ(0)" e una maschera
+  -webkit-mask-image a SETTE classi di arrotondamento: .rounded-2xl,
+  .rounded-3xl, .rounded-[2rem] e compagnia. Serviva a nascondere un difetto
+  cosmetico di Chrome Android (una sottile linea chiara sugli angoli di
+  elementi che combinano border-radius + overflow:hidden + box-shadow).
+
+  Il prezzo era altissimo. Quelle classi sono ovunque: contato sulla sola
+  Home, 61 elementi. Ognuno veniva promosso a un livello grafico separato
+  sulla scheda video, permanentemente. Un telefono con memoria grafica
+  limitata deve comporre sessanta livelli a ogni fotogramma di scorrimento, e
+  quando il compositore va in affanno la prima cosa che si perde sono gli
+  eventi di tocco: il dito tocca e non succede niente, esattamente il
+  sintomo descritto sulla vetrina.
+
+  Un artefatto grafico da un pixel non vale un'app che non risponde al tocco.
+  La regola e' stata tolta. Se quella linea dovesse ricomparire su qualche
+  telefono, si rimette applicandola SOLO agli elementi che la mostrano
+  davvero (quelli con overflow-hidden e ombra), non a tutti i riquadri
+  arrotondati del sito.
+*/
 
 /* Evita lo sfarfallio (flicker) durante le transizioni hover/active su Android
    quando un elemento con ombra/bordo viene animato in scala (es. pulsanti preferiti,
    card cliccabili). Isola il repaint al solo elemento invece che ridisegnare l'area attorno. */
-.hover\:scale-105:hover,
-.hover\:scale-110:hover,
+/* "will-change" solo mentre il dito e' premuto o il mouse e' sopra: e' li'
+   che serve. Prima era dichiarato sulle stesse regole :hover, ma insieme al
+   translateZ di sopra contribuiva a moltiplicare i livelli grafici. */
 .active\:scale-95:active {
   will-change: transform;
 }
@@ -94,37 +80,6 @@ body {
 }
 
 /*
-  Hero scorrevole SOLO ANDROID (vedi useIsAndroid e i gestori touch dedicati
-  in app/page.tsx).
-  - touch-action: pan-y (FIX: prima era pan-x) dichiara che il gesto
-    verticale lo gestisce nativamente il browser (fa scorrere la pagina),
-    mentre quello orizzontale genera eventi che gestiamo noi via JS - vedi
-    sotto il perché.
-  - Scrollbar nascosta ma lo scroll resta pienamente funzionante.
-*/
-.android-hero-scroll {
-  /* FIX: prima era "pan-x" - sembra corretto sulla carta ("qui si scorre
-     solo in orizzontale, il verticale passa alla pagina"), ma è un
-     comportamento noto per essere impreciso su Chrome Android: se il dito
-     parte anche solo leggermente in diagonale (un tocco umano non è mai
-     perfettamente dritto), il browser "blocca" l'intero gesto come
-     orizzontale e non lo lascia più passare alla pagina - dovevi toccare
-     fuori dall'hero per scrollare giù. È un problema documentato, capitato
-     a librerie di carousel molto diffuse (Flickity, Slick), non specifico
-     di questo progetto. La soluzione robusta: "pan-y" dice al browser di
-     gestire SEMPRE nativamente il gesto verticale (mai bloccato), mentre
-     quello orizzontale lo intercettiamo e gestiamo noi via JavaScript in
-     app/page.tsx, con un controllo diretto sulla direzione del dito. */
-  touch-action: pan-y;
-  /* FIX: allargato da overscroll-behavior-x a overscroll-behavior (entrambi
-     gli assi) per una protezione più solida - qui non si scorre mai in
-     verticale (c'è overflow-y-hidden), quindi non cambia nulla per l'uso
-     normale, ma copre anche eventuali casi limite che il solo asse
-     orizzontale non intercettava. */
-  overscroll-behavior: contain;
-}
-
-/*
   FIX ANDROID: questa classe è usata in tantissimi punti dell'app (lista
   laboratori, chat, gallerie immagini, dashboard) ma non era MAI stata
   definita - non faceva assolutamente nulla. Ogni contenitore che la usa è
@@ -156,22 +111,6 @@ body {
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background-color: rgba(120, 113, 108, 0.4);
   border-radius: 999px;
-}
-
-@supports (-webkit-overflow-scrolling: touch) {
-  .android-hero-scroll {
-    -webkit-overflow-scrolling: touch;
-  }
-}
-
-@supports (scrollbar-width: none) {
-  .android-hero-scroll {
-    scrollbar-width: none; /* Firefox, Chrome 121+ */
-  }
-}
-
-.android-hero-scroll::-webkit-scrollbar {
-  display: none; /* Chrome/WebView Android e Safari più vecchi */
 }
 
 /*
@@ -423,9 +362,9 @@ button[disabled]:active {
   chiesto: l'aggiornamento resta possibile solo con un tiro deliberato dalla
   cima della pagina, e non parte piu' per sbaglio.
 
-  Due classi (.custom-scrollbar e .android-hero-scroll) erano gia' protette;
-  qui copriamo tutti gli altri contenitori scorrevoli del progetto, comprese
-  le pagine che verranno aggiunte in futuro.
+  La classe .custom-scrollbar era gia' protetta; qui copriamo tutti gli
+  altri contenitori scorrevoli del progetto, comprese le pagine che
+  verranno aggiunte in futuro.
 
   NOTA: la SOGLIA del gesto - quanti millimetri di trascinamento servono - la
   decide il browser e non e' modificabile da CSS. Quello che si puo' togliere

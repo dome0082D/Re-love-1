@@ -15,23 +15,16 @@ import ExternalResultsFallback from './components/ExternalResultsFallback'
 import { containsForbiddenContact } from '@/lib/chatSecurity'
 import { srcFoto, srcSetFoto, fotoQuadrata } from '@/lib/immagini'
 
-// --- RILEVAMENTO ANDROID (solo lato client, per adattare l'hero) ---
+
+// --- RILEVAMENTO ANDROID (solo lato client) ---
+// Serve ancora alla barra dei 5 pulsanti in basso e alla posizione del
+// pulsante staff, che devono tenere conto della barra di sistema Android.
+// (Prima serviva anche a nascondere l'hero: l'hero non c'e' piu'.)
 function useIsAndroid() {
   const [isAndroid, setIsAndroid] = useState(false)
   useEffect(() => {
-    // NOTA ESLint: "react-hooks/set-state-in-effect" segnala questo come
-    // rischio di doppio render - è un falso allarme per questo caso
-    // preciso. La documentazione ufficiale di React elenca esplicitamente
-    // "mostrare contenuto diverso su server e client" (il pattern
-    // isMounted/isClient, esattamente questo) tra gli usi accettati della
-    // regola: qui serve leggere navigator.userAgent, disponibile solo nel
-    // browser, senza generare un mismatch di idratazione rispetto a quanto
-    // renderizzato dal server. Sopprimo la riga invece di riscrivere un
-    // pattern che è già quello corretto per questo scopo.
-    if (typeof navigator !== 'undefined') {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setIsAndroid(/android/i.test(navigator.userAgent))
-    }
+    if (typeof navigator === 'undefined') return
+    setIsAndroid(/android/i.test(navigator.userAgent))
   }, [])
   return isAndroid
 }
@@ -76,7 +69,6 @@ function HomePageContent() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [favorites, setFavorites] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
-  const isAndroid = useIsAndroid()
   
   const [mainSearch, setMainSearch] = useState('') 
   const [isListening, setIsListening] = useState(false)
@@ -90,7 +82,7 @@ function HomePageContent() {
   const [visibleCount, setVisibleCount] = useState(12)
   // FIX: il pulsante corona (staff) è "fixed" quindi galleggia sopra
   // qualunque cosa si trovi in quel punto dello schermo - all'inizio pagina
-  // finiva proprio sopra l'immagine hero, sovrapposto all'illustrazione.
+  // finiva sovrapposto all'illustrazione.
   // Lo mostriamo solo dopo aver scrollato un po', come i pulsanti "torna su"
   // delle app: compare quando serve, non appena si apre la pagina.
   const [showStaffButton, setShowStaffButton] = useState(false)
@@ -130,6 +122,7 @@ function HomePageContent() {
   const chatContainerRef = useRef<HTMLDivElement>(null)
   const recognitionRef = useRef<any>(null)
   
+  const isAndroid = useIsAndroid()
   const router = useRouter()
   const searchParams = useSearchParams()
   const catFilter = searchParams.get('cat')
@@ -161,121 +154,8 @@ function HomePageContent() {
 
   const hasScrolledInitially = useRef(false)
 
-  // --- CENTRATURA HERO SU ANDROID ---
-  const heroScrollRef = useRef<HTMLDivElement>(null)
-  const heroImgRef = useRef<HTMLImageElement>(null)
-  const heroSnapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const isSnappingBackRef = useRef(false)
-
-  // Porta l'hero al centro del suo scroll orizzontale. "smooth=false" per il
-  // posizionamento iniziale (istantaneo, niente animazione appena si apre la
-  // pagina), "smooth=true" per il ritorno al centro dopo che l'utente la lascia.
-  const centerHeroScroll = (smooth: boolean) => {
-    const el = heroScrollRef.current
-    if (!el) return
-    const centerPosition = (el.scrollWidth - el.clientWidth) / 2
-    if (smooth) isSnappingBackRef.current = true
-    el.scrollTo({ left: centerPosition, behavior: smooth ? 'smooth' : 'auto' })
-  }
-
-  // Se l'immagine è già in cache del browser, l'evento "onLoad" sull'<img>
-  // potrebbe non scattare più (l'immagine risulta già caricata prima ancora
-  // che il gestore venga collegato) - questo controllo è la rete di sicurezza.
-  useEffect(() => {
-    if (isAndroid && heroImgRef.current?.complete) {
-      centerHeroScroll(false)
-    }
-  }, [isAndroid])
-
-  // FIX: prima lo scroll orizzontale dell'hero era gestito dal solo CSS
-  // (touch-action: pan-x), che in teoria lascia passare i gesti verticali
-  // alla pagina ma su Chrome Android si è rivelato impreciso: bastava un
-  // dito che partiva anche solo leggermente in diagonale (quasi sempre, un
-  // tocco umano non è mai perfettamente dritto) perché il gesto venisse
-  // "bloccato" come orizzontale, impedendo di scrollare la pagina toccando
-  // l'hero. Ora calcoliamo noi la direzione del dito nei primi pixel di
-  // movimento: se è verticale, non facciamo NULLA (niente preventDefault,
-  // l'evento passa alla pagina come se l'hero non ci fosse); se è
-  // orizzontale, muoviamo noi stessi lo scroll dell'hero via JavaScript.
-  useEffect(() => {
-    if (!isAndroid) return
-    const el = heroScrollRef.current
-    if (!el) return
-
-    let startX = 0
-    let startY = 0
-    let startScrollLeft = 0
-    let lockedAxis: 'x' | 'y' | null = null
-
-    const handleTouchStart = (e: TouchEvent) => {
-      if (e.touches.length !== 1) return
-      startX = e.touches[0].clientX
-      startY = e.touches[0].clientY
-      startScrollLeft = el.scrollLeft
-      lockedAxis = null
-    }
-
-    const handleTouchMove = (e: TouchEvent) => {
-      if (e.touches.length !== 1) return
-      const dx = e.touches[0].clientX - startX
-      const dy = e.touches[0].clientY - startY
-
-      if (lockedAxis === null) {
-        if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return
-        lockedAxis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y'
-      }
-
-      if (lockedAxis === 'x') {
-        e.preventDefault()
-        el.scrollLeft = startScrollLeft - dx
-      }
-      // Se lockedAxis è 'y', non facciamo nulla di proposito: l'evento
-      // continua il suo corso normale e la pagina scorre come sempre.
-    }
-
-    el.addEventListener('touchstart', handleTouchStart, { passive: true })
-    // "passive: false" qui è necessario - possiamo chiamare preventDefault()
-    // solo su un listener non passivo, e ci serve per bloccare SOLO il
-    // trascinamento orizzontale senza che il browser provi a scrollare la
-    // pagina in orizzontale per conto suo.
-    el.addEventListener('touchmove', handleTouchMove, { passive: false })
-    return () => {
-      el.removeEventListener('touchstart', handleTouchStart)
-      el.removeEventListener('touchmove', handleTouchMove)
-    }
-  }, [isAndroid])
-
-  // Quando l'utente smette di scorrere l'hero (dito sollevato E inerzia
-  // dello scroll esaurita), la riporta dolcemente al centro dopo una breve
-  // pausa, così ha comunque il tempo di vedere cosa ha scorso prima che torni.
-  useEffect(() => {
-    if (!isAndroid) return
-    const el = heroScrollRef.current
-    if (!el) return
-
-    const handleScroll = () => {
-      // Ignora gli eventi generati dalla nostra stessa animazione di ritorno
-      // al centro - altrimenti si ritriggererebbe da sola all'infinito.
-      if (isSnappingBackRef.current) return
-
-      if (heroSnapTimeoutRef.current) clearTimeout(heroSnapTimeoutRef.current)
-      heroSnapTimeoutRef.current = setTimeout(() => {
-        centerHeroScroll(true)
-        // Lo scroll "smooth" dura circa mezzo secondo: riabilitiamo
-        // l'ascolto dopo un margine di sicurezza.
-        setTimeout(() => { isSnappingBackRef.current = false }, 600)
-      }, 1500)
-    }
-
-    el.addEventListener('scroll', handleScroll, { passive: true })
-    return () => {
-      el.removeEventListener('scroll', handleScroll)
-      if (heroSnapTimeoutRef.current) clearTimeout(heroSnapTimeoutRef.current)
-    }
-  }, [isAndroid])
-
-  // Mostra il pulsante corona solo dopo aver scrollato oltre l'hero, per
-  // evitare che galleggi sopra l'illustrazione appena si apre la pagina.
+  // Il pulsante corona compare solo dopo un po' di scorrimento, per non
+  // galleggiare sul contenuto appena si apre la pagina.
   useEffect(() => {
     const handleScroll = () => {
       setShowStaffButton(window.scrollY > 400)
@@ -785,7 +665,7 @@ function HomePageContent() {
           solo su Android. Su tutte le altre piattaforme resta pb-20 come prima.
           FIX SFONDO: tolto "bg-stone-50" da qui - ora lo sfondo fisso del sito
           (vedi layout.tsx) si vede nei vuoti tra i riquadri della Home, tranne
-          dietro l'hero, che resta opaca tramite l'involucro qui sotto. */}
+          dietro il contenuto. */}
       
       {IS_STAFF && showStaffButton && (
         <Link href="/staff" className="fixed right-8 z-[99] bg-stone-900 text-rose-400 w-16 h-16 rounded-full shadow-lg font-bold flex items-center justify-center border-2 border-rose-400 hover:scale-105 active:scale-95 transition-all text-2xl animate-in fade-in duration-300" style={isAndroid ? { bottom: 'calc(6rem + env(safe-area-inset-bottom, 0px))' } : { bottom: '2rem' }}>
@@ -841,24 +721,6 @@ function HomePageContent() {
             <MessageCircle size={19} className="text-rose-500" />
             <span className="text-[8px] font-black uppercase tracking-wider text-stone-800">Messaggi</span>
           </Link>
-        </div>
-      )}
-
-      {/* FIX: hero rimossa SOLO su Android, su richiesta - su Windows/desktop
-          resta visibile come sempre. Tutta la logica di scorrimento e
-          centratura automatica riguardava esclusivamente la versione Android
-          (quella scorrevole in orizzontale): resta nel file ma ora è inerte,
-          non essendoci più nulla da scorrere. Se un giorno rimetti l'hero
-          anche su Android, torna a funzionare da sola senza ricostruire nulla. */}
-      {!isAndroid && (
-        <div className="relative w-full aspect-[16/9] max-h-[580px] flex flex-col items-center justify-center overflow-hidden bg-transparent mt-2">
-          <div className="absolute inset-0 z-0 w-full h-full">
-            <img loading="lazy" decoding="async" 
-              src="/hero-2.png" 
-              alt="Re-love Hero Completa"
-              className="w-full h-full object-contain object-center scale-100"
-            />
-          </div>
         </div>
       )}
 
