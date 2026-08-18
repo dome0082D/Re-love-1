@@ -10,8 +10,10 @@ import { inviaNotifica } from '@/lib/pushNotify'
 import { registraRilancio } from '@/lib/azioniUtente'
 import BottoneCondividi from '@/components/BottoneCondividi'
 import BottoneCandidatura from '@/components/BottoneCandidatura'
+import { PARAMETRO_CURATORE } from '@/lib/candidature'
 import { useCartStore } from '@/store/cartStore'
 import type { User } from '@supabase/supabase-js'
+import { srcFoto, srcSetFoto } from '@/lib/immagini'
 
 interface Announcement {
   id: string
@@ -84,6 +86,9 @@ function AnnouncementContent() {
   // eventuale promozione già esistente per questo oggetto.
   const searchParams = useSearchParams()
   const arenaCode = searchParams.get('arena')
+  // Codice del link personale del Curatore. E' quello che decide se la sua
+  // percentuale scatta: ce lo portiamo dietro fino alla cassa.
+  const curatoreCode = searchParams.get(PARAMETRO_CURATORE)
   const [myPromoCode, setMyPromoCode] = useState<string | null>(null)
   const [promotingArena, setPromotingArena] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -321,6 +326,21 @@ function AnnouncementContent() {
     })
   }, [arenaCode])
 
+  // Stesso conteggio per il link personale del Curatore: gli serve a sapere
+  // se il link che ha in giro sta portando visite, o se sta perdendo tempo.
+  const clickCuratoreContato = useRef(false)
+  useEffect(() => {
+    if (!curatoreCode || clickCuratoreContato.current) return
+    clickCuratoreContato.current = true
+    fetch('/api/curatore/track-click', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ trackingCode: curatoreCode }),
+    }).catch((err) => {
+      console.warn('Conteggio visite curatore non riuscito:', err)
+    })
+  }, [curatoreCode])
+
   // NUOVO: se l'oggetto è in Arena, controlliamo se l'utente ha già un
   // proprio link di promozione per questo oggetto - così mostriamo subito
   // "copia il tuo link" invece di "partecipa", senza fargli generare un
@@ -449,6 +469,10 @@ function AnnouncementContent() {
           // il link di un promotore, passiamo il suo codice - per un
           // acquisto normale (o un'Arena senza link) resta null/assente.
           arenaCode: arenaCode || undefined,
+          // Se siamo arrivati dal link personale del Curatore, il suo codice
+          // viaggia fino alla cassa: e' la sola cosa che gli fa scattare la
+          // percentuale. Senza, la vendita vale come normale.
+          curatoreCode: curatoreCode || undefined,
         })
       })
       const data = await res.json()
@@ -614,7 +638,7 @@ function AnnouncementContent() {
                </div>
              )}
              <div className="rounded-[2rem] overflow-hidden bg-transparent">
-               <img loading="lazy" decoding="async" src={ann.image_url || "/usato.png"} className="w-full h-auto object-cover aspect-square" alt={ann.title} />
+               <img loading="lazy" decoding="async" src={srcFoto(ann.image_url, 900) || "/usato.png"} srcSet={srcSetFoto(ann.image_url, 900)} className="w-full h-auto object-cover aspect-square" alt={ann.title} />
              </div>
              {ann.image_urls && ann.image_urls.length > 1 && (
                <div className="flex gap-3 p-4 overflow-x-auto custom-scrollbar">

@@ -12,6 +12,7 @@ import Link from 'next/link'
 import { ExternalLink, Eye, X, Truck } from 'lucide-react'
 import type { VoceInterna, VoceEsterna } from './datiVetrina'
 import BottoneCondividi from '@/components/BottoneCondividi'
+import { srcFoto, srcSetFoto } from '@/lib/immagini'
 
 export function IntestazioneVetrina({
   titolo,
@@ -92,7 +93,7 @@ export function GrigliaInterna({
           <Link href={`/announcement/${voce.announcements.id}`} className="contents">
             <div className="aspect-square bg-stone-50 relative">
               <img
-                src={voce.announcements.image_url || '/usato.png'}
+                src={srcFoto(voce.announcements.image_url, 400) || '/usato.png'} srcSet={srcSetFoto(voce.announcements.image_url, 400)}
                 className="w-full h-full object-cover"
                 alt={voce.announcements.title}
                 loading="lazy"
@@ -154,7 +155,7 @@ export function GrigliaEsterna({
           <div onClick={() => onApri(voce)} className="contents cursor-pointer">
             <div className="aspect-square bg-stone-50 relative">
               {voce.image_url ? (
-                <img src={voce.image_url} className="w-full h-full object-contain p-2" alt={voce.title} loading="lazy" />
+                <img src={srcFoto(voce.image_url, 400)} srcSet={srcSetFoto(voce.image_url, 400)} className="w-full h-full object-contain p-2" alt={voce.title} loading="lazy" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-stone-300">
                   <ExternalLink size={40} />

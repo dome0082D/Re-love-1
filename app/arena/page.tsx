@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import BottoneCandidatura from '@/components/BottoneCandidatura'
+import { srcFoto, srcSetFoto } from '@/lib/immagini'
 
 // Pagina "Arena ReLove": il catalogo degli oggetti messi in palio dai
 // Proprietari (valore >= 100€). Ogni utente puo' generare il proprio link
@@ -183,7 +184,7 @@ export default function ArenaPage() {
               return (
                 <div key={oggetto.id} className="bg-white rounded-[2rem] border border-stone-200 shadow-sm overflow-hidden flex flex-col">
                   <Link href={`/announcement/${oggetto.id}`} className="block relative h-40 bg-stone-50">
-                    <img loading="lazy" decoding="async" src={oggetto.image_url || '/usato.png'} alt={oggetto.title} className="w-full h-full object-cover" />
+                    <img loading="lazy" decoding="async" src={srcFoto(oggetto.image_url, 400) || '/usato.png'} srcSet={srcSetFoto(oggetto.image_url, 400)} alt={oggetto.title} className="w-full h-full object-cover" />
                     {inTrattativa && (
                       <div className="absolute inset-0 bg-stone-900/70 flex items-center justify-center">
                         <span className="bg-orange-500 text-white text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full">In Trattativa</span>

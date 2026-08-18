@@ -6,7 +6,11 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import Link from 'next/link'
-import { ETICHETTE_STATO, STATI_CANDIDATURA, quotaProprietario, type StatoCandidatura } from '@/lib/candidature'
+import {
+  ETICHETTE_STATO, STATI_CANDIDATURA, quotaProprietario, linkCuratore,
+  giorniAllaScadenza, GIORNI_VALIDITA_INCARICO, type StatoCandidatura,
+} from '@/lib/candidature'
+import BottoneCondividi from '@/components/BottoneCondividi'
 
 // ============================================================================
 // CURATORE LOCALE
@@ -31,6 +35,9 @@ interface Candidatura {
   messaggio: string | null
   creataIl: string
   decisaIl: string | null
+  codicePersonale: string | null
+  visite: number
+  scadeIl: string | null
   annuncioId: string
   titolo: string
   prezzo: number | null
@@ -153,7 +160,9 @@ export default function CuratoreLocalePage() {
             <li>Chi ha un oggetto lo pubblica e spunta &ldquo;cerco un curatore&rdquo;, scegliendo che percentuale cedergli.</li>
             <li>Chi vuole occuparsene apre l&apos;oggetto e preme &ldquo;Candidati come curatore&rdquo;.</li>
             <li>Il proprietario accetta o rifiuta. Solo con l&apos;accettazione il curatore è autorizzato a gestire la vendita.</li>
+            <li>Il curatore riceve un <strong>link personale</strong>. La sua percentuale scatta <strong>solo sulle vendite arrivate da quel link</strong>: se il compratore trova l&apos;annuncio da solo, l&apos;incasso va tutto al proprietario.</li>
             <li>A vendita conclusa l&apos;incasso si divide da solo: la quota del curatore, il resto al proprietario, meno il 10% di Re-love.</li>
+            <li>Se in {GIORNI_VALIDITA_INCARICO} giorni non arriva nessuna vendita, l&apos;incarico decade e l&apos;oggetto torna disponibile per altri.</li>
           </ol>
           <p className="text-[10px] font-bold text-stone-400 mt-4 leading-relaxed">
             Gli oggetti in Arena si candidano solo dalla <Link href="/arena" className="text-rose-600 hover:underline">pagina Arena</Link>, dove sono spiegate le loro condizioni.
@@ -246,6 +255,7 @@ export default function CuratoreLocalePage() {
                   personaEtichetta="Proprietario"
                   personaNome={c.proprietarioNome}
                   occupato={inCorso === c.id}
+                  mostraLink
                 >
                   {c.stato === STATI_CANDIDATURA.inAttesa && (
                     <button
@@ -284,12 +294,14 @@ export default function CuratoreLocalePage() {
 }
 
 function RigaCandidatura({
-  c, personaEtichetta, personaNome, occupato, children,
+  c, personaEtichetta, personaNome, occupato, mostraLink = false, children,
 }: {
   c: Candidatura
   personaEtichetta: string
   personaNome: string
   occupato: boolean
+  /** Il link personale si mostra solo a chi lo deve usare: il curatore. */
+  mostraLink?: boolean
   children: React.ReactNode
 }) {
   const etichetta = ETICHETTE_STATO[c.stato] || { testo: c.stato, colore: 'bg-stone-200 text-stone-500' }
@@ -318,6 +330,43 @@ function RigaCandidatura({
           <span className={`inline-block mt-2 text-[9px] font-black uppercase px-2 py-0.5 rounded-md ${etichetta.colore}`}>
             {etichetta.testo}
           </span>
+
+          {/* IL LINK PERSONALE. E' l'unica cosa che fa guadagnare: la
+              percentuale scatta solo sulle vendite arrivate da qui. Lo
+              mostriamo solo a chi lo deve usare, cioe' il curatore. */}
+          {c.stato === STATI_CANDIDATURA.accettata && c.codicePersonale && mostraLink && (
+            <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-3">
+              <p className="text-[9px] font-black uppercase text-amber-700 tracking-widest">
+                Il tuo link — guadagni solo su chi arriva da qui
+              </p>
+              <p className="font-mono text-[10px] font-bold text-amber-900 break-all select-all bg-white border border-amber-200 rounded-lg px-2 py-1.5 mt-1.5">
+                {typeof window !== 'undefined' ? linkCuratore(c.annuncioId, c.codicePersonale, window.location.origin) : ''}
+              </p>
+              <div className="flex items-center gap-3 mt-2 flex-wrap">
+                <BottoneCondividi
+                  percorso={`/announcement/${c.annuncioId}?curatore=${c.codicePersonale}`}
+                  titolo={c.titolo}
+                  testo={`Guarda questo oggetto su Re-love: ${c.titolo}`}
+                  className="bg-amber-600 text-white px-4 py-2 rounded-lg text-[9px] tracking-widest hover:bg-amber-700"
+                />
+                <span className="text-[10px] font-black text-amber-700 uppercase tracking-widest">
+                  {c.visite} {c.visite === 1 ? 'visita' : 'visite'}
+                </span>
+                {(() => {
+                  const g = giorniAllaScadenza(c.scadeIl)
+                  if (g === null) return null
+                  return (
+                    <span className={`text-[10px] font-black uppercase tracking-widest ${g <= 7 ? 'text-rose-600' : 'text-amber-600'}`}>
+                      {g > 0 ? `scade fra ${g} ${g === 1 ? 'giorno' : 'giorni'}` : 'scaduto'}
+                    </span>
+                  )
+                })()}
+              </div>
+              <p className="text-[9px] font-bold text-amber-600 mt-2 leading-relaxed">
+                Se non arriva nessuna vendita entro {GIORNI_VALIDITA_INCARICO} giorni l&apos;incarico decade da solo. Una vendita lo rinnova.
+              </p>
+            </div>
+          )}
         </div>
       </div>
       <div className="flex gap-2 shrink-0 flex-wrap">{children}</div>

@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import { caricaDatiStaff, azioneStaff, type DatiStaff, type AnnuncioStaff } from '@/lib/staffClient'
+import { srcFoto, srcSetFoto } from '@/lib/immagini'
 import {
   Crown, Users, Package, Star, Scale, ShieldAlert, FileText, Sparkles,
   Handshake, Search, RefreshCw, Trash2, Ban, CheckCircle2, Truck, Pencil, X, Settings, AlertTriangle,
@@ -381,7 +382,7 @@ export default function PannelloStaff() {
           <Elenco vuoto="Nessun annuncio trovato.">
             {filtra(dati.annunci, a => [a.title, a.autore, a.condition, a.city]).map(a => (
               <Riga key={a.id}>
-                <img loading="lazy" decoding="async" src={a.image_url || '/usato.png'} alt="" className="w-14 h-14 rounded-xl object-cover border border-stone-200 shrink-0" />
+                <img loading="lazy" decoding="async" src={srcFoto(a.image_url, 112) || '/usato.png'} srcSet={srcSetFoto(a.image_url, 112)} alt="" className="w-14 h-14 rounded-xl object-cover border border-stone-200 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <Link href={`/announcement/${a.id}`} className="text-sm font-black text-stone-900 truncate hover:text-rose-600 transition-colors">{a.title}</Link>
@@ -532,7 +533,7 @@ export default function PannelloStaff() {
           <Elenco vuoto="Nessuna voce in Vetrina.">
             {filtra(dati.vetrina, v => [v.title, v.autore, v.external_url]).map(v => (
               <Riga key={v.id}>
-                <img loading="lazy" decoding="async" src={v.image_url || '/usato.png'} alt="" className="w-14 h-14 rounded-xl object-contain bg-stone-50 border border-stone-200 shrink-0" />
+                <img loading="lazy" decoding="async" src={srcFoto(v.image_url, 112) || '/usato.png'} srcSet={srcSetFoto(v.image_url, 112)} alt="" className="w-14 h-14 rounded-xl object-contain bg-stone-50 border border-stone-200 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-black text-stone-900 truncate">{v.title || 'Annuncio interno'}</span>

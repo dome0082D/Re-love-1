@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { User } from '@supabase/supabase-js'
 import { toast } from 'sonner'
+import { srcFoto, srcSetFoto } from '@/lib/immagini'
 
 interface ProfileData {
   first_name?: string;
@@ -356,7 +357,7 @@ function ProfileContent() {
         {items.map((ann) => (
           <div key={ann.id} className="bg-white rounded-2xl overflow-hidden border border-stone-100 shadow-sm flex flex-col hover:border-rose-300 transition-all">
             <Link href={`/announcement/${ann.id}`} className="aspect-square bg-stone-50 relative block overflow-hidden">
-              <img loading="lazy" decoding="async" src={ann.image_url || "/usato.png"} className="w-full h-full object-cover hover:scale-105 transition-transform duration-500" alt={ann.title} />
+              <img loading="lazy" decoding="async" src={srcFoto(ann.image_url, 400) || "/usato.png"} srcSet={srcSetFoto(ann.image_url, 400)} className="w-full h-full object-cover hover:scale-105 transition-transform duration-500" alt={ann.title} />
             </Link>
             <div className="p-3 flex flex-col justify-between flex-grow">
                <div>

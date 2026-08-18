@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
+import { srcFoto, srcSetFoto } from '@/lib/immagini'
 
 interface PublicProfile {
   id: string;
@@ -139,7 +140,7 @@ export default function PublicProfilePage() {
             {announcements.map(ann => (
               <Link href={`/announcement/${ann.id}`} key={ann.id} className="group bg-white rounded-3xl overflow-hidden border border-stone-100 hover:shadow-xl transition-all">
                 <div className="h-40 bg-stone-100">
-                  <img loading="lazy" decoding="async" src={ann.image_url} className="w-full h-full object-cover group-hover:scale-105 transition-all duration-500" alt="img" />
+                  <img loading="lazy" decoding="async" src={srcFoto(ann.image_url, 400)} srcSet={srcSetFoto(ann.image_url, 400)} className="w-full h-full object-cover group-hover:scale-105 transition-all duration-500" alt="img" />
                 </div>
                 <div className="p-5">
                   <h3 className="font-black uppercase italic text-sm text-stone-900 truncate">{ann.title}</h3>

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { azioneStaff } from '@/lib/staffClient'
 import { useRouter } from 'next/navigation'
+import { srcFoto, srcSetFoto } from '@/lib/immagini'
 
 export default function StaffAnnunciPage() {
   const [announcements, setAnnouncements] = useState<any[]>([])
@@ -100,7 +101,7 @@ export default function StaffAnnunciPage() {
                   {announcements.map((item) => (
                     <tr key={item.id} className="border-b border-stone-100 hover:bg-stone-50">
                       <td className="p-4">
-                        <img loading="lazy" decoding="async" src={item.image_url || '/usato.png'} alt="img" className="w-12 h-12 rounded-lg object-cover" />
+                        <img loading="lazy" decoding="async" src={srcFoto(item.image_url, 96) || '/usato.png'} srcSet={srcSetFoto(item.image_url, 96)} alt="img" className="w-12 h-12 rounded-lg object-cover" />
                       </td>
                       <td className="p-4 text-xs font-bold text-stone-800">{item.title}</td>
                       <td className="p-4 text-xs font-black text-rose-500">€ {item.price}</td>

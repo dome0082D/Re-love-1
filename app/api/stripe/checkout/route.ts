@@ -16,7 +16,9 @@ export async function POST(req: Request) {
     // con cui l'acquirente ha aperto l'annuncio, se questo è un oggetto in
     // Arena e ha cliccato tramite un link di un promotore - per un
     // acquisto normale (o un Arena senza promotore tracciato) è assente.
-    const { items, buyerId, usePickup, arenaCode } = await req.json();
+    // "curatoreCode" è il codice del link personale del Curatore
+    // (?curatore=XXXX): è quello che decide se la sua percentuale scatta o no.
+    const { items, buyerId, usePickup, arenaCode, curatoreCode } = await req.json();
 
     if (!items || items.length === 0) {
       return NextResponse.json({ error: "Il carrello è vuoto" }, { status: 400 });
@@ -64,25 +66,50 @@ export async function POST(req: Request) {
     // adesso alla candidatura accettata (vedi lib/candidature.ts): il nome
     // della colonna è rimasto quello per non dover riscrivere tutta la
     // catena dei pagamenti, dal carrello fino allo storico degli ordini.
-    const isDelegated = !!announcement.mandate_id
+    // ------------------------------------------------------------------------
+    // IL CURATORE INCASSA SOLO SE HA PORTATO LUI L'ACQUIRENTE.
+    //
+    // Non basta che l'oggetto abbia un curatore: la vendita deve essere
+    // arrivata dal SUO link personale (?curatore=<codice>), che il compratore
+    // porta con sé fino alla cassa. Se il compratore ha trovato l'annuncio da
+    // solo - dalla home, dalla ricerca, da un link condiviso da altri -
+    // l'incasso va tutto al proprietario, come una vendita normale.
+    //
+    // Senza questo controllo bastava farsi accettare una volta per prendere
+    // una percentuale su ogni vendita futura di quell'oggetto, senza aver
+    // fatto niente. Vale identico per gli annunci normali e per quelli in
+    // Arena: una regola sola.
+    //
+    // Il codice viene verificato CONTRO QUESTO ANNUNCIO: un codice valido di
+    // un altro oggetto non vale nulla qui.
+    // ------------------------------------------------------------------------
+    let isDelegated = false
     let mandate: { owner_percentage: number; curator_percentage: number } | null = null
 
-    if (isDelegated) {
+    if (announcement.mandate_id && curatoreCode) {
       const { data: incarico } = await supabase
         .from('curator_candidature')
-        .select('curator_percentage, stato')
+        .select('id, curator_percentage, stato, scade_il, announcement_id')
         .eq('id', announcement.mandate_id)
+        .eq('tracking_code', curatoreCode)
+        .eq('announcement_id', firstItemId)
         .maybeSingle()
 
-      if (!incarico || incarico.stato !== STATI_CANDIDATURA.accettata) {
-        return NextResponse.json({ error: "L'incarico di curatore su questo oggetto non è più attivo." }, { status: 400 })
+      const scaduto = incarico?.scade_il ? new Date(incarico.scade_il) < new Date() : false
+
+      if (incarico && incarico.stato === STATI_CANDIDATURA.accettata && !scaduto) {
+        const quotaCuratore = Number(incarico.curator_percentage)
+        isDelegated = true
+        mandate = {
+          curator_percentage: quotaCuratore,
+          // Al Proprietario va il resto, tolta la commissione fissa Re-love.
+          owner_percentage: quotaProprietario(quotaCuratore),
+        }
       }
-      const quotaCuratore = Number(incarico.curator_percentage)
-      mandate = {
-        curator_percentage: quotaCuratore,
-        // Al Proprietario va il resto, tolta la commissione fissa Re-love.
-        owner_percentage: quotaProprietario(quotaCuratore),
-      }
+      // Codice sbagliato, scaduto o incarico non più attivo: NON blocchiamo
+      // l'acquisto. Il compratore non c'entra niente con gli accordi fra
+      // proprietario e curatore, e impedirgli di comprare sarebbe assurdo.
+      // Semplicemente la vendita vale come normale, tutta al proprietario.
     }
 
     // NUOVO: gestione ARENA RELOVE. Un annuncio può essere sia Curatore

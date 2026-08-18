@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import {
   motivoNonCandidabile,
   quotaProprietario,
+  GIORNI_VALIDITA_INCARICO,
   type AnnuncioPerCandidatura,
   type ContestoCandidatura,
 } from '@/lib/candidature'
@@ -113,11 +114,18 @@ export default function BottoneCandidatura({
       </p>
       {quotaValida && (
         <p className="text-[11px] font-bold text-amber-700 leading-relaxed mb-3">
-          Il proprietario cede il <strong>{quota}%</strong> dell&apos;incasso a chi segue la vendita
-          (a lui resta il {quotaProprietario(quota)}%, a Re-love il 10%). Ti occuperesti tu di
-          gestire l&apos;oggetto fino alla consegna.
+          Il proprietario cede il <strong>{quota}%</strong> dell&apos;incasso a chi porta la vendita
+          (a lui resta il {quotaProprietario(quota)}%, a Re-love il 10%).
         </p>
       )}
+      {/* Detto PRIMA di candidarsi, non dopo: chi si offre deve sapere che il
+          compenso si guadagna portando compratori, non facendosi accettare. */}
+      <p className="text-[11px] font-bold text-amber-800 leading-relaxed mb-3 bg-white border border-amber-200 rounded-xl p-3">
+        Se ti accetta ricevi un <strong>link personale</strong>. La percentuale ti spetta
+        <strong> solo sulle vendite arrivate da quel link</strong>: se il compratore trova
+        l&apos;annuncio per conto suo, l&apos;incasso è tutto del proprietario.
+        Senza vendite entro {GIORNI_VALIDITA_INCARICO} giorni l&apos;incarico decade.
+      </p>
       <label className="text-[9px] font-black uppercase text-amber-600 tracking-widest">
         Due righe per presentarti (facoltativo)
       </label>

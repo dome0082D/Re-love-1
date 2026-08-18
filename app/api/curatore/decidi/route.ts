@@ -21,7 +21,7 @@ import { createClient } from '@supabase/supabase-js'
 import { verificaUtente } from '@/lib/serverAuth'
 import { notificaUtente } from '@/lib/pushServer'
 import { statoContoStripe } from '@/lib/stripeAccount'
-import { STATI_CANDIDATURA, quotaProprietario } from '@/lib/candidature'
+import { STATI_CANDIDATURA, quotaProprietario, GIORNI_VALIDITA_INCARICO } from '@/lib/candidature'
 
 export const dynamic = 'force-dynamic'
 
@@ -132,9 +132,21 @@ export async function POST(req: Request) {
       }, { status: 400 })
     }
 
+    // Il codice personale con cui il curatore si guadagna la percentuale:
+    // conta solo cio' che passa dal suo link (vedi lib/candidature.ts). E una
+    // scadenza, perche' un incarico accettato e poi abbandonato terrebbe
+    // altrimenti l'oggetto bloccato per sempre.
+    const codicePersonale = crypto.randomUUID().replace(/-/g, '').slice(0, 12)
+    const scadeIl = new Date(Date.now() + GIORNI_VALIDITA_INCARICO * 24 * 60 * 60 * 1000).toISOString()
+
     const { data: accettate } = await supabaseAdmin
       .from('curator_candidature')
-      .update({ stato: STATI_CANDIDATURA.accettata, decided_at: adesso })
+      .update({
+        stato: STATI_CANDIDATURA.accettata,
+        decided_at: adesso,
+        tracking_code: codicePersonale,
+        scade_il: scadeIl,
+      })
       .eq('id', candidatura.id)
       .eq('stato', STATI_CANDIDATURA.inAttesa)
       .select('id')
@@ -190,9 +202,9 @@ export async function POST(req: Request) {
     const quotaCuratore = Number(candidatura.curator_percentage)
     await notificaUtente(
       candidatura.curator_id,
-      `Sei stato scelto come curatore di "${titolo}". Puoi gestirne la vendita: ti spetta il ${quotaCuratore}% dell'incasso.`,
+      `Sei stato scelto come curatore di "${titolo}". Trovi il tuo link personale in Curatore Locale: il ${quotaCuratore}% ti spetta sulle vendite che arrivano da quel link. Hai ${GIORNI_VALIDITA_INCARICO} giorni.`,
       'Candidatura accettata',
-      `/announcement/${annuncio.id}`,
+      '/curatore',
       true
     )
 
@@ -201,6 +213,8 @@ export async function POST(req: Request) {
       stato: STATI_CANDIDATURA.accettata,
       quotaCuratore,
       quotaProprietario: quotaProprietario(quotaCuratore),
+      codicePersonale,
+      scadeIl,
     })
   } catch (err) {
     console.error('[Curatore/Decidi] Errore:', err)

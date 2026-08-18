@@ -8,6 +8,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { Sparkles } from 'lucide-react'
+import { srcFoto, srcSetFoto } from '@/lib/immagini'
 
 function DashboardContent() {
   const [announcements, setAnnouncements] = useState<any[]>([])
@@ -131,7 +132,7 @@ function DashboardContent() {
                 </div>
               )}
               <div className="h-40 bg-stone-50 relative">
-                <img loading="lazy" decoding="async" src={(ad as any).image_url || (ad as any).imageUrl || '/usato.png'} alt={ad.title} className="w-full h-full object-cover" />
+                <img loading="lazy" decoding="async" src={srcFoto((ad as any).image_url || (ad as any).imageUrl, 400) || '/usato.png'} srcSet={srcSetFoto((ad as any).image_url || (ad as any).imageUrl, 400)} alt={ad.title} className="w-full h-full object-cover" />
                 <span className="absolute top-2 left-2 bg-white/90 text-stone-700 text-[10px] font-bold uppercase px-2 py-1 rounded-md shadow-sm">{ad.condition}</span>
               </div>
               <div className="p-4 flex-1 flex flex-col justify-between">

@@ -68,6 +68,11 @@ export async function GET(req: Request) {
         messaggio: c.messaggio,
         creataIl: c.created_at,
         decisaIl: c.decided_at,
+        // Il link personale e le sue visite: e' da qui che il curatore
+        // guadagna, quindi deve poterlo copiare e capire se sta funzionando.
+        codicePersonale: c.tracking_code || null,
+        visite: c.clicks || 0,
+        scadeIl: c.scade_il || null,
         annuncioId: c.announcement_id,
         titolo: a?.title || 'Oggetto non più disponibile',
         prezzo: a?.price ?? null,

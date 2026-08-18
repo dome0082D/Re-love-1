@@ -8,6 +8,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Star, Package, CheckCircle2, AlertTriangle, RefreshCcw, Truck } from 'lucide-react'
+import { srcFoto, srcSetFoto } from '@/lib/immagini'
 
 export default function DashboardOrdini() {
   const [activeTab, setActiveTab] = useState<'acquisti' | 'vendite'>('acquisti')
@@ -353,7 +354,7 @@ export default function DashboardOrdini() {
                 
                 {/* Immagine Oggetto */}
                 <div className="w-24 h-24 rounded-2xl overflow-hidden bg-stone-50 border border-stone-100 flex-shrink-0">
-                  <img loading="lazy" decoding="async" src={item.announcements?.image_url || '/usato.png'} className="w-full h-full object-cover" alt="Oggetto" />
+                  <img loading="lazy" decoding="async" src={srcFoto(item.announcements?.image_url, 200) || '/usato.png'} srcSet={srcSetFoto(item.announcements?.image_url, 200)} className="w-full h-full object-cover" alt="Oggetto" />
                 </div>
 
                 {/* Dettagli Base */}

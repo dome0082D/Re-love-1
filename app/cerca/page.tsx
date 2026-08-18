@@ -8,6 +8,7 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Search, Heart } from 'lucide-react'
 import ExternalResultsFallback from '../components/ExternalResultsFallback'
+import { srcFoto, srcSetFoto } from '@/lib/immagini'
 
 function CercaContent() {
   const searchParams = useSearchParams()
@@ -151,7 +152,7 @@ function CercaContent() {
                         <Heart size={16} className={favorites.includes(item.id) ? 'fill-rose-500 text-rose-500' : 'text-stone-400'} />
                       </button>
                     )}
-                    <img src={item.image_url || '/usato.png'} className="w-full h-full object-contain" alt={item.title} loading="lazy" decoding="async" />
+                    <img src={srcFoto(item.image_url, 400) || '/usato.png'} srcSet={srcSetFoto(item.image_url, 400)} className="w-full h-full object-contain" alt={item.title} loading="lazy" decoding="async" />
                   </div>
                   <div className="p-3">
                     <h4 className="text-[10px] font-black uppercase line-clamp-2 text-stone-800 leading-tight mb-1">{item.title}</h4>

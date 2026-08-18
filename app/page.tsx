@@ -13,6 +13,7 @@ import GalacticOutpost from './components/minigame/GalacticOutpost'
 import VetrinaCarousel from './components/VetrinaCarousel'
 import ExternalResultsFallback from './components/ExternalResultsFallback'
 import { containsForbiddenContact } from '@/lib/chatSecurity'
+import { srcFoto, srcSetFoto } from '@/lib/immagini'
 
 // --- RILEVAMENTO ANDROID (solo lato client, per adattare l'hero) ---
 function useIsAndroid() {
@@ -939,7 +940,7 @@ function HomePageContent() {
                       className="shrink-0 w-32 bg-white rounded-2xl overflow-hidden shadow-md hover:scale-[1.03] transition-all"
                     >
                       <div className="w-full h-24 bg-stone-50">
-                        <img loading="lazy" decoding="async" src={item.image_url || '/usato.png'} className="w-full h-full object-cover" alt={item.title} />
+                        <img loading="lazy" decoding="async" src={srcFoto(item.image_url, 450) || '/usato.png'} srcSet={srcSetFoto(item.image_url, 450)} className="w-full h-full object-cover" alt={item.title} />
                       </div>
                       <div className="p-2.5">
                         <p className="text-[9px] font-black uppercase text-stone-800 truncate">{item.title}</p>
@@ -992,7 +993,7 @@ function HomePageContent() {
                       <button onClick={(e) => handleToggleFavorite(e, item.id)} className="absolute top-2 right-2 z-30 bg-white w-8 h-8 flex items-center justify-center rounded-full shadow-sm hover:scale-110 transition-all">
                         <Heart size={16} className={favorites.includes(item.id) ? "fill-rose-500 text-rose-500" : "text-stone-400"} />
                       </button>
-                      <img src={item.image_url || "/usato.png"} className="w-full h-full object-contain" alt={item.title} loading="lazy" decoding="async" />
+                      <img src={srcFoto(item.image_url, 450) || "/usato.png"} srcSet={srcSetFoto(item.image_url, 450)} className="w-full h-full object-contain" alt={item.title} loading="lazy" decoding="async" />
                     </Link>
                     <div className="p-3 flex flex-col justify-between flex-grow">
                       <div>
@@ -1468,7 +1469,7 @@ function HomePageContent() {
                     </button>
                     <Link href={`/announcement/${item.id}`}>
                       <div className="aspect-square rounded-2xl overflow-hidden bg-stone-100 mb-4 relative border border-stone-200">
-                        <img src={item.image_url || "/nuovo.png"} className="w-full h-full object-contain" alt={item.title} loading="lazy" decoding="async" />
+                        <img src={srcFoto(item.image_url, 450) || "/nuovo.png"} srcSet={srcSetFoto(item.image_url, 450)} className="w-full h-full object-contain" alt={item.title} loading="lazy" decoding="async" />
                       </div>
                       <h4 className="text-[12px] font-black uppercase truncate text-stone-900 mb-1">{item.title}</h4>
                       <p className="text-xl font-black text-rose-600 italic">€ {item.price}</p>

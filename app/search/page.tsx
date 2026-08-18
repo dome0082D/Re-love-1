@@ -4,6 +4,7 @@
 import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { srcFoto, srcSetFoto } from '@/lib/immagini'
 
 type AnnouncementItem = {
   id?: string
@@ -184,7 +185,7 @@ function SearchContent() {
                 <Link href={`/announcement/${annuncio.id}`} key={annuncio.id} className="group bg-white rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all border border-stone-100 flex flex-col">
                   <div className="relative h-48 w-full overflow-hidden bg-stone-100">
                     <img loading="lazy" decoding="async" 
-                      src={annuncio.image_url || '/nuovo.png'} 
+                      src={srcFoto(annuncio.image_url, 400) || '/nuovo.png'} srcSet={srcSetFoto(annuncio.image_url, 400)} 
                       alt={annuncio.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />

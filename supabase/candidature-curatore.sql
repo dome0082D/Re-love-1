@@ -62,7 +62,28 @@ create table if not exists public.curator_candidature (
     check (curator_percentage >= 0 and curator_percentage <= 90),
   messaggio text,
   created_at timestamptz not null default now(),
-  decided_at timestamptz
+  decided_at timestamptz,
+
+  -- ------------------------------------------------------------------------
+  -- IL COMPENSO SI GUADAGNA, NON SI EREDITA.
+  --
+  -- Senza queste tre colonne bastava farsi accettare una volta per incassare
+  -- su OGNI vendita di quell'oggetto, anche quando il compratore era arrivato
+  -- da solo e il curatore non aveva fatto niente.
+  --
+  -- Adesso funziona come l'Arena: al momento dell'accettazione il curatore
+  -- riceve un link personale. La sua percentuale scatta SOLO sulle vendite
+  -- arrivate da quel link; se il compratore arriva per conto suo, l'incasso
+  -- va tutto al proprietario. Vale identico per gli annunci normali e per
+  -- quelli in Arena: una regola sola.
+  --
+  -- "scade_il" chiude gli incarichi rimasti fermi: se entro la scadenza il
+  -- curatore non ha portato nessuna vendita, l'incarico decade da solo e
+  -- l'oggetto torna libero per altre candidature.
+  -- ------------------------------------------------------------------------
+  tracking_code text unique,
+  clicks integer not null default 0,
+  scade_il timestamptz
 );
 
 -- Una sola candidatura in attesa per persona su ogni annuncio: senza questo,
@@ -80,6 +101,32 @@ create index if not exists curator_candidature_per_proprietario
   on public.curator_candidature (owner_id, stato);
 create index if not exists curator_candidature_per_curatore
   on public.curator_candidature (curator_id, stato);
+
+-- Chi apre un link personale non ha ancora fatto accesso: la ricerca per
+-- codice deve essere immediata, e avviene a ogni apertura di annuncio.
+create index if not exists curator_candidature_per_codice
+  on public.curator_candidature (tracking_code);
+
+-- Serve al lavoro notturno che chiude gli incarichi rimasti fermi.
+create index if not exists curator_candidature_scadenze
+  on public.curator_candidature (scade_il)
+  where stato = 'accettata';
+
+-- Se la tabella esisteva gia' da una esecuzione precedente, aggiungiamo le
+-- tre colonne nuove senza ricrearla.
+alter table public.curator_candidature add column if not exists tracking_code text;
+alter table public.curator_candidature add column if not exists clicks integer not null default 0;
+alter table public.curator_candidature add column if not exists scade_il timestamptz;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'curator_candidature_tracking_code_key'
+  ) then
+    alter table public.curator_candidature
+      add constraint curator_candidature_tracking_code_key unique (tracking_code);
+  end if;
+end $$;
 
 -- ------------------------------------------------------------------- RLS
 -- Tutte le scritture passano dalle route server (che verificano il token di

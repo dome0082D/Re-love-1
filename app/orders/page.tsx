@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
+import { srcFoto, srcSetFoto } from '@/lib/immagini'
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<any[]>([])
@@ -30,7 +31,11 @@ export default function OrdersPage() {
     const { data: txData } = await supabase
       .from('transactions')
       .select('*, announcements(*)')
-      .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
+      // FIX: mancava "curator_id". Su una vendita con curatore, "seller_id" e'
+      // il Proprietario: il Curatore - che e' proprio la persona incaricata di
+      // seguire la vendita - non vedeva l'ordine da nessuna parte, quindi non
+      // poteva ne' scrivere al compratore ne' seguire la spedizione.
+      .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id},curator_id.eq.${user.id}`)
       .order('created_at', { ascending: false })
 
     if (txData) setOrders(txData)
@@ -125,7 +130,7 @@ export default function OrdersPage() {
                     offer.status === 'Accettata' ? 'bg-emerald-50/50 border-emerald-200' : 'bg-rose-50/50 border-rose-200'}`}>
                   
                   <div className="flex items-center gap-5">
-                    <img loading="lazy" decoding="async" src={ann.image_url} className="w-16 h-16 object-cover rounded-2xl border border-stone-200 shadow-sm" alt="Item" />
+                    <img loading="lazy" decoding="async" src={srcFoto(ann.image_url, 120)} srcSet={srcSetFoto(ann.image_url, 120)} className="w-16 h-16 object-cover rounded-2xl border border-stone-200 shadow-sm" alt="Item" />
                     <div>
                       <p className="text-[10px] font-black text-stone-500 uppercase tracking-widest">{isBuyer ? 'Hai proposto' : 'Ti hanno proposto'}</p>
                       <h3 className="text-base font-black uppercase italic text-stone-900 mt-1">{ann.title}</h3>
@@ -189,7 +194,7 @@ export default function OrdersPage() {
                         Ruolo: <span className="text-stone-900">{isBuyer ? 'Acquirente' : 'Venditore'}</span> | Stato: <span className="text-rose-500 font-black">{order.status}</span>
                       </p>
                     </div>
-                    <img loading="lazy" decoding="async" src={ann.image_url} className="w-20 h-20 object-cover rounded-2xl border border-stone-100 shadow-sm" alt="Item" />
+                    <img loading="lazy" decoding="async" src={srcFoto(ann.image_url, 120)} srcSet={srcSetFoto(ann.image_url, 120)} className="w-20 h-20 object-cover rounded-2xl border border-stone-100 shadow-sm" alt="Item" />
                   </div>
 
                   {/* BOX TRACCIAMENTO SPEDIZIONE MIGLIORATO */}

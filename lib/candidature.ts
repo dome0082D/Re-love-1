@@ -27,6 +27,36 @@ export const MASSIMO_AL_CURATORE = 100 - PERCENTUALE_RELOVE
 
 export const PERCENTUALE_CURATORE_PREDEFINITA = 20
 
+/**
+ * Quanto dura un incarico prima di decadere da solo, se il curatore non ha
+ * portato nessuna vendita. Senza scadenza, un curatore accettato e poi sparito
+ * terrebbe l'oggetto bloccato per sempre: il proprietario dovrebbe accorgersene
+ * e revocarlo a mano, cosa che nessuno fa.
+ */
+export const GIORNI_VALIDITA_INCARICO = 30
+
+/** Nome del parametro che porta il codice personale del curatore nel link. */
+export const PARAMETRO_CURATORE = 'curatore'
+
+/**
+ * Link personale del curatore per un oggetto.
+ *
+ * È da QUESTO che si guadagna: la percentuale scatta solo sulle vendite
+ * arrivate da qui. Un compratore che apre l'annuncio per conto suo fa
+ * incassare tutto al proprietario.
+ */
+export function linkCuratore(annuncioId: string, codice: string, origine: string): string {
+  const base = (origine || '').replace(/\/+$/, '')
+  return `${base}/announcement/${annuncioId}?${PARAMETRO_CURATORE}=${encodeURIComponent(codice)}`
+}
+
+/** Giorni che mancano alla scadenza dell'incarico (negativi = gia' scaduto). */
+export function giorniAllaScadenza(scadeIl: string | null | undefined): number | null {
+  if (!scadeIl) return null
+  const ms = new Date(scadeIl).getTime() - Date.now()
+  return Math.ceil(ms / (1000 * 60 * 60 * 24))
+}
+
 export const ETICHETTE_STATO: Record<StatoCandidatura, { testo: string; colore: string }> = {
   in_attesa: { testo: 'In attesa di risposta', colore: 'bg-orange-100 text-orange-600' },
   accettata: { testo: 'Accettata', colore: 'bg-emerald-100 text-emerald-600' },
