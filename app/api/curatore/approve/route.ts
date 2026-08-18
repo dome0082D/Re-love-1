@@ -7,11 +7,35 @@
 // esatto in cui "owner_id" viene assegnato per la prima volta a un
 // mandato - un'operazione delicata che non vogliamo lasciare a una
 // scrittura diretta dal browser.
+//
+// ============================================================================
+// COSA È STATO CORRETTO
+//
+// 1. SICUREZZA. Questa route prendeva "ownerId" dal corpo della richiesta e
+//    si fidava, senza chiedere NESSUNA autenticazione. Provato davvero, senza
+//    aver mai fatto accesso:
+//
+//        POST /api/curatore/approve
+//        { "qrToken": "...", "ownerId": "<id di un altro>", "azione": "rifiuta" }
+//        -> 200 {"ok":true,"rifiutato":true}
+//
+//    Cioè: chi conosceva un codice poteva rifiutare la delega al posto del
+//    Proprietario, oppure approvarla a nome suo - legandolo come proprietario
+//    di un annuncio e a una divisione del ricavato che non ha mai accettato.
+//    Ora l'identità viene dal token di sessione firmato e "ownerId" nel corpo
+//    viene ignorato.
+//
+// 2. Il codice viene normalizzato (vedi lib/mandato.ts): arriva buono anche
+//    se il Proprietario ha incollato il link di approvazione invece del solo
+//    codice - prima quel caso rispondeva "Codice QR non riconosciuto".
+// ============================================================================
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { statoContoStripe } from '@/lib/stripeAccount'
-import { inviaPushAUtente } from '@/lib/pushServer'
+import { inviaPushAUtente, notificaUtente } from '@/lib/pushServer'
+import { verificaUtente } from '@/lib/serverAuth'
+import { estraiTokenMandato } from '@/lib/mandato'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,20 +46,37 @@ const supabaseAdmin = createClient(
 
 export async function POST(req: NextRequest) {
   try {
-    const { qrToken, ownerId, azione } = await req.json()
+    // L'identità di chi approva viene SOLO dal token di sessione firmato:
+    // un "ownerId" scritto nel corpo della richiesta non vale nulla.
+    const utente = await verificaUtente(req)
+    if (!utente) {
+      return NextResponse.json(
+        { error: 'Devi accedere per approvare una delega.', richiedeAccesso: true },
+        { status: 401 }
+      )
+    }
+    const ownerId = utente.id
 
-    if (!qrToken || !ownerId || !azione) {
+    const { qrToken, azione } = await req.json()
+
+    if (!qrToken || !azione) {
       return NextResponse.json({ error: 'Dati mancanti.' }, { status: 400 })
     }
     if (azione !== 'approva' && azione !== 'rifiuta') {
       return NextResponse.json({ error: 'Azione non valida.' }, { status: 400 })
     }
 
+    // Accetta il codice nudo, il contenuto del QR o il link di approvazione.
+    const token = estraiTokenMandato(String(qrToken), true)
+    if (!token) {
+      return NextResponse.json({ error: 'Questo codice non è una delega Re-love.' }, { status: 400 })
+    }
+
     const { data: mandate, error: mandateError } = await supabaseAdmin
       .from('curator_mandates')
       .select('*')
-      .eq('qr_token', qrToken)
-      .single()
+      .eq('qr_token', token)
+      .maybeSingle()
 
     if (mandateError || !mandate) {
       return NextResponse.json({ error: 'Codice QR non riconosciuto.' }, { status: 404 })
@@ -52,18 +93,30 @@ export async function POST(req: NextRequest) {
     // Il Proprietario non può approvare un mandato per un oggetto proprio
     // pubblicato da se stesso come "Curatore" (non avrebbe senso).
     if (mandate.curator_id === ownerId) {
-      return NextResponse.json({ error: 'Non puoi approvare un tuo stesso mandato.' }, { status: 400 })
+      return NextResponse.json({
+        error: "Questa delega l'hai creata tu: serve a farti autorizzare da un'altra persona. Se l'oggetto è tuo, crea il mandato spuntando «L'oggetto è mio»: viene pubblicato subito, senza QR.",
+      }, { status: 400 })
     }
 
     if (azione === 'rifiuta') {
       const { error: updateError } = await supabaseAdmin
         .from('curator_mandates')
-        .update({ status: 'revocato', revoked_at: new Date().toISOString() })
+        .update({ status: 'revocato', revoked_at: new Date().toISOString(), owner_id: ownerId })
         .eq('id', mandate.id)
 
       if (updateError) {
         return NextResponse.json({ error: 'Errore durante il rifiuto.' }, { status: 500 })
       }
+
+      // Il Curatore resta in attesa di un QR che non verrà mai scansionato:
+      // senza questo avviso non saprebbe mai che la proposta è stata rifiutata.
+      await notificaUtente(
+        mandate.curator_id,
+        `Il Proprietario ha rifiutato la delega per "${mandate.draft_title}". L'annuncio non è stato pubblicato.`,
+        'Delega rifiutata',
+        '/curatore'
+      )
+
       return NextResponse.json({ ok: true, rifiutato: true })
     }
 
@@ -85,8 +138,8 @@ export async function POST(req: NextRequest) {
     if (!statoOwner.pronto) {
       return NextResponse.json({
         error: statoOwner.collegato
-          ? 'Devi completare la configurazione del conto su Stripe prima di approvare un mandato.'
-          : 'Prima di approvare un mandato devi configurare il tuo conto per ricevere pagamenti, dal tuo profilo.',
+          ? `Quando l'oggetto sarà venduto ti spetta il ${mandate.owner_percentage}% dell'incasso, ma il tuo conto per riceverlo non è ancora completo${statoOwner.mancante ? ` (manca: ${statoOwner.mancante})` : ''}. Completalo dal tuo profilo, poi torna qui.`
+          : `Quando l'oggetto sarà venduto ti spetta il ${mandate.owner_percentage}% dell'incasso: per riceverlo devi prima attivare i pagamenti dal tuo profilo. Bastano pochi minuti, poi torna qui.`,
         requiresPayoutSetup: true,
       }, { status: 400 })
     }
