@@ -58,7 +58,9 @@ export async function POST(req: NextRequest) {
     // richiesta: per la vetrina esterna li rileggiamo noi dalla pagina del
     // prodotto poco piu' sotto. Accettarli da qui vorrebbe dire fidarsi del
     // browser su un dato che decide quanto costa un articolo in Vetrina.
-    const { userId, type, announcementId, externalUrl, title, description, imageUrl } = body
+    // Unica eccezione: "prezzoManuale", accettato SOLO quando nemmeno il
+    // server riesce a leggere il prezzo dalla pagina (vedi più sotto).
+    const { userId, type, announcementId, externalUrl, title, description, imageUrl, prezzoManuale } = body
 
     if (!userId || !type) {
       return NextResponse.json({ error: 'Dati mancanti.' }, { status: 400 })
@@ -106,13 +108,29 @@ export async function POST(req: NextRequest) {
       }
 
       const anteprima = await leggiAnteprimaLink(parsed)
-      if (anteprima.price === null || anteprima.price <= 0) {
-        return NextResponse.json({
-          error: "Il prezzo non è leggibile da questo link. Usa l'indirizzo completo della pagina del prodotto.",
-        }, { status: 400 })
-      }
 
-      prezzoVerificato = anteprima.price
+      if (anteprima.price !== null && anteprima.price > 0) {
+        // Il prezzo si legge: vale quello, e quello soltanto. Un eventuale
+        // "prezzoManuale" arrivato dal browser viene ignorato di proposito,
+        // altrimenti si potrebbe pubblicare un articolo da 300 euro
+        // dichiarandone 5.
+        prezzoVerificato = anteprima.price
+      } else {
+        // Il prezzo NON si legge. Succede sul sito pubblicato con i link
+        // Amazon: le richieste partono da un datacenter e Amazon le blocca.
+        // In questo caso soltanto accettiamo il prezzo scritto a mano da chi
+        // pubblica, altrimenti la Vetrina esterna sarebbe inutilizzabile.
+        const manuale = Number(prezzoManuale)
+        if (!isFinite(manuale) || manuale <= 0) {
+          return NextResponse.json({
+            error: "Il prezzo non è leggibile da questo link: scrivilo a mano per completare.",
+          }, { status: 400 })
+        }
+        if (manuale > 100000) {
+          return NextResponse.json({ error: 'Prezzo non valido.' }, { status: 400 })
+        }
+        prezzoVerificato = Math.round(manuale * 100) / 100
+      }
       // Anche le spese di spedizione arrivano dalla pagina, non dal browser.
       // Se il sito non le dichiara in modo leggibile valgono 0 (gratuita):
       // è il caso più comune sui grandi negozi, ed è comunque il valore che

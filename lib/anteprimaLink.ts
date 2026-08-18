@@ -882,6 +882,17 @@ export async function leggiAnteprimaLink(parsedUrl: URL): Promise<Anteprima> {
   // configurate la funzione restituisce null e si prosegue come prima.
   // ==========================================================================
   const asin = asinDaUrl(urlRisolto)
+
+  // FIX: un link abbreviato non valido (o scaduto) viene rimandato da Amazon
+  // alla sua HOME. Senza questo controllo la home veniva letta come se fosse
+  // un prodotto, e in Vetrina finiva "Amazon.com. Spend less. Smile more."
+  // con la descrizione del sito al posto dell'articolo.
+  const eraAccorciato = isAccorciatore(parsedUrl.hostname)
+  const suAmazon = urlRisolto.hostname.includes('amazon.')
+  if (eraAccorciato && suAmazon && !asin) {
+    return { title: null, description: null, image: null, price: null, currency: null, shipping: null }
+  }
+
   if (asin && credenzialiAmazonPresenti()) {
     const daApi = await datiProdottoAmazon(asin, urlRisolto.hostname)
     if (daApi && (daApi.price !== null || daApi.title)) {

@@ -47,6 +47,9 @@ export default function VetrinaEsternaPage() {
   const [mostraModale, setMostraModale] = useState(false)
   const [url, setUrl] = useState('')
   const [importazione, setImportazione] = useState(false)
+  // Vero solo quando il prezzo non e' stato letto dal link: in quel caso
+  // (e solo in quello) si puo' scriverlo a mano.
+  const [prezzoAMano, setPrezzoAMano] = useState(false)
   const [dati, setDati] = useState<DatiImportati | null>(null)
   const [pubblicando, setPubblicando] = useState(false)
 
@@ -101,8 +104,12 @@ export default function VetrinaEsternaPage() {
         toast.error(data.error || 'Non è stato possibile leggere questo link.')
         return
       }
-      if (data.price === null || data.price === undefined || Number(data.price) <= 0) {
-        toast.error("Prezzo non leggibile da questo link. Usa l'indirizzo completo della pagina del prodotto.")
+      const prezzoLetto = data.price !== null && data.price !== undefined && Number(data.price) > 0
+
+      // Se non è arrivato nemmeno il titolo, il link non è leggibile: inutile
+      // proseguire.
+      if (!prezzoLetto && !data.title) {
+        toast.error(data.error || "Non è stato possibile leggere questo link.")
         return
       }
 
@@ -110,11 +117,26 @@ export default function VetrinaEsternaPage() {
         title: data.title || '',
         description: data.description || '',
         image: data.image || '',
-        price: Number(data.price),
+        price: prezzoLetto ? Number(data.price) : 0,
         currency: data.currency || null,
         shipping: data.shipping === null || data.shipping === undefined ? null : Number(data.shipping),
       })
-      toast.success('Dati importati dal link!')
+
+      // NUOVO: ripiego quando il prezzo non arriva.
+      //
+      // Dal sito pubblicato Amazon blocca la lettura delle sue pagine (arriva
+      // da un datacenter), quindi capita che titolo, descrizione e immagine
+      // si importino e il prezzo no. Prima, in quel caso, l'inserimento si
+      // fermava del tutto e la Vetrina diventava inutilizzabile. Ora si può
+      // completare scrivendo il prezzo a mano - ma SOLO in questo caso, così
+      // resta vero che quando il prezzo si legge è quello reale del
+      // venditore, senza possibilità di ritoccarlo.
+      setPrezzoAMano(!prezzoLetto)
+      if (prezzoLetto) {
+        toast.success('Dati importati dal link!')
+      } else {
+        toast.warning('Prezzo non leggibile da questo link: scrivilo qui sotto per completare.')
+      }
     } catch (err) {
       console.error('Errore importazione link:', err)
       toast.error('Errore di connessione.')
@@ -125,6 +147,10 @@ export default function VetrinaEsternaPage() {
 
   async function pubblica() {
     if (!userId || !dati) return
+    if (!(dati.price > 0)) {
+      toast.error('Scrivi il prezzo prima di pubblicare.')
+      return
+    }
     setPubblicando(true)
     try {
       // Titolo, descrizione, immagine, prezzo e spedizione vengono comunque
@@ -140,6 +166,10 @@ export default function VetrinaEsternaPage() {
           title: dati.title,
           description: dati.description,
           imageUrl: dati.image,
+          // Mandato SOLO quando il prezzo non si e' potuto leggere dal link:
+          // il server lo accetta unicamente se nemmeno lui riesce a leggerlo,
+          // quindi non c'e' modo di ritoccare un prezzo leggibile.
+          prezzoManuale: prezzoAMano ? dati.price : undefined,
         }),
       })
       const data = await res.json()
@@ -167,6 +197,7 @@ export default function VetrinaEsternaPage() {
     setMostraModale(false)
     setUrl('')
     setDati(null)
+    setPrezzoAMano(false)
   }
 
   async function elimina(voce: VoceEsterna) {
@@ -301,15 +332,38 @@ export default function VetrinaEsternaPage() {
                     )}
 
                     <div className="grid grid-cols-2 gap-3 pt-1">
-                      <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
-                        <p className="text-[9px] font-black uppercase text-emerald-700 tracking-widest">Prezzo</p>
-                        <p className="text-xl font-black italic text-emerald-700 mt-0.5">
-                          € {dati.price.toFixed(2)}
-                        </p>
-                        {dati.currency && dati.currency !== 'EUR' && (
-                          <p className="text-[8px] font-black uppercase text-emerald-600">originale in {dati.currency}</p>
-                        )}
-                      </div>
+                      {prezzoAMano ? (
+                        /* Il prezzo non si è potuto leggere: si scrive a mano,
+                           altrimenti l'inserimento resterebbe bloccato. */
+                        <div className="bg-orange-50 border border-orange-200 rounded-xl px-4 py-3">
+                          <label className="text-[9px] font-black uppercase text-orange-700 tracking-widest">
+                            Prezzo (da scrivere)
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0.01"
+                            autoFocus
+                            value={dati.price > 0 ? String(dati.price) : ''}
+                            onChange={e => setDati({ ...dati, price: Number(e.target.value) || 0 })}
+                            placeholder="0,00"
+                            className="w-full mt-1 bg-white border border-orange-300 rounded-lg px-3 py-2 text-lg font-black italic text-orange-800 outline-none focus:border-orange-500"
+                          />
+                          <p className="text-[8px] font-black uppercase text-orange-600 mt-1">
+                            non leggibile dal link
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
+                          <p className="text-[9px] font-black uppercase text-emerald-700 tracking-widest">Prezzo</p>
+                          <p className="text-xl font-black italic text-emerald-700 mt-0.5">
+                            € {dati.price.toFixed(2)}
+                          </p>
+                          {dati.currency && dati.currency !== 'EUR' && (
+                            <p className="text-[8px] font-black uppercase text-emerald-600">originale in {dati.currency}</p>
+                          )}
+                        </div>
+                      )}
 
                       <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
                         <p className="text-[9px] font-black uppercase text-blue-700 tracking-widest">Spedizione</p>

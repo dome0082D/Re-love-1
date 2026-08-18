@@ -22,6 +22,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { verificaUtente } from '@/lib/serverAuth'
 import { getStripe, problemaChiaveStripe, statoContoStripe } from '@/lib/stripeAccount'
+import { datiProdottoAmazon, credenzialiAmazonPresenti } from '@/lib/affiliates/amazonGetItems'
 
 export const dynamic = 'force-dynamic'
 
@@ -82,8 +83,33 @@ export async function GET(req: Request) {
       }
     }
 
+    // ------------------------------------------------------------ AMAZON
+    // Diagnosi dell'API per affiliati: è quella che fornisce il prezzo dei
+    // link in Vetrina. Dal sito pubblicato è l'UNICA fonte possibile
+    // (Amazon blocca la lettura delle pagine dagli indirizzi dei
+    // datacenter), quindi se non funziona il prezzo non arriva mai.
+    const amazon: Record<string, unknown> = {
+      chiaveAccesso: process.env.AMAZON_ACCESS_KEY ? 'ok' : 'MANCANTE',
+      chiaveSegreta: process.env.AMAZON_SECRET_KEY ? 'ok' : 'MANCANTE',
+      tagAffiliato: process.env.AMAZON_PARTNER_TAG || 'MANCANTE',
+      host: process.env.AMAZON_HOST || 'non impostato (uso webservices.amazon.it)',
+      regione: process.env.AMAZON_REGION || 'non impostata (uso eu-west-1)',
+    }
+
+    if (credenzialiAmazonPresenti()) {
+      // Prova vera su un prodotto reale: se Amazon rifiuta, qui si vede il
+      // motivo esatto invece di un generico "prezzo non leggibile".
+      const prova = await datiProdottoAmazon('B0GXZSGDQ7', 'www.amazon.it')
+      amazon.provaLettura = prova
+        ? `riuscita (prezzo ${prova.price} ${prova.currency || ''})`
+        : 'FALLITA - guarda i log di Vercel alla voce [Amazon/GetItems]'
+    } else {
+      amazon.provaLettura = 'saltata: credenziali incomplete'
+    }
+
     return NextResponse.json({
       configurazione,
+      amazon,
       stripeRaggiungibile,
       dettaglioStripe,
       contiCollegati: (profili || []).length,

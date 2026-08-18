@@ -59,6 +59,7 @@ interface VenditoreDiagnosi {
 interface Diagnosi {
   error?: string
   configurazione?: Record<string, string | null>
+  amazon?: Record<string, string | null>
   stripeRaggiungibile?: boolean
   dettaglioStripe?: string | null
   contiCollegati?: number
@@ -583,6 +584,24 @@ export default function PannelloStaff() {
                       <p className="text-[11px] font-bold text-rose-600 mt-2">
                         Finché non è corretta: nessun acquisto, nessun conto venditore, nessun bonifico.
                       </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Diagnosi dell'API Amazon: e' quella che fornisce il
+                    prezzo dei link in Vetrina dal sito pubblicato. */}
+                {diagnosi.amazon && (
+                  <div className="bg-white border border-stone-200 rounded-2xl p-5">
+                    <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 mb-4">Amazon (prezzi Vetrina)</h4>
+                    <div className="space-y-2">
+                      {Object.entries(diagnosi.amazon).map(([k, v]) => (
+                        <div key={k} className="flex items-start justify-between gap-3 py-2 border-b border-stone-100 last:border-0">
+                          <span className="text-[12px] font-bold text-stone-600 shrink-0">{k}</span>
+                          <span className={`text-[11px] font-bold text-right break-words ${String(v).includes('MANCANTE') || String(v).includes('FALLITA') ? 'text-rose-600' : 'text-stone-500'}`}>
+                            {String(v)}
+                          </span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
