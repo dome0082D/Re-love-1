@@ -405,3 +405,38 @@ button[disabled]:active {
     transform: none;
   }
 }
+
+/*
+  GESTO DI AGGIORNAMENTO (segnalato: "il comando di aggiornamento meno
+  sensibile, e solo se si e' nella parte alta della pagina").
+
+  Il "tira giu' per aggiornare" del telefono, per come e' fatto, scatta solo
+  quando la PAGINA e' in cima. Il problema e' che l'app e' piena di riquadri
+  che scorrono al proprio interno - le file di annunci in orizzontale, le
+  vetrine, gli elenchi - e quando uno di quelli arriva a fine corsa il gesto
+  "sfonda" e viene passato alla pagina: da qui l'aggiornamento che parte da
+  solo anche stando a metA pagina, mentre si stava semplicemente scorrendo una
+  fila di oggetti.
+
+  "overscroll-behavior: contain" dice che il gesto si fermA dentro il riquadro
+  in cui e' iniziato, senza propagarsi. Il risultato e' esattamente quello
+  chiesto: l'aggiornamento resta possibile solo con un tiro deliberato dalla
+  cima della pagina, e non parte piu' per sbaglio.
+
+  Due classi (.custom-scrollbar e .android-hero-scroll) erano gia' protette;
+  qui copriamo tutti gli altri contenitori scorrevoli del progetto, comprese
+  le pagine che verranno aggiunte in futuro.
+
+  NOTA: la SOGLIA del gesto - quanti millimetri di trascinamento servono - la
+  decide il browser e non e' modificabile da CSS. Quello che si puo' togliere
+  sono i casi in cui parte senza che tu l'abbia chiesto, ed e' quello che
+  facciamo qui.
+*/
+.overflow-auto,
+.overflow-x-auto,
+.overflow-y-auto,
+.overflow-scroll,
+.overflow-x-scroll,
+.overflow-y-scroll {
+  overscroll-behavior: contain;
+}

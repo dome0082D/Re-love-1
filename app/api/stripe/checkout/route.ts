@@ -2,12 +2,36 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { supabase } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 import { statoContoStripe } from '@/lib/stripeAccount';
 import { STATI_CANDIDATURA, quotaProprietario } from '@/lib/candidature';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
   apiVersion: '2026-03-25.dahlia',
 });
+
+// FIX: le candidature curatore vanno lette con la chiave di SERVIZIO.
+// Il client "supabase" importato qui sopra usa la chiave anonima, e la policy
+// su curator_candidature mostra una candidatura solo alle due persone
+// coinvolte - il compratore non e' nessuna delle due. Risultato: la lettura
+// non dava errore, dava ZERO RIGHE, e il curatore non veniva mai riconosciuto
+// nemmeno quando il compratore arrivava davvero dal suo link. E' lo stesso
+// tranello che PostgREST tende in tutto questo progetto: policy mancante o non
+// applicabile = "200 con zero righe", che il codice scambia per "non esiste".
+// Scoperto solo provando la vendita vera dal link, non leggendo il codice.
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL as string,
+  process.env.SUPABASE_SERVICE_ROLE_KEY as string
+);
+
+/** Indirizzo di base a cui riportare il compratore dopo il pagamento. */
+function origineSito(req: Request): string {
+  const daIntestazione = req.headers.get('origin')
+  if (daIntestazione && /^https?:\/\//i.test(daIntestazione)) return daIntestazione.replace(/\/+$/, '')
+  const daAmbiente = process.env.NEXT_PUBLIC_SITE_URL
+  if (daAmbiente && /^https?:\/\//i.test(daAmbiente)) return daAmbiente.replace(/\/+$/, '')
+  return 'https://re-love.vercel.app'
+}
 
 export async function POST(req: Request) {
   try {
@@ -87,7 +111,7 @@ export async function POST(req: Request) {
     let mandate: { owner_percentage: number; curator_percentage: number } | null = null
 
     if (announcement.mandate_id && curatoreCode) {
-      const { data: incarico } = await supabase
+      const { data: incarico } = await supabaseAdmin
         .from('curator_candidature')
         .select('id, curator_percentage, stato, scade_il, announcement_id')
         .eq('id', announcement.mandate_id)
@@ -305,8 +329,14 @@ export async function POST(req: Request) {
       },
       // Passiamo tutti i dati utili al Webhook: così sa esattamente quanto darti!
       metadata,
-      success_url: `${req.headers.get('origin')}/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${req.headers.get('origin')}/`,
+      // FIX: prima era solo req.headers.get('origin'). Se quell'intestazione
+      // manca - capita nei browser dentro le app e in alcuni involucri
+      // WebView - diventa la stringa "null" e Stripe risponde "Invalid URL:
+      // An explicit scheme must be provided": la rotta dei PAGAMENTI andava
+      // in errore 500. Su una rotta cosi' non ci si affida a un'intestazione
+      // che il chiamante puo' non mandare.
+      success_url: `${origineSito(req)}/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origineSito(req)}/`,
     }
 
     if (announcement.is_arena) {
