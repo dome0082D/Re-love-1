@@ -515,9 +515,19 @@ export default function Navbar() {
           44px (la misura minima consigliata per il tocco), un solo raggio,
           e un solo passo di spaziatura.
           ====================================================================== */}
+      {/* Lo spazio della barra di sistema del telefono (orologio, batteria) va
+          aggiunto SOPRA la barra bianca, non ignorato: con viewportFit 'cover'
+          il sito disegna fin sotto quella barra, e senza questo la fila di
+          icone ci finisce sotto. Su computer e nel browser normale
+          env(safe-area-inset-top) vale 0, quindi non cambia niente. */}
       <nav
-        style={{ backgroundColor: '#ffffff', backdropFilter: 'none', WebkitBackdropFilter: 'none' }}
-        className="border-b border-rose-100 sticky top-0 z-[5000] shadow-sm flex justify-between items-center gap-3 h-16 md:h-20 px-3 md:px-6 transition-colors"
+        style={{
+          backgroundColor: '#ffffff',
+          backdropFilter: 'none',
+          WebkitBackdropFilter: 'none',
+          paddingTop: 'env(safe-area-inset-top, 0px)',
+        }}
+        className="border-b border-rose-100 sticky top-0 z-[5000] shadow-sm flex justify-between items-center gap-3 h-16 md:h-20 px-3 md:px-6 transition-colors box-content"
       >
         <div className="flex items-center gap-1 md:gap-2 min-w-0">
           <button

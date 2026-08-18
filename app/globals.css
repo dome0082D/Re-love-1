@@ -344,9 +344,29 @@ body {
 button,
 a,
 [role="button"],
-label[class*="cursor-pointer"],
+/* Non solo le etichette: qualunque elemento reso cliccabile con
+   "cursor-pointer" (le schede degli annunci, i riquadri di scelta) deve
+   reagire al tocco con la stessa immediatezza di un pulsante vero. */
+[class*="cursor-pointer"],
 select {
   -webkit-tap-highlight-color: transparent;
+
+  /* FIX TOCCO (segnalato: "la sensibilita al tocco e' scarsissima, e sui
+     riquadri non lo prende neanche").
+
+     Senza "touch-action: manipulation" il browser, a ogni tocco, ASPETTA
+     circa 300 millisecondi prima di reagire: sta a vedere se arriva un
+     secondo tocco, cioe' un doppio tocco per ingrandire. Il risultato e'
+     esattamente quello descritto - il dito tocca e per un attimo non succede
+     niente, e su un tocco rapido a volte non succede affatto.
+
+     "manipulation" dice al browser: qui il doppio tocco per ingrandire non
+     serve, reagisci subito. Lo scorrimento e il pizzicare per ingrandire la
+     pagina continuano a funzionare normalmente. Verificato nel CSS generato:
+     touch-action era impostato solo su un contenitore della Home, e su
+     nessun pulsante o link del sito. */
+  touch-action: manipulation;
+
   /* FIX PRESTAZIONI: tolta "box-shadow" dall'elenco. Questa regola vale per
      OGNI pulsante, link e select del sito, e animare un'ombra costringe il
      browser a ridisegnare l'elemento a ogni fotogramma dell'animazione -
