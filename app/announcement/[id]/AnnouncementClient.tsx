@@ -643,7 +643,7 @@ function AnnouncementContent() {
              {ann.image_urls && ann.image_urls.length > 1 && (
                <div className="flex gap-3 p-4 overflow-x-auto custom-scrollbar">
                  {ann.image_urls.map((img: string, i: number) => (
-                    <img loading="lazy" decoding="async" key={i} src={img} alt={`${ann.title} - foto ${i + 1}`} className="w-24 h-24 rounded-2xl object-cover border-2 border-white/40 hover:border-rose-400 cursor-pointer transition-all flex-shrink-0 shadow-sm" />
+                    <img loading="lazy" decoding="async" key={i} src={srcFoto(img, 200)} srcSet={srcSetFoto(img, 200)} alt={`${ann.title} - foto ${i + 1}`} className="w-24 h-24 rounded-2xl object-cover border-2 border-white/40 hover:border-rose-400 cursor-pointer transition-all flex-shrink-0 shadow-sm" />
                  ))}
                </div>
              )}

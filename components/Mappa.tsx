@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
+import { srcFoto, srcSetFoto } from '@/lib/immagini'
 
 export default function Mappa({ announcements = [] }: { announcements?: any[] }) {
   // FIX (SCHERMATA BIANCA / CRASH): react-leaflet ha bisogno degli oggetti
@@ -77,7 +78,7 @@ export default function Mappa({ announcements = [] }: { announcements?: any[] })
               <Popup>
                 <div className="w-40 font-sans">
                   {ann.image_url ? (
-                    <img loading="lazy" decoding="async" src={ann.image_url} alt={ann.title} className="w-full h-20 object-cover rounded mb-2" />
+                    <img loading="lazy" decoding="async" src={srcFoto(ann.image_url, 250)} srcSet={srcSetFoto(ann.image_url, 250)} alt={ann.title} className="w-full h-20 object-cover rounded mb-2" />
                   ) : (
                     <div className="w-full h-20 bg-stone-100 rounded mb-2 flex items-center justify-center text-[10px] text-stone-400">No Foto</div>
                   )}

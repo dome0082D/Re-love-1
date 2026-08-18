@@ -39,3 +39,30 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# ============================================================================
+# File di prova temporanei.
+#
+# Perche' esistono queste righe: durante il collaudo servono script che
+# parlano col database vero, e per farlo devono stare DENTRO il progetto
+# (fuori non troverebbero @supabase/supabase-js). Alcuni di questi salvano
+# lo stato della prova su disco, compresi i token di sessione degli utenti
+# finti creati per l'occasione.
+#
+# E' finita male una volta: un "git add -A" ha portato dentro _prova.mjs e
+# _stato.json, GitGuardian ha segnalato 4 token nel repository (erano di
+# utenti di prova poi cancellati, quindi inutilizzabili - ma la segnalazione
+# era giusta). Con queste righe non puo' ricapitare.
+# ============================================================================
+_prova*
+_probe*
+_stato.json
+_pulisci*
+_pulizia*
+_verifica*
+_perf*
+_img*
+_s.mjs
+_d.mjs
+_t.mjs
+_v.mjs

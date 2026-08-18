@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useCartStore } from '@/store/cartStore'
 import { segnaNotificheLette, eliminaNotifica, eliminaTutteLeNotifiche } from '@/lib/azioniUtente'
+import { srcFoto, srcSetFoto } from '@/lib/immagini'
 import { 
   Menu, Sun, Moon, ShieldCheck, Sparkles, Radar, Plus, Bell, 
   MoreVertical, ShoppingCart, Settings, TrendingUp, HelpCircle, 
@@ -527,7 +528,14 @@ export default function Navbar() {
           WebkitBackdropFilter: 'none',
           paddingTop: 'env(safe-area-inset-top, 0px)',
         }}
-        className="border-b border-rose-100 sticky top-0 z-[5000] shadow-sm flex justify-between items-center gap-3 h-16 md:h-20 px-3 md:px-6 transition-colors box-content"
+        /* Barra piu' bassa (56px sul telefono, 64 su schermo grande): era
+           h-16/h-20, cioe' 64/80, e risultava allungata. Le icone sono da 22px
+           con bersaglio da 44: ci stanno comode.
+           "box-content" serve a far contare lo spazio della barra di sistema
+           COME AGGIUNTA e non come parte di questi 56px: senza, su un telefono
+           col notch la fila di icone verrebbe schiacciata. Dove quello spazio
+           e' zero (browser, computer) la barra e' semplicemente alta 56. */
+        className="border-b border-rose-100 sticky top-0 z-[5000] shadow-sm flex justify-between items-center gap-3 h-14 md:h-16 px-3 md:px-6 transition-colors box-content"
       >
         <div className="flex items-center gap-1 md:gap-2 min-w-0">
           <button
@@ -594,7 +602,7 @@ export default function Navbar() {
             </button>
 
             {isNotifOpen && (
-              <div className="fixed left-3 right-3 top-[4.5rem] md:left-auto md:right-6 md:top-[5.5rem] md:w-80 bg-white border border-stone-200 rounded-2xl shadow-2xl p-4 z-[6000]">
+              <div className="fixed left-3 right-3 top-[calc(3.5rem+env(safe-area-inset-top,0px)+0.5rem)] md:left-auto md:right-6 md:top-[calc(4rem+env(safe-area-inset-top,0px)+0.5rem)] md:w-80 bg-white border border-stone-200 rounded-2xl shadow-2xl p-4 z-[6000]">
                 <div className="flex justify-between items-center border-b border-stone-100 pb-3 mb-4">
                   <h4 className="text-sm font-bold uppercase tracking-widest text-stone-400">Notifiche</h4>
                   <div className="flex items-center gap-1">
@@ -647,7 +655,7 @@ export default function Navbar() {
               <MoreVertical size={22} strokeWidth={2} />
             </button>
             {isQuickMenuOpen && (
-              <div className="fixed left-auto right-3 md:right-6 top-[4.5rem] md:top-[5.5rem] w-60 bg-white border border-stone-200 shadow-2xl rounded-2xl p-2 z-[6000]">
+              <div className="fixed left-auto right-3 md:right-6 top-[calc(3.5rem+env(safe-area-inset-top,0px)+0.5rem)] md:top-[calc(4rem+env(safe-area-inset-top,0px)+0.5rem)] w-60 bg-white border border-stone-200 shadow-2xl rounded-2xl p-2 z-[6000]">
                 <Link href="/profile" onClick={() => setIsQuickMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-[15px] font-medium text-stone-700 hover:bg-rose-50 hover:text-rose-600 rounded-xl transition-colors">
                   <Settings size={18} /> Impostazioni
                 </Link>
@@ -866,7 +874,7 @@ export default function Navbar() {
                 <button onClick={() => removeItem(item.id)} className="absolute -top-3 -right-3 bg-red-500 text-white w-8 h-8 rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-all z-10">
                   <X size={16} strokeWidth={3} />
                 </button>
-                <img loading="lazy" decoding="async" src={(item as any).imageUrl || '/usato.png'} alt={item.title} className="w-24 h-24 object-cover rounded-2xl border border-stone-200" />
+                <img loading="lazy" decoding="async" src={srcFoto((item as any).imageUrl, 96) || '/usato.png'} srcSet={srcSetFoto((item as any).imageUrl, 96)} alt={item.title} className="w-24 h-24 object-cover rounded-2xl border border-stone-200" />
                 <div className="flex-1 flex flex-col justify-between py-1">
                   <h3 className="font-bold text-base text-stone-800 line-clamp-2">{item.title}</h3>
                   <div className="flex justify-between items-center mt-3">

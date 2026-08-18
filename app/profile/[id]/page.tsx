@@ -93,7 +93,7 @@ export default function PublicProfilePage() {
           {/* AVATAR REALE O FALLBACK */}
           <div className="w-32 h-32 bg-stone-900 rounded-[3rem] overflow-hidden flex items-center justify-center text-white shadow-xl shadow-stone-200">
             {profile.avatar_url ? (
-              <img loading="lazy" decoding="async" src={profile.avatar_url} className="w-full h-full object-cover" alt="avatar" />
+              <img loading="lazy" decoding="async" src={srcFoto(profile.avatar_url, 120)} srcSet={srcSetFoto(profile.avatar_url, 120)} className="w-full h-full object-cover" alt="avatar" />
             ) : (
               <span className="text-4xl font-black">{profile.nickname?.[0] || 'U'}</span>
             )}
