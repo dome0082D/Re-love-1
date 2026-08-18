@@ -86,6 +86,27 @@ create table if not exists public.curator_candidature (
   scade_il timestamptz
 );
 
+-- Se la tabella esisteva gia' da una esecuzione precedente, "create table if
+-- not exists" qui sopra non ha fatto niente e le colonne aggiunte dopo non ci
+-- sono. Le aggiungiamo qui.
+--
+-- ATTENZIONE ALL'ORDINE: queste tre righe devono stare PRIMA degli indici,
+-- perche' un indice su una colonna che non esiste ancora fa fallire tutto lo
+-- script con "column tracking_code does not exist".
+alter table public.curator_candidature add column if not exists tracking_code text;
+alter table public.curator_candidature add column if not exists clicks integer not null default 0;
+alter table public.curator_candidature add column if not exists scade_il timestamptz;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'curator_candidature_tracking_code_key'
+  ) then
+    alter table public.curator_candidature
+      add constraint curator_candidature_tracking_code_key unique (tracking_code);
+  end if;
+end $$;
+
 -- Una sola candidatura in attesa per persona su ogni annuncio: senza questo,
 -- premere due volte il pulsante lascia due richieste identiche da smaltire.
 create unique index if not exists curator_candidature_una_in_attesa
@@ -111,22 +132,6 @@ create index if not exists curator_candidature_per_codice
 create index if not exists curator_candidature_scadenze
   on public.curator_candidature (scade_il)
   where stato = 'accettata';
-
--- Se la tabella esisteva gia' da una esecuzione precedente, aggiungiamo le
--- tre colonne nuove senza ricrearla.
-alter table public.curator_candidature add column if not exists tracking_code text;
-alter table public.curator_candidature add column if not exists clicks integer not null default 0;
-alter table public.curator_candidature add column if not exists scade_il timestamptz;
-
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint where conname = 'curator_candidature_tracking_code_key'
-  ) then
-    alter table public.curator_candidature
-      add constraint curator_candidature_tracking_code_key unique (tracking_code);
-  end if;
-end $$;
 
 -- ------------------------------------------------------------------- RLS
 -- Tutte le scritture passano dalle route server (che verificano il token di
