@@ -172,16 +172,19 @@ export default function Navbar() {
     const pannelloAperto = isSidebarOpen || isCartOpen
     if (!pannelloAperto) return
 
+    // NOTA: qui c'era anche "overscrollBehavior = none" sul body. Non serviva
+    // piu': quando <html> dichiara overscroll-behavior - e adesso lo fa, per
+    // spegnere del tutto il tira-per-aggiornare - il valore del body viene
+    // ignorato dal browser. Lasciarlo avrebbe fatto credere che facesse
+    // qualcosa. Il blocco dello scorrimento, invece, serve eccome: senza, la
+    // pagina si muove dietro al pannello mentre il dito e' giu'.
     const corpo = document.body
     const primaOverflow = corpo.style.overflow
-    const primaOverscroll = corpo.style.overscrollBehavior
 
     corpo.style.overflow = 'hidden'
-    corpo.style.overscrollBehavior = 'none'
 
     return () => {
       corpo.style.overflow = primaOverflow
-      corpo.style.overscrollBehavior = primaOverscroll
     }
   }, [isSidebarOpen, isCartOpen])
 

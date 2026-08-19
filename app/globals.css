@@ -43,9 +43,33 @@ html {
      se qualsiasi elemento risultasse anche solo di poco più largo dello
      schermo, senza questo l'intera interfaccia (navbar compresa) diventava
      scorrevole lateralmente invece di restare ferma. Non impedisce lo scroll
-     interno di contenitori che lo dichiarano esplicitamente (come l'hero
-     qui sotto), solo quello dell'intero documento. */
+     interno di contenitori che lo dichiarano esplicitamente, solo quello
+     dell'intero documento. */
   overflow-x: hidden;
+
+  /* =========================================================================
+     NIENTE PIÙ "TIRA GIÙ PER AGGIORNARE".
+
+     Segnalato: "la tendina laterale scende ma non sale, si aggiorna la
+     pagina, devo poter salire e scendere senza che carichi la pagina ogni
+     volta".
+
+     Ecco cosa succedeva davvero. Quando un elenco che scorre - il menu
+     laterale, il carrello, la chat - è già arrivato in CIMA e il dito
+     continua a tirare verso il basso, il browser smette di considerarlo uno
+     scorrimento e lo interpreta come il gesto di ricarica. Da qui il
+     sintomo esatto descritto: verso il basso si scorre, verso l'alto no
+     perché il gesto viene rubato e la pagina si ricarica.
+
+     Le protezioni messe finora agivano sui singoli riquadri, ma il gesto di
+     ricarica appartiene alla PAGINA INTERA: si spegne solo qui, sulla radice
+     del documento. "contain" toglie il tira-per-aggiornare lasciando intatto
+     tutto lo scorrimento normale, in entrambe le direzioni.
+
+     Re-love non ha nessuna funzione legata a quel gesto: per ricaricare
+     restano il pulsante del browser e la normale navigazione.
+     ========================================================================= */
+  overscroll-behavior-y: contain;
 }
 
 body {
