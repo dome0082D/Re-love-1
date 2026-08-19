@@ -1,16 +1,19 @@
 {
-  "id": "com.relove.app",
+  "id": "/",
   "name": "Re-love - Dai vita all'usato",
   "short_name": "Re-love",
   "description": "Il marketplace sostenibile per vendere e comprare vestiti, oggetti e tanto altro.",
   "start_url": "/",
-  "display": "fullscreen",
-  "display_override": ["fullscreen", "standalone"],
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "orientation": "portrait",
   "background_color": "#fafaf9",
-  "theme_color": "#f43f5e",
+  "theme_color": "#ffffff",
   "lang": "it-IT",
+  "dir": "ltr",
   "categories": ["shopping", "lifestyle"],
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "/icon-192.png",
@@ -25,10 +28,30 @@
       "purpose": "any"
     },
     {
-      "src": "/icon-192.png",
-      "sizes": "192x192",
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Vendi o regala",
+      "short_name": "Vendi",
+      "url": "/add",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Messaggi",
+      "short_name": "Messaggi",
+      "url": "/chat",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Ordini",
+      "short_name": "Ordini",
+      "url": "/orders",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     }
   ],
   "screenshots": [
