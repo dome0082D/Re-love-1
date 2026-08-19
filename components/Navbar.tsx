@@ -148,6 +148,43 @@ export default function Navbar() {
     }
   }, [darkMode])
 
+  // ==========================================================================
+  // PANNELLO APERTO = PAGINA FERMA
+  //
+  // Segnalato: "sulla tendina laterale sinistra il tocco non e' calibrato e
+  // aggiorna la pagina anche non volendo".
+  //
+  // Il menu laterale e il carrello sono pannelli "fixed": stanno sopra la
+  // pagina, ma la pagina sotto resta perfettamente viva. Il dito che scorre
+  // dentro il menu trascina anche lei, e quando il menu e' gia' in cima quel
+  // trascinamento arriva al browser come "tira giu' per aggiornare": la
+  // pagina si ricarica senza che nessuno l'abbia chiesto. Ed e' anche il
+  // motivo per cui il tocco sembra "non calibrato": la pagina dietro si
+  // sposta di qualche pixel mentre il dito e' giu', e il tocco finisce su una
+  // voce diversa da quella mirata.
+  //
+  // Bloccando lo scorrimento del corpo pagina finche' un pannello e' aperto,
+  // il gesto resta dentro il pannello e le voci stanno ferme sotto il dito.
+  // Lo stato precedente viene salvato e ripristinato alla chiusura, cosi' non
+  // si lascia la pagina bloccata se un domani questi valori cambiano.
+  // ==========================================================================
+  useEffect(() => {
+    const pannelloAperto = isSidebarOpen || isCartOpen
+    if (!pannelloAperto) return
+
+    const corpo = document.body
+    const primaOverflow = corpo.style.overflow
+    const primaOverscroll = corpo.style.overscrollBehavior
+
+    corpo.style.overflow = 'hidden'
+    corpo.style.overscrollBehavior = 'none'
+
+    return () => {
+      corpo.style.overflow = primaOverflow
+      corpo.style.overscrollBehavior = primaOverscroll
+    }
+  }, [isSidebarOpen, isCartOpen])
+
   useEffect(() => {
     let notificationHandler: ((e: Event) => void) | null = null;
     let visibilityHandler: (() => void) | null = null;
@@ -528,14 +565,19 @@ export default function Navbar() {
           WebkitBackdropFilter: 'none',
           paddingTop: 'env(safe-area-inset-top, 0px)',
         }}
-        /* Barra piu' bassa (56px sul telefono, 64 su schermo grande): era
-           h-16/h-20, cioe' 64/80, e risultava allungata. Le icone sono da 22px
-           con bersaglio da 44: ci stanno comode.
+        /* ALTEZZA MINIMA UTILE (richiesto: "grande solo quanto basta per
+           visualizzare i tasti interni").
+           I pulsanti dentro la barra sono w-11 h-11, cioe' 44x44 px - la
+           misura minima raccomandata perche' un dito li centri senza sbagliare.
+           48px di barra sono quei 44 piu' 2px sopra e 2 sotto: sotto questo
+           valore i pulsanti verrebbero tagliati. Su schermo grande 56, dove
+           c'e' spazio e una barra troppo schiacciata sta male.
+           Partiva da 64/80.
            "box-content" serve a far contare lo spazio della barra di sistema
            COME AGGIUNTA e non come parte di questi 56px: senza, su un telefono
            col notch la fila di icone verrebbe schiacciata. Dove quello spazio
            e' zero (browser, computer) la barra e' semplicemente alta 56. */
-        className="border-b border-rose-100 sticky top-0 z-[5000] shadow-sm flex justify-between items-center gap-3 h-14 md:h-16 px-3 md:px-6 transition-colors box-content"
+        className="border-b border-rose-100 sticky top-0 z-[5000] shadow-sm flex justify-between items-center gap-3 h-12 md:h-14 px-3 md:px-6 transition-colors box-content"
       >
         <div className="flex items-center gap-1 md:gap-2 min-w-0">
           <button
@@ -602,7 +644,7 @@ export default function Navbar() {
             </button>
 
             {isNotifOpen && (
-              <div className="fixed left-3 right-3 top-[calc(3.5rem+env(safe-area-inset-top,0px)+0.5rem)] md:left-auto md:right-6 md:top-[calc(4rem+env(safe-area-inset-top,0px)+0.5rem)] md:w-80 bg-white border border-stone-200 rounded-2xl shadow-2xl p-4 z-[6000]">
+              <div className="fixed left-3 right-3 top-[calc(3rem+env(safe-area-inset-top,0px)+0.5rem)] md:left-auto md:right-6 md:top-[calc(3.5rem+env(safe-area-inset-top,0px)+0.5rem)] md:w-80 bg-white border border-stone-200 rounded-2xl shadow-2xl p-4 z-[6000]">
                 <div className="flex justify-between items-center border-b border-stone-100 pb-3 mb-4">
                   <h4 className="text-sm font-bold uppercase tracking-widest text-stone-400">Notifiche</h4>
                   <div className="flex items-center gap-1">
@@ -655,7 +697,7 @@ export default function Navbar() {
               <MoreVertical size={22} strokeWidth={2} />
             </button>
             {isQuickMenuOpen && (
-              <div className="fixed left-auto right-3 md:right-6 top-[calc(3.5rem+env(safe-area-inset-top,0px)+0.5rem)] md:top-[calc(4rem+env(safe-area-inset-top,0px)+0.5rem)] w-60 bg-white border border-stone-200 shadow-2xl rounded-2xl p-2 z-[6000]">
+              <div className="fixed left-auto right-3 md:right-6 top-[calc(3rem+env(safe-area-inset-top,0px)+0.5rem)] md:top-[calc(3.5rem+env(safe-area-inset-top,0px)+0.5rem)] w-60 bg-white border border-stone-200 shadow-2xl rounded-2xl p-2 z-[6000]">
                 <Link href="/profile" onClick={() => setIsQuickMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-[15px] font-medium text-stone-700 hover:bg-rose-50 hover:text-rose-600 rounded-xl transition-colors">
                   <Settings size={18} /> Impostazioni
                 </Link>
@@ -724,7 +766,9 @@ export default function Navbar() {
             <p className="font-medium truncate text-sm tracking-wider uppercase opacity-90">{user?.email || 'Visitatore'}</p>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-5 py-6 space-y-7">
+          {/* "overscroll-contain": arrivato in fondo all'elenco, il gesto si
+              ferma qui invece di passare alla pagina dietro. */}
+          <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-6 space-y-7">
             <section>
               <h3 className="text-[11px] font-bold uppercase text-stone-400 mb-3 tracking-[0.2em] border-b pb-2.5 border-stone-100">Area Riservata</h3>
               <div className="grid gap-1">
@@ -862,7 +906,7 @@ export default function Navbar() {
           </button>
         </div>
         
-        <div className="flex-1 overflow-y-auto p-6 space-y-5">
+        <div className="flex-1 overflow-y-auto overscroll-contain p-6 space-y-5">
           {items.length === 0 ? (
             <div className="text-center py-24 opacity-40 flex flex-col items-center">
               <ShoppingCart size={80} strokeWidth={1} className="mb-6 text-stone-400" />

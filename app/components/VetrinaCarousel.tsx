@@ -125,17 +125,45 @@ export default function VetrinaCarousel() {
       ) : (
         <div className="flex gap-5 overflow-x-auto pb-3 custom-scrollbar">
           {gruppi.map(gruppo => (
-            <div key={gruppo.userId} className="shrink-0 w-64 bg-white rounded-[2rem] border border-stone-200 shadow-sm p-5 flex flex-col">
-              <Link href={`/vetrina/utente/${gruppo.userId}`} className="flex items-center gap-3 mb-4 group">
+            /* ================================================================
+               TUTTA LA SCHEDA E' TOCCABILE (segnalato: "il tocco sul riquadro
+               laterale vetrina assente, fai in modo che ci sia tocco anche
+               intorno al riquadro").
+
+               Prima erano toccabili solo tre cose: la riga col nome, le
+               singole foto, e la scritta in fondo. Tutto il resto - il bordo
+               interno da 20px, gli spazi fra le foto, l'area sotto il nome -
+               non reagiva: il dito toccava la scheda e non succedeva niente.
+               Su un telefono, dove si tocca "verso" una scheda e non un punto
+               preciso, sembrava semplicemente rotta.
+
+               Ora c'e' uno strato invisibile che copre l'intera scheda e porta
+               alla vetrina di quella persona. Le singole foto stanno SOPRA
+               quello strato e continuano ad avere la precedenza, cosi' chi
+               centra una foto apre quell'oggetto e chi tocca a lato apre
+               comunque la vetrina. Il contenitore delle foto lascia passare il
+               tocco negli spazi vuoti fra una foto e l'altra.
+               ================================================================ */
+            <div key={gruppo.userId} className="shrink-0 w-64 bg-white rounded-[2rem] border border-stone-200 shadow-sm p-5 flex flex-col relative hover:border-rose-200 transition-colors">
+              <Link
+                href={`/vetrina/utente/${gruppo.userId}`}
+                aria-label={`Apri la vetrina di ${gruppo.nome}`}
+                className="absolute inset-0 rounded-[2rem] z-0"
+              />
+
+              {/* Nome e avatar: non serve piu' che siano un link a se', ci
+                  pensa lo strato qui sopra. "pointer-events-none" li toglie
+                  di mezzo cosi' il tocco arriva allo strato. */}
+              <div className="flex items-center gap-3 mb-4 pointer-events-none">
                 <div className="w-9 h-9 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center font-black text-sm uppercase shrink-0">
                   {gruppo.nome[0]}
                 </div>
-                <span className="text-[11px] font-black uppercase text-stone-800 truncate group-hover:text-rose-600 transition-colors">
+                <span className="text-[11px] font-black uppercase text-stone-800 truncate">
                   {gruppo.nome}
                 </span>
-              </Link>
+              </div>
 
-              <div className="grid grid-cols-2 gap-2 mb-4">
+              <div className="grid grid-cols-2 gap-2 mb-4 pointer-events-none">
                 {gruppo.items.map((item, i) => (
                   <a
                     key={i}
@@ -143,7 +171,7 @@ export default function VetrinaCarousel() {
                     target={item.external ? '_blank' : undefined}
                     rel={item.external ? 'noopener noreferrer sponsored' : undefined}
                     onClick={() => item.external && handleClickEsterno(item.itemId)}
-                    className="block bg-stone-50 rounded-xl overflow-hidden border border-stone-100 hover:border-rose-300 transition-all relative"
+                    className="block bg-stone-50 rounded-xl overflow-hidden border border-stone-100 hover:border-rose-300 transition-all relative z-10 pointer-events-auto"
                   >
                     <div className="aspect-square bg-stone-100 relative">
                       <img src={fotoQuadrata(item.image, 200).src || '/usato.png'} srcSet={fotoQuadrata(item.image, 200).srcSet} className="w-full h-full object-cover" alt={item.title} loading="lazy" decoding="async" />
@@ -160,9 +188,9 @@ export default function VetrinaCarousel() {
                 ))}
               </div>
 
-              <Link href={`/vetrina/utente/${gruppo.userId}`} className="mt-auto block text-center text-[9px] font-black uppercase text-stone-400 hover:text-rose-500 tracking-widest transition-colors">
+              <span className="mt-auto block text-center text-[9px] font-black uppercase text-stone-400 tracking-widest pointer-events-none">
                 Vedi tutta la vetrina →
-              </Link>
+              </span>
             </div>
           ))}
         </div>
