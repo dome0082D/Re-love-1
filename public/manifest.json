@@ -57,21 +57,21 @@
   "screenshots": [
     {
       "src": "/screen1.png",
-      "sizes": "1080x1920",
+      "sizes": "1080x1349",
       "type": "image/png",
       "form_factor": "narrow",
       "label": "Scopri Re-love"
     },
     {
       "src": "/screen2.png",
-      "sizes": "1080x1920",
+      "sizes": "1080x1349",
       "type": "image/png",
       "form_factor": "narrow",
       "label": "Dettaglio Articolo"
     },
     {
       "src": "/screen3.png",
-      "sizes": "1080x1920",
+      "sizes": "1080x1349",
       "type": "image/png",
       "form_factor": "narrow",
       "label": "Vendi il tuo usato"

@@ -26,7 +26,7 @@
 // toccare il codice e senza ripubblicare il sito a mano.
 //
 // COSA DEVI IMPOSTARE SU VERCEL
-//   ANDROID_PACKAGE_NAME   es. com.relove.app   (il nome scelto per l'app)
+//   ANDROID_PACKAGE_NAME   solo se cambi nome pacchetto (ora: com.dome0082.app)
 //   ANDROID_CERT_SHA256    l'impronta SHA-256 della chiave, nella forma
 //                          AA:BB:CC:...  (59 caratteri, maiuscole e due punti)
 //
@@ -38,7 +38,7 @@ import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
-const NOME_PACCHETTO_PREDEFINITO = 'com.relove.app'
+const NOME_PACCHETTO_PREDEFINITO = 'com.dome0082.app'
 
 export async function GET() {
   const pacchetto = process.env.ANDROID_PACKAGE_NAME || NOME_PACCHETTO_PREDEFINITO
