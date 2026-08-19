@@ -80,21 +80,22 @@ body {
 }
 
 /*
-  FIX ANDROID: questa classe è usata in tantissimi punti dell'app (lista
-  laboratori, chat, gallerie immagini, dashboard) ma non era MAI stata
-  definita - non faceva assolutamente nulla. Ogni contenitore che la usa è
-  un'area che scorre al proprio interno (lista laboratori, messaggi chat,
-  ecc.): senza "overscroll-behavior: contain", arrivare al limite dello
-  scroll DENTRO uno di questi riquadri durante uno swipe poteva far
-  "rimbalzare" anche la pagina intera insieme ad esso - lo stesso
-  identico problema già risolto per l'hero, ma che si presentava ogni
-  volta che si toccava uno di QUESTI riquadri, non solo l'hero. In più,
-  visto che il nome della classe lo suggerisce, le do anche un aspetto
-  di scrollbar più curato invece di lasciarla completamente invisibile.
+  .custom-scrollbar: SOLO l'aspetto della barra di scorrimento, come dice il
+  nome. Era usata anche per trattenere il gesto dentro il riquadro
+  ("overscroll-behavior: contain"), ma questa classe sta sia su file che
+  scorrono in ORIZZONTALE (la vetrina in Home, le gallerie di foto) sia su
+  elenchi che scorrono in VERTICALE (chat, notifiche): un solo valore buono
+  per entrambi non esiste.
+
+  Sulla vetrina quel "contain" era il difetto segnalato: il riquadro in
+  verticale non scorre, quindi il dito che si muoveva in su o in giu' veniva
+  trattenuto li' e non muoveva niente - toccare la vetrina voleva dire non
+  poter piu' scorrere la pagina.
+
+  Adesso a decidere e' l'asse su cui il riquadro scorre davvero (vedi la
+  regola sui contenitori scorrevoli piu' in basso): orizzontale trattiene
+  l'orizzontale e lascia libero il verticale, e viceversa.
 */
-.custom-scrollbar {
-  overscroll-behavior: contain;
-}
 @supports (scrollbar-width: thin) {
   .custom-scrollbar {
     scrollbar-width: thin;
@@ -371,11 +372,22 @@ button[disabled]:active {
   sono i casi in cui parte senza che tu l'abbia chiesto, ed e' quello che
   facciamo qui.
 */
+/*
+  Un asse per tipo di riquadro. Contenere l'asse su cui un riquadro NON
+  scorre significa mangiarsi il gesto senza muovere niente: e' cosi' che la
+  vetrina in Home aveva smesso di lasciar scorrere la pagina.
+*/
 .overflow-auto,
-.overflow-x-auto,
-.overflow-y-auto,
-.overflow-scroll,
-.overflow-x-scroll,
-.overflow-y-scroll {
+.overflow-scroll {
   overscroll-behavior: contain;
+}
+.overflow-x-auto,
+.overflow-x-scroll {
+  overscroll-behavior-x: contain;
+  overscroll-behavior-y: auto;
+}
+.overflow-y-auto,
+.overflow-y-scroll {
+  overscroll-behavior-y: contain;
+  overscroll-behavior-x: auto;
 }

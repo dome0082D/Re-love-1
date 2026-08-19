@@ -784,7 +784,7 @@ export default function Navbar() {
 
           {/* "overscroll-contain": arrivato in fondo all'elenco, il gesto si
               ferma qui invece di passare alla pagina dietro. */}
-          <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-5 space-y-5">
+          <div className="flex-1 overflow-y-auto overscroll-y-contain px-4 py-5 space-y-5">
             <section>
               <h3 className="text-[10px] font-bold uppercase text-stone-400 mb-2 tracking-[0.2em] border-b pb-2 border-stone-100">Area Riservata</h3>
               <div className="grid gap-1">
@@ -922,7 +922,7 @@ export default function Navbar() {
           </button>
         </div>
         
-        <div className="flex-1 overflow-y-auto overscroll-contain p-6 space-y-5">
+        <div className="flex-1 overflow-y-auto overscroll-y-contain p-6 space-y-5">
           {items.length === 0 ? (
             <div className="text-center py-24 opacity-40 flex flex-col items-center">
               <ShoppingCart size={80} strokeWidth={1} className="mb-6 text-stone-400" />
