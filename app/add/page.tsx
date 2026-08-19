@@ -9,6 +9,7 @@ import { User } from '@supabase/supabase-js'
 import Link from 'next/link'
 import { Timer, Tag } from 'lucide-react'
 import { toast } from 'sonner'
+import ModalePubblicato from '@/components/ModalePubblicato'
 
 interface ProfileData {
   stripe_account_id?: string;
@@ -75,6 +76,8 @@ function AddAnnouncementForm() {
   const [images, setImages] = useState<File[]>([])
   const [imageUrls, setImageUrls] = useState<string[]>([])
   const [uploading, setUploading] = useState(false)
+  // Cosa e' stato appena pubblicato, per il riquadro di condivisione.
+  const [pubblicato, setPubblicato] = useState<{ id: string; titolo: string; immagine: string | null } | null>(null)
 
   const imageUrlsRef = useRef<string[]>([])
   useEffect(() => { imageUrlsRef.current = imageUrls }, [imageUrls])
@@ -309,8 +312,16 @@ function AddAnnouncementForm() {
 
       if (error) throw error
 
+      // Prima si veniva mandati subito sulla scheda dell'annuncio. Adesso ci
+      // fermiamo un attimo su un riquadro che propone di condividerlo: e' il
+      // solo momento in cui uno ha appena finito e ha voglia di mostrarlo.
+      // Da li' si va comunque alla scheda con un tocco.
       toast.success(isAuction ? 'Asta creata con successo! ⏳' : 'Annuncio pubblicato! 🚀')
-      router.push(`/announcement/${insertedData[0].id}`)
+      setPubblicato({
+        id: insertedData[0].id,
+        titolo: title,
+        immagine: uploadedImageUrls[0] || null,
+      })
     } catch (error: any) {
       toast.error('Errore durante la pubblicazione: ' + error.message)
     } finally {
@@ -660,6 +671,24 @@ function AddAnnouncementForm() {
           </form>
         </div>
       </div>
+
+      {/* Riquadro di condivisione a pubblicazione avvenuta. Chiudendolo si
+          va comunque sulla scheda dell'annuncio, cosi' chi non vuole
+          condividere non resta bloccato qui. */}
+      <ModalePubblicato
+        aperto={!!pubblicato}
+        etichetta={isAuction ? 'Asta avviata' : 'Annuncio pubblicato'}
+        titolo={pubblicato?.titolo || ''}
+        immagine={pubblicato?.immagine}
+        percorso={`/announcement/${pubblicato?.id}`}
+        testo={`${pubblicato?.titolo} su Re-love`}
+        vaiA={{ href: `/announcement/${pubblicato?.id}`, testo: "Vedi l'annuncio" }}
+        onChiudi={() => {
+          const id = pubblicato?.id
+          setPubblicato(null)
+          if (id) router.push(`/announcement/${id}`)
+        }}
+      />
     </div>
   )
 }

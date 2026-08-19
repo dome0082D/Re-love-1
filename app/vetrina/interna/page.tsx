@@ -20,6 +20,7 @@ import {
 import {
   IntestazioneVetrina, GrigliaInterna, VetrinaVuota,
 } from '../../components/vetrina/GrigliaVetrina'
+import ModalePubblicato from '@/components/ModalePubblicato'
 
 interface MioAnnuncio {
   id: string
@@ -41,6 +42,8 @@ function VetrinaInternaContent() {
   const [mieiAnnunci, setMieiAnnunci] = useState<MioAnnuncio[]>([])
   const [annuncioScelto, setAnnuncioScelto] = useState('')
   const [pubblicando, setPubblicando] = useState(false)
+  // Cosa e' appena finito in Vetrina, per proporne la condivisione.
+  const [pubblicato, setPubblicato] = useState<{ id?: string; titolo: string; immagine: string | null } | null>(null)
 
   useEffect(() => {
     async function init() {
@@ -110,9 +113,16 @@ function VetrinaInternaContent() {
 
       if (data.gratuita) {
         toast.success('Pubblicato in Vetrina!')
+        // Prima finiva qui: messaggio a scomparsa e basta, nessun modo di
+        // farlo vedere a qualcuno. Adesso proponiamo la condivisione nel
+        // momento in cui uno ha appena finito.
+        const scelto = mieiAnnunci.find(a => a.id === annuncioScelto)
         setMostraModale(false)
         setAnnuncioScelto('')
         await ricarica(userId)
+        if (scelto) {
+          setPubblicato({ id: scelto.id, titolo: scelto.title, immagine: scelto.image_url || null })
+        }
         return
       }
       if (!res.ok || data.error || !data.url) {
@@ -242,6 +252,17 @@ function VetrinaInternaContent() {
           </div>
         </div>
       )}
+
+      <ModalePubblicato
+        aperto={!!pubblicato}
+        etichetta="Aggiunto in Vetrina"
+        titolo={pubblicato?.titolo || ''}
+        immagine={pubblicato?.immagine}
+        percorso={userId ? `/vetrina/utente/${userId}/interna` : '/vetrina'}
+        testo={`Guarda cosa ho messo in vetrina su Re-love: ${pubblicato?.titolo}`}
+        vaiA={pubblicato?.id ? { href: `/announcement/${pubblicato.id}`, testo: "Vedi l'oggetto" } : undefined}
+        onChiudi={() => setPubblicato(null)}
+      />
     </div>
   )
 }

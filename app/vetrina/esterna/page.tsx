@@ -24,6 +24,7 @@ import {
   IntestazioneVetrina, GrigliaEsterna, VetrinaVuota,
 } from '../../components/vetrina/GrigliaVetrina'
 import ExternalLinkConfirmModal from '../../components/ExternalLinkConfirmModal'
+import ModalePubblicato from '@/components/ModalePubblicato'
 
 interface DatiImportati {
   title: string
@@ -51,6 +52,8 @@ export default function VetrinaEsternaPage() {
   // (e solo in quello) si puo' scriverlo a mano.
   const [prezzoAMano, setPrezzoAMano] = useState(false)
   const [dati, setDati] = useState<DatiImportati | null>(null)
+  // Cosa e' appena finito in Vetrina, per proporne la condivisione.
+  const [pubblicato, setPubblicato] = useState<{ id?: string; titolo: string; immagine: string | null } | null>(null)
   const [pubblicando, setPubblicando] = useState(false)
 
   useEffect(() => {
@@ -176,8 +179,13 @@ export default function VetrinaEsternaPage() {
 
       if (data.gratuita) {
         toast.success('Link pubblicato in Vetrina!')
+        // Il link condiviso porta alla PROPRIA vetrina esterna su Re-love,
+        // non direttamente al negozio: chi lo riceve vede il consiglio nel
+        // suo contesto, e la visita resta al sito.
+        const appena = { titolo: dati?.title || 'Il mio consiglio', immagine: dati?.image || null }
         chiudiModale()
         await ricarica(userId)
+        setPubblicato(appena)
         return
       }
       if (!res.ok || data.error || !data.url) {
@@ -400,6 +408,16 @@ export default function VetrinaEsternaPage() {
       {linkDaAprire && (
         <ExternalLinkConfirmModal url={linkDaAprire} onClose={() => setLinkDaAprire(null)} />
       )}
+
+      <ModalePubblicato
+        aperto={!!pubblicato}
+        etichetta="Link aggiunto in Vetrina"
+        titolo={pubblicato?.titolo || ''}
+        immagine={pubblicato?.immagine}
+        percorso={userId ? `/vetrina/utente/${userId}/esterna` : '/vetrina'}
+        testo={`Un consiglio dalla mia vetrina Re-love: ${pubblicato?.titolo}`}
+        onChiudi={() => setPubblicato(null)}
+      />
     </div>
   )
 }
