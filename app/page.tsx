@@ -842,8 +842,13 @@ function HomePageContent() {
             </section>
           )}
 
-          {/* 2. Vetrine degli utenti, a scorrimento laterale. */}
-          <VetrinaCarousel />
+          {/* 2. Vetrine degli utenti, a scorrimento laterale, in DUE fasce
+                 separate: prima quello che si compra qui, poi i consigli che
+                 portano fuori. Prima erano mescolati nella stessa scheda e
+                 chi cercava roba su Re-love finiva su Amazon senza volerlo.
+                 Ognuna porta alla propria pagina dedicata. */}
+          <VetrinaCarousel tipo="interna" />
+          <VetrinaCarousel tipo="esterna" />
 
           {/* 3. Tutti gli Annunci. */}
           <section className="mb-20 max-w-[1300px] mx-auto px-2">
