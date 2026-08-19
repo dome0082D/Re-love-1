@@ -317,13 +317,41 @@ select {
   transition: transform 0.16s ease, filter 0.16s ease, background-color 0.2s ease, color 0.2s ease;
 }
 
+/*
+  FIX (segnalato: "voglio scrollare la pagina anche toccando i riquadri in
+  home").
+
+  L'effetto "tasto premuto" scatta nell'istante in cui il dito tocca. Va
+  benissimo su un pulsante, che si tocca e si rilascia sul posto. Ma da quando
+  ogni scheda e' coperta da uno strato toccabile grande quanto lei, quel
+  rimpicciolimento partiva anche quando il dito si appoggiava per SCORRERE:
+  la scheda si stringeva sotto il dito, restava premuta per tutta la
+  scorrimento e rimbalzava al rilascio. Dava esattamente la sensazione che
+  la pagina fosse bloccata sul riquadro.
+
+  Gli strati che coprono una scheda intera (.strato-tocco) sono quindi esclusi
+  dall'effetto: aprono la scheda quando li si tocca, ma non reagiscono
+  visivamente a un dito che sta solo passando. I pulsanti veri mantengono il
+  loro scatto tattile, che li' e' giusto e voluto.
+*/
 button:active,
-a:active,
+a:not(.strato-tocco):active,
 [role="button"]:active,
 label[class*="cursor-pointer"]:active {
   transform: scale(0.96);
   filter: brightness(0.92);
   transition: transform 0.06s ease, filter 0.06s ease;
+}
+
+/*
+  Lo strato che rende toccabile una scheda intera. "pan-y pan-x" dice al
+  browser, gia' al primo pixel di movimento, che qui il dito serve a scorrere:
+  non deve stare a chiedersi se sia un tocco o un trascinamento, e la pagina
+  parte subito. Il tocco secco resta un tocco e apre la scheda.
+*/
+.strato-tocco {
+  touch-action: pan-x pan-y pinch-zoom;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* I pulsanti disattivati non devono reagire al tocco: dare un feedback
@@ -339,7 +367,7 @@ button[disabled]:active {
    l'effetto di scala: gli lasciamo solo il cambio di luminosità. */
 @media (prefers-reduced-motion: reduce) {
   button:active,
-  a:active,
+  a:not(.strato-tocco):active,
   [role="button"]:active,
   label[class*="cursor-pointer"]:active {
     transform: none;

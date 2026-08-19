@@ -775,7 +775,14 @@ function HomePageContent() {
           </div>
         </aside>
 
-        <main className="flex-1 w-full overflow-hidden order-1 lg:order-2">
+        {/* "overflow-x-clip" e non "overflow-hidden": servivano entrambi a
+            impedire che qualcosa sbordasse di lato, ma "hidden" trasforma
+            questo contenitore in un'AREA DI SCORRIMENTO. Il dito che si
+            appoggia sulle schede finisce per parlare con lui, e siccome lui
+            in verticale non scorre, il gesto si perde e la pagina resta
+            ferma. "clip" taglia allo stesso modo senza diventare un'area di
+            scorrimento, quindi il gesto arriva alla pagina. */}
+        <main className="flex-1 w-full overflow-x-clip order-1 lg:order-2">
 
           {/* ==========================================================
               ORDINE DELLA HOME:
@@ -880,7 +887,7 @@ function HomePageContent() {
                     <Link
                       href={`/announcement/${item.id}`}
                       aria-label={item.title}
-                      className="absolute inset-0 z-0 rounded-3xl"
+                      className="strato-tocco absolute inset-0 z-0 rounded-3xl"
                     />
                     <div className="aspect-square bg-stone-100 relative block overflow-hidden pointer-events-none">
                       <button onClick={(e) => handleToggleFavorite(e, item.id)} className="absolute top-2 right-2 z-30 bg-white w-8 h-8 flex items-center justify-center rounded-full shadow-sm hover:scale-110 transition-all pointer-events-auto">

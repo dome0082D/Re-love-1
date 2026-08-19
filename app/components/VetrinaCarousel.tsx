@@ -148,7 +148,7 @@ export default function VetrinaCarousel() {
               <Link
                 href={`/vetrina/utente/${gruppo.userId}`}
                 aria-label={`Apri la vetrina di ${gruppo.nome}`}
-                className="absolute inset-0 rounded-[2rem] z-0"
+                className="strato-tocco absolute inset-0 rounded-[2rem] z-0"
               />
 
               {/* Nome e avatar: non serve piu' che siano un link a se', ci
