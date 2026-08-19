@@ -785,106 +785,97 @@ export default function Navbar() {
           {/* "overscroll-contain": arrivato in fondo all'elenco, il gesto si
               ferma qui invece di passare alla pagina dietro. */}
           <div className="flex-1 overflow-y-auto overscroll-y-contain px-4 py-5 space-y-5">
-            <section>
-              <h3 className="text-[10px] font-bold uppercase text-stone-400 mb-2 tracking-[0.2em] border-b pb-2 border-stone-100">Area Riservata</h3>
-              <div className="grid gap-1">
-                <Link href="/add" onClick={() => setIsSidebarOpen(false)} className="flex justify-center items-center gap-2 w-full bg-gradient-to-r from-rose-500 to-orange-400 text-white text-center py-3 rounded-xl font-bold uppercase text-[12px] tracking-widest shadow-md lg:hidden mb-2">
-                  <Plus size={18} strokeWidth={3} /> Vendi o Regala
-                </Link>
-                {user ? (
-                  <>
+            {/* ==================================================================
+                ORDINE E RAGGRUPPAMENTO DELLE SEZIONI
+
+                Prima c'era un contenitore unico chiamato "Area Riservata" che
+                teneva insieme cose senza nessun rapporto fra loro: il profilo,
+                le statistiche di vendita, gli ordini di acquisto, la chat, i
+                preferiti, l'aiuto e il pulsante per uscire. Tredici voci di
+                fila, da leggere tutte per trovarne una. In piu' "Curatore
+                Locale" compariva DUE volte - una qui e una in "Esplora" - e
+                "Aiuto" stava nell'area personale mentre "Come funziona", che
+                e' la stessa cosa, stava altrove.
+
+                Adesso sono gruppi che rispondono a una domanda per volta:
+                chi sono, cosa vendo, cosa compro, cosa posso guardare, dove
+                chiedo aiuto. In fondo gli strumenti e l'uscita, che si usano
+                di rado e non devono stare in mezzo alle voci di tutti i
+                giorni.
+                ================================================================== */}
+
+            {/* L'azione principale del sito, sopra a tutto e sempre visibile. */}
+            <Link href="/add" onClick={() => setIsSidebarOpen(false)} className="flex justify-center items-center gap-2 w-full bg-gradient-to-r from-rose-500 to-orange-400 text-white text-center py-3 rounded-xl font-bold uppercase text-[12px] tracking-widest shadow-md lg:hidden">
+              <Plus size={18} strokeWidth={3} /> Vendi o Regala
+            </Link>
+
+            {!user && (
+              <Link href="/login" onClick={() => setIsSidebarOpen(false)} className="w-full block text-center p-3.5 text-[13px] font-bold text-rose-500 border-2 border-rose-100 hover:border-rose-500 hover:bg-rose-50 rounded-xl uppercase tracking-widest transition-all">
+                Accedi / Registrati
+              </Link>
+            )}
+
+            {user && (
+              <>
+                <section>
+                  <h3 className="text-[10px] font-bold uppercase text-stone-400 mb-2 tracking-[0.2em] border-b pb-2 border-stone-100">Il mio account</h3>
+                  <div className="grid gap-1">
                     <Link href="/profile" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-3 px-3 py-2.5 text-[13px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
                       <UserIcon size={18} className="text-stone-500" /> Profilo
                     </Link>
-                    <Link href="/dashboard/analitiche" onClick={() => setIsSidebarOpen(false)} className="flex justify-between items-center gap-3 px-3 py-2.5 text-[13px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
-                      <div className="flex items-center gap-4"><TrendingUp size={18} className="text-stone-500" /> Seller Hub</div> 
-                      <span className="bg-orange-100 text-orange-600 text-[11px] px-3 py-1 rounded-full font-bold">PRO</span>
-                    </Link>
-                    <Link href="/dashboard/annunci" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-3 px-3 py-2.5 text-[13px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
-                      <FileText size={18} className="text-stone-500" /> Gestione Annunci
-                    </Link>
-                    {/* NUOVO: link al sistema "Curatore Locale" - su richiesta,
-                        prima le pagine (/curatore, /curatore/nuovo,
-                        /curatore/scansiona) esistevano ma non c'era nessun
-                        ingresso visibile nel sito. Va qui, dentro l'Area
-                        Riservata, perché sia creare un mandato che
-                        approvarne uno richiedono comunque di essere
-                        autenticati - stessa logica già usata per Seller
-                        Hub e Gestione Annunci qui sopra. */}
-                    <Link href="/curatore" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-3 px-3 py-2.5 text-[13px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
-                      <Handshake size={18} className="text-stone-500" /> Curatore Locale
-                    </Link>
-                    <Link href="/dashboard/acquisti" onClick={() => setIsSidebarOpen(false)} className="flex justify-between items-center gap-3 px-3 py-2.5 text-[13px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
-                      <div className="flex items-center gap-4"><Package size={18} className="text-stone-500" /> Ordini e Resi</div> 
-                      <span className="bg-rose-500 text-white text-[11px] px-3 py-1 rounded-full font-bold">SECURE</span>
-                    </Link>
-                    <Link href="/chat" onClick={() => setIsSidebarOpen(false)} className="flex justify-between items-center gap-3 px-3 py-2.5 text-[13px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
-                      <div className="flex items-center gap-4"><MessageCircle size={18} className="text-stone-500" /> Messaggi</div>
-                    </Link>
-                    {/* NUOVO: ingresso al sistema Baratto. Le sue pagine e le
-                        sue route esistevano ma nessun link nel sito ci
-                        portava, quindi era irraggiungibile. */}
-                    <Link href="/baratti" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-3 px-3 py-2.5 text-[13px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
-                      <Handshake size={18} className="text-stone-500" /> Baratti
+                    <Link href="/chat" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-3 px-3 py-2.5 text-[13px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
+                      <MessageCircle size={18} className="text-stone-500" /> Messaggi
                     </Link>
                     <Link href="/dashboard/preferiti" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-3 px-3 py-2.5 text-[13px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
                       <Heart size={18} className="text-stone-500" /> Preferiti
                     </Link>
-                    <Link href="/supporto" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-3 px-3 py-2.5 text-[13px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
-                      <HelpCircle size={18} className="text-stone-500" /> Aiuto
+                  </div>
+                </section>
+
+                <section>
+                  <h3 className="text-[10px] font-bold uppercase text-stone-400 mb-2 tracking-[0.2em] border-b pb-2 border-stone-100">Vendo</h3>
+                  <div className="grid gap-1">
+                    <Link href="/dashboard/annunci" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-3 px-3 py-2.5 text-[13px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
+                      <FileText size={18} className="text-stone-500" /> Gestione Annunci
                     </Link>
-                    <button onClick={handleLogout} className="flex items-center gap-4 w-full text-left px-4 py-3 text-[13px] font-bold text-red-500 hover:bg-red-50 rounded-xl mt-3 uppercase tracking-widest transition-colors">
-                      <LogOut size={20} strokeWidth={2.5} /> Esci
-                    </button>
-                  </>
-                ) : (
-                  <Link href="/login" onClick={() => setIsSidebarOpen(false)} className="w-full block text-center p-4 text-sm font-bold text-rose-500 border-2 border-rose-100 hover:border-rose-500 hover:bg-rose-50 rounded-xl mt-3 uppercase tracking-widest transition-all">Accedi / Registrati</Link>
-                )}
-              </div>
-            </section>
+                    <Link href="/dashboard/analitiche" onClick={() => setIsSidebarOpen(false)} className="flex justify-between items-center gap-3 px-3 py-2.5 text-[13px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
+                      <div className="flex items-center gap-3"><TrendingUp size={18} className="text-stone-500" /> Seller Hub</div>
+                      <span className="bg-orange-100 text-orange-600 text-[10px] px-2 py-0.5 rounded-full font-bold">PRO</span>
+                    </Link>
+                    <Link href="/curatore" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-3 px-3 py-2.5 text-[13px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
+                      <Handshake size={18} className="text-stone-500" /> Curatore Locale
+                    </Link>
+                  </div>
+                </section>
 
-            <section className="lg:hidden">
-              <h3 className="text-[10px] font-bold uppercase text-stone-400 mb-2 tracking-[0.2em] border-b pb-2 border-stone-100">Strumenti Re-love</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <button onClick={() => { setDarkMode(!darkMode); setIsSidebarOpen(false); }} className="p-4 text-sm font-bold text-stone-600 bg-stone-50 rounded-2xl hover:bg-rose-50 hover:text-rose-500 transition-colors flex flex-col items-center justify-center gap-3 shadow-sm border border-stone-100">
-                  {darkMode ? <Sun size={32} strokeWidth={1.5} /> : <Moon size={32} strokeWidth={1.5} />}
-                  {darkMode ? 'Chiaro' : 'Scuro'}
-                </button>
-                <button onClick={() => { setShowSecurityModal(true); setIsSidebarOpen(false); }} className="p-4 text-sm font-bold text-stone-600 bg-stone-50 rounded-2xl hover:bg-rose-50 hover:text-rose-500 transition-colors flex flex-col items-center justify-center gap-3 shadow-sm border border-stone-100">
-                  <ShieldCheck size={32} strokeWidth={1.5} />
-                  Scudo
-                </button>
-                <button onClick={() => { setShowAiModal(true); setIsSidebarOpen(false); }} className="p-4 text-sm font-bold text-stone-600 bg-stone-50 rounded-2xl hover:bg-rose-50 hover:text-rose-500 transition-colors flex flex-col items-center justify-center gap-3 shadow-sm border border-stone-100">
-                  <Sparkles size={32} strokeWidth={1.5} />
-                  Valuta
-                </button>
-                <button onClick={handleRadar} className="p-4 text-sm font-bold text-stone-600 bg-stone-50 rounded-2xl hover:bg-rose-50 hover:text-rose-500 transition-colors flex flex-col items-center justify-center gap-3 shadow-sm border border-stone-100">
-                  <Radar size={32} strokeWidth={1.5} />
-                  Radar
-                </button>
-              </div>
-            </section>
+                <section>
+                  <h3 className="text-[10px] font-bold uppercase text-stone-400 mb-2 tracking-[0.2em] border-b pb-2 border-stone-100">Compro</h3>
+                  <div className="grid gap-1">
+                    <Link href="/dashboard/acquisti" onClick={() => setIsSidebarOpen(false)} className="flex justify-between items-center gap-3 px-3 py-2.5 text-[13px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
+                      <div className="flex items-center gap-3"><Package size={18} className="text-stone-500" /> Ordini e Resi</div>
+                      <span className="bg-rose-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">SICURO</span>
+                    </Link>
+                    <Link href="/baratti" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-3 px-3 py-2.5 text-[13px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
+                      <Truck size={18} className="text-stone-500" /> Baratti
+                    </Link>
+                  </div>
+                </section>
+              </>
+            )}
 
-            {/* NUOVO: sezione che mancava del tutto. Vetrina, Curatore,
-                Laboratori e "Come funziona" erano pagine vere e funzionanti
-                ma raggiungibili solo indovinando l'indirizzo (o, per la
-                Vetrina, solo dalla barra in fondo su Android): dal menu non
-                ci portava nessun link. Sta fuori dall'Area Riservata perché
-                si possono guardare anche senza aver fatto l'accesso. */}
+            {/* Visibile anche a chi non ha fatto accesso: sono pagine che si
+                possono guardare liberamente. */}
             <section>
               <h3 className="text-[10px] font-bold uppercase text-stone-400 mb-2 tracking-[0.2em] border-b pb-2 border-stone-100">Esplora</h3>
               <div className="grid gap-1">
                 <Link href="/vetrina" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-3 px-3 py-2.5 text-[13px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
-                  <Sparkles size={20} className="text-stone-500 shrink-0" /> Vetrina
-                </Link>
-                <Link href="/curatore" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-3 px-3 py-2.5 text-[13px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
-                  <TrendingUp size={20} className="text-stone-500 shrink-0" /> Curatore Locale
+                  <Sparkles size={18} className="text-stone-500 shrink-0" /> Vetrina
                 </Link>
                 <Link href="/laboratori" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-3 px-3 py-2.5 text-[13px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
-                  <FileText size={20} className="text-stone-500 shrink-0" /> Laboratori e Corsi
+                  <FileText size={18} className="text-stone-500 shrink-0" /> Laboratori e Corsi
                 </Link>
-                <Link href="/come-funziona" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-3 px-3 py-2.5 text-[13px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
-                  <HelpCircle size={20} className="text-stone-500 shrink-0" /> Come funziona
+                <Link href="/?cerca_curatore=1" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-3 px-3 py-2.5 text-[13px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
+                  <Handshake size={18} className="text-stone-500 shrink-0" /> Cercano un curatore
                 </Link>
               </div>
             </section>
@@ -907,6 +898,54 @@ export default function Navbar() {
                 ))}
               </div>
             </section>
+
+            {/* ==================================================================
+                IN FONDO: aiuto, strumenti e uscita.
+                Sono le cose che si cercano di rado. Prima "Aiuto" stava
+                nell'area personale e "Come funziona" fra le pagine da
+                esplorare, pur essendo la stessa esigenza; il pulsante per
+                uscire era in mezzo alle voci di tutti i giorni, dove si preme
+                per sbaglio.
+                ================================================================== */}
+            <section>
+              <h3 className="text-[10px] font-bold uppercase text-stone-400 mb-2 tracking-[0.2em] border-b pb-2 border-stone-100">Aiuto</h3>
+              <div className="grid gap-1">
+                <Link href="/come-funziona" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-3 px-3 py-2.5 text-[13px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
+                  <HelpCircle size={18} className="text-stone-500 shrink-0" /> Come funziona
+                </Link>
+                <Link href="/supporto" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-3 px-3 py-2.5 text-[13px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
+                  <Inbox size={18} className="text-stone-500 shrink-0" /> Assistenza
+                </Link>
+              </div>
+            </section>
+
+            <section className="lg:hidden">
+              <h3 className="text-[10px] font-bold uppercase text-stone-400 mb-2 tracking-[0.2em] border-b pb-2 border-stone-100">Strumenti</h3>
+              <div className="grid grid-cols-2 gap-2.5">
+                <button onClick={() => { setDarkMode(!darkMode); setIsSidebarOpen(false); }} className="p-3 text-[11px] font-bold text-stone-600 bg-stone-50 rounded-xl hover:bg-rose-50 hover:text-rose-500 transition-colors flex flex-col items-center justify-center gap-2 border border-stone-100">
+                  {darkMode ? <Sun size={22} strokeWidth={1.8} /> : <Moon size={22} strokeWidth={1.8} />}
+                  {darkMode ? 'Chiaro' : 'Scuro'}
+                </button>
+                <button onClick={() => { setShowSecurityModal(true); setIsSidebarOpen(false); }} className="p-3 text-[11px] font-bold text-stone-600 bg-stone-50 rounded-xl hover:bg-rose-50 hover:text-rose-500 transition-colors flex flex-col items-center justify-center gap-2 border border-stone-100">
+                  <ShieldCheck size={22} strokeWidth={1.8} />
+                  Scudo
+                </button>
+                <button onClick={() => { setShowAiModal(true); setIsSidebarOpen(false); }} className="p-3 text-[11px] font-bold text-stone-600 bg-stone-50 rounded-xl hover:bg-rose-50 hover:text-rose-500 transition-colors flex flex-col items-center justify-center gap-2 border border-stone-100">
+                  <Sparkles size={22} strokeWidth={1.8} />
+                  Valuta
+                </button>
+                <button onClick={handleRadar} className="p-3 text-[11px] font-bold text-stone-600 bg-stone-50 rounded-xl hover:bg-rose-50 hover:text-rose-500 transition-colors flex flex-col items-center justify-center gap-2 border border-stone-100">
+                  <Radar size={22} strokeWidth={1.8} />
+                  Radar
+                </button>
+              </div>
+            </section>
+
+            {user && (
+              <button onClick={handleLogout} className="flex items-center justify-center gap-2 w-full px-3 py-3 text-[12px] font-bold text-red-500 border border-red-100 hover:bg-red-50 rounded-xl uppercase tracking-widest transition-colors">
+                <LogOut size={18} strokeWidth={2.5} /> Esci
+              </button>
+            )}
           </div>
         </div>
       </div>
