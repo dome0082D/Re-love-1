@@ -29,6 +29,16 @@ function useIsAndroid() {
   return isAndroid
 }
 
+// Colori dell'etichetta che distingue i quattro tipi di annuncio nell'elenco
+// unico della Home. Uno per tipo, ben diversi fra loro: servono a riconoscere
+// il tipo con un'occhiata, non a fare decorazione.
+const ETICHETTA_CONDIZIONE: Record<string, string> = {
+  Nuovo: 'bg-emerald-100 text-emerald-700',
+  Usato: 'bg-stone-200 text-stone-600',
+  Regalo: 'bg-rose-100 text-rose-600',
+  Baratto: 'bg-blue-100 text-blue-700',
+}
+
 interface Announcement {
   id: string;
   title: string;
@@ -880,6 +890,14 @@ function HomePageContent() {
                     </div>
                     <div className="p-3 flex flex-col justify-between flex-grow pointer-events-none">
                       <div>
+                        {/* Ora che nuovo, usato, regalo e baratto stanno tutti
+                            nello stesso elenco, senza questa etichetta non si
+                            capisce a colpo d'occhio cosa si sta guardando -
+                            e regalo e baratto costano entrambi "€ 0", quindi
+                            il prezzo da solo non basta a distinguerli. */}
+                        <span className={`inline-block mb-1.5 text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md ${ETICHETTA_CONDIZIONE[item.condition] || ETICHETTA_CONDIZIONE.Usato}`}>
+                          {item.condition || 'Usato'}
+                        </span>
                         <h4 className="text-[10px] font-black uppercase line-clamp-2 text-stone-800 leading-tight mb-1">{item.title}</h4>
                         <p className="text-[14px] font-black text-rose-600 italic">
                           {item.condition === 'Regalo' || item.condition === 'Baratto' ? '€ 0' : `€ ${item.price}`}

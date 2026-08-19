@@ -553,31 +553,29 @@ export default function Navbar() {
           44px (la misura minima consigliata per il tocco), un solo raggio,
           e un solo passo di spaziatura.
           ====================================================================== */}
-      {/* Lo spazio della barra di sistema del telefono (orologio, batteria) va
-          aggiunto SOPRA la barra bianca, non ignorato: con viewportFit 'cover'
-          il sito disegna fin sotto quella barra, e senza questo la fila di
-          icone ci finisce sotto. Su computer e nel browser normale
-          env(safe-area-inset-top) vale 0, quindi non cambia niente. */}
+      {/* ======================================================================
+          ALTEZZA MINIMA UTILE, E NIENTE SPAZIO SPRECATO SOPRA.
+
+          I pulsanti dentro la barra sono w-11 h-11, cioe' 44x44 px - la misura
+          minima raccomandata perche' un dito li centri senza sbagliare. 48px
+          di barra sono quei 44 piu' 2px sopra e 2 sotto: sotto questo valore i
+          pulsanti verrebbero tagliati. Su schermo grande 56.
+
+          RIMOSSO (segnalato: "e' questo spazio bianco che voglio togliere"):
+          qui c'erano "paddingTop: env(safe-area-inset-top)" e "box-content",
+          che aggiungevano SOPRA la barra lo spazio dell'orologio e della
+          batteria. Ha senso in un browser a tutto schermo, ma dentro l'app
+          quella zona e' gia' occupata dalla barra nera dell'involucro: lo
+          spazio veniva contato due volte e restava una striscia bianca vuota
+          fra la barra nera e la barra del sito. Senza, la barra e' esatta.
+          ====================================================================== */}
       <nav
         style={{
           backgroundColor: '#ffffff',
           backdropFilter: 'none',
           WebkitBackdropFilter: 'none',
-          paddingTop: 'env(safe-area-inset-top, 0px)',
         }}
-        /* ALTEZZA MINIMA UTILE (richiesto: "grande solo quanto basta per
-           visualizzare i tasti interni").
-           I pulsanti dentro la barra sono w-11 h-11, cioe' 44x44 px - la
-           misura minima raccomandata perche' un dito li centri senza sbagliare.
-           48px di barra sono quei 44 piu' 2px sopra e 2 sotto: sotto questo
-           valore i pulsanti verrebbero tagliati. Su schermo grande 56, dove
-           c'e' spazio e una barra troppo schiacciata sta male.
-           Partiva da 64/80.
-           "box-content" serve a far contare lo spazio della barra di sistema
-           COME AGGIUNTA e non come parte di questi 56px: senza, su un telefono
-           col notch la fila di icone verrebbe schiacciata. Dove quello spazio
-           e' zero (browser, computer) la barra e' semplicemente alta 56. */
-        className="border-b border-rose-100 sticky top-0 z-[5000] shadow-sm flex justify-between items-center gap-3 h-12 md:h-14 px-3 md:px-6 transition-colors box-content"
+        className="border-b border-rose-100 sticky top-0 z-[5000] shadow-sm flex justify-between items-center gap-3 h-12 md:h-14 px-3 md:px-6 transition-colors"
       >
         <div className="flex items-center gap-1 md:gap-2 min-w-0">
           <button
@@ -644,7 +642,7 @@ export default function Navbar() {
             </button>
 
             {isNotifOpen && (
-              <div className="fixed left-3 right-3 top-[calc(3rem+env(safe-area-inset-top,0px)+0.5rem)] md:left-auto md:right-6 md:top-[calc(3.5rem+env(safe-area-inset-top,0px)+0.5rem)] md:w-80 bg-white border border-stone-200 rounded-2xl shadow-2xl p-4 z-[6000]">
+              <div className="fixed left-3 right-3 top-[3.5rem] md:left-auto md:right-6 md:top-[4rem] md:w-80 bg-white border border-stone-200 rounded-2xl shadow-2xl p-4 z-[6000]">
                 <div className="flex justify-between items-center border-b border-stone-100 pb-3 mb-4">
                   <h4 className="text-sm font-bold uppercase tracking-widest text-stone-400">Notifiche</h4>
                   <div className="flex items-center gap-1">
@@ -697,7 +695,7 @@ export default function Navbar() {
               <MoreVertical size={22} strokeWidth={2} />
             </button>
             {isQuickMenuOpen && (
-              <div className="fixed left-auto right-3 md:right-6 top-[calc(3rem+env(safe-area-inset-top,0px)+0.5rem)] md:top-[calc(3.5rem+env(safe-area-inset-top,0px)+0.5rem)] w-60 bg-white border border-stone-200 shadow-2xl rounded-2xl p-2 z-[6000]">
+              <div className="fixed left-auto right-3 md:right-6 top-[3.5rem] md:top-[4rem] w-60 bg-white border border-stone-200 shadow-2xl rounded-2xl p-2 z-[6000]">
                 <Link href="/profile" onClick={() => setIsQuickMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-[15px] font-medium text-stone-700 hover:bg-rose-50 hover:text-rose-600 rounded-xl transition-colors">
                   <Settings size={18} /> Impostazioni
                 </Link>
@@ -752,40 +750,58 @@ export default function Navbar() {
         />
       )}
 
-      {/* -------------------- SIDEBAR (MENU ☰) -------------------- */}
-      <div className={`fixed top-0 left-0 h-dvh w-[95%] max-w-[380px] bg-white z-[9999] shadow-2xl transition-transform duration-300 ease-in-out transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      {/* ======================================================================
+          MENU LATERALE
+
+          Richiesto: "rendila piu' piccola e proporzionata al resto".
+          Prima occupava il 95% dello schermo (fino a 380px): praticamente
+          tutta la pagina, che spariva dietro. Ora 78%, fino a 300px - resta
+          visibile una fetta del sito dietro, cosi' si capisce che e' un
+          pannello sovrapposto e non un'altra pagina, e si chiude toccando
+          fuori senza cercare la X.
+
+          Anche l'interno era sproporzionato rispetto al resto dell'app: il
+          nome "Re-love" a 36px e l'iniziale in un riquadro da 64 erano piu'
+          grandi di qualsiasi titolo del sito. Riportati a misure coerenti con
+          le altre pagine, e il bordo da 32px sceso a 20 come nelle schede.
+          ====================================================================== */}
+      <div className={`fixed top-0 left-0 h-dvh w-[78%] max-w-[300px] bg-white z-[9999] shadow-2xl transition-transform duration-300 ease-in-out transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex flex-col h-full">
-          <div className="p-8 bg-gradient-to-br from-rose-500 to-orange-500 text-white relative">
-            <button onClick={() => setIsSidebarOpen(false)} className="absolute top-6 right-6 text-white/80 hover:text-white transition-colors">
-              <X size={32} strokeWidth={2.5} />
+          <div className="p-5 bg-gradient-to-br from-rose-500 to-orange-500 text-white relative">
+            <button
+              onClick={() => setIsSidebarOpen(false)}
+              aria-label="Chiudi il menu"
+              className="absolute top-3 right-3 w-11 h-11 flex items-center justify-center text-white/80 hover:text-white transition-colors"
+            >
+              <X size={24} strokeWidth={2.5} />
             </button>
-            <div className="w-16 h-16 bg-white text-rose-500 rounded-2xl flex items-center justify-center text-3xl font-bold italic shadow-lg mb-5">
+            <div className="w-12 h-12 bg-white text-rose-500 rounded-xl flex items-center justify-center text-xl font-bold italic shadow-md mb-3">
               {user?.email ? user.email[0].toUpperCase() : 'R'}
             </div>
-            <p className="text-4xl mb-1 text-white" style={{ fontFamily: "'Brush Script MT', 'Lucida Handwriting', cursive" }}>Re-love</p>
-            <p className="font-medium truncate text-sm tracking-wider uppercase opacity-90">{user?.email || 'Visitatore'}</p>
+            <p className="text-2xl mb-0.5 text-white" style={{ fontFamily: "'Brush Script MT', 'Lucida Handwriting', cursive" }}>Re-love</p>
+            <p className="font-medium truncate text-[11px] tracking-wider uppercase opacity-90">{user?.email || 'Visitatore'}</p>
           </div>
 
           {/* "overscroll-contain": arrivato in fondo all'elenco, il gesto si
               ferma qui invece di passare alla pagina dietro. */}
-          <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-6 space-y-7">
+          <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-5 space-y-5">
             <section>
-              <h3 className="text-[11px] font-bold uppercase text-stone-400 mb-3 tracking-[0.2em] border-b pb-2.5 border-stone-100">Area Riservata</h3>
+              <h3 className="text-[10px] font-bold uppercase text-stone-400 mb-2 tracking-[0.2em] border-b pb-2 border-stone-100">Area Riservata</h3>
               <div className="grid gap-1">
-                <Link href="/add" onClick={() => setIsSidebarOpen(false)} className="flex justify-center items-center gap-2 w-full bg-gradient-to-r from-rose-500 to-orange-400 text-white text-center py-4 rounded-xl font-bold uppercase text-sm tracking-widest shadow-md lg:hidden mb-3">
-                  <Plus size={20} strokeWidth={3} /> Vendi o Regala
+                <Link href="/add" onClick={() => setIsSidebarOpen(false)} className="flex justify-center items-center gap-2 w-full bg-gradient-to-r from-rose-500 to-orange-400 text-white text-center py-3 rounded-xl font-bold uppercase text-[12px] tracking-widest shadow-md lg:hidden mb-2">
+                  <Plus size={18} strokeWidth={3} /> Vendi o Regala
                 </Link>
                 {user ? (
                   <>
-                    <Link href="/profile" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-4 px-4 py-3 text-[15px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
-                      <UserIcon size={20} className="text-stone-500" /> Profilo
+                    <Link href="/profile" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-3 px-3 py-2.5 text-[13px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
+                      <UserIcon size={18} className="text-stone-500" /> Profilo
                     </Link>
-                    <Link href="/dashboard/analitiche" onClick={() => setIsSidebarOpen(false)} className="flex justify-between items-center gap-3 px-4 py-3 text-[15px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
-                      <div className="flex items-center gap-4"><TrendingUp size={20} className="text-stone-500" /> Seller Hub</div> 
+                    <Link href="/dashboard/analitiche" onClick={() => setIsSidebarOpen(false)} className="flex justify-between items-center gap-3 px-3 py-2.5 text-[13px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
+                      <div className="flex items-center gap-4"><TrendingUp size={18} className="text-stone-500" /> Seller Hub</div> 
                       <span className="bg-orange-100 text-orange-600 text-[11px] px-3 py-1 rounded-full font-bold">PRO</span>
                     </Link>
-                    <Link href="/dashboard/annunci" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-4 px-4 py-3 text-[15px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
-                      <FileText size={20} className="text-stone-500" /> Gestione Annunci
+                    <Link href="/dashboard/annunci" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-3 px-3 py-2.5 text-[13px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
+                      <FileText size={18} className="text-stone-500" /> Gestione Annunci
                     </Link>
                     {/* NUOVO: link al sistema "Curatore Locale" - su richiesta,
                         prima le pagine (/curatore, /curatore/nuovo,
@@ -795,27 +811,27 @@ export default function Navbar() {
                         approvarne uno richiedono comunque di essere
                         autenticati - stessa logica già usata per Seller
                         Hub e Gestione Annunci qui sopra. */}
-                    <Link href="/curatore" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-4 px-4 py-3 text-[15px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
-                      <Handshake size={20} className="text-stone-500" /> Curatore Locale
+                    <Link href="/curatore" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-3 px-3 py-2.5 text-[13px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
+                      <Handshake size={18} className="text-stone-500" /> Curatore Locale
                     </Link>
-                    <Link href="/dashboard/acquisti" onClick={() => setIsSidebarOpen(false)} className="flex justify-between items-center gap-3 px-4 py-3 text-[15px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
-                      <div className="flex items-center gap-4"><Package size={20} className="text-stone-500" /> Ordini e Resi</div> 
+                    <Link href="/dashboard/acquisti" onClick={() => setIsSidebarOpen(false)} className="flex justify-between items-center gap-3 px-3 py-2.5 text-[13px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
+                      <div className="flex items-center gap-4"><Package size={18} className="text-stone-500" /> Ordini e Resi</div> 
                       <span className="bg-rose-500 text-white text-[11px] px-3 py-1 rounded-full font-bold">SECURE</span>
                     </Link>
-                    <Link href="/chat" onClick={() => setIsSidebarOpen(false)} className="flex justify-between items-center gap-3 px-4 py-3 text-[15px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
-                      <div className="flex items-center gap-4"><MessageCircle size={20} className="text-stone-500" /> Messaggi</div>
+                    <Link href="/chat" onClick={() => setIsSidebarOpen(false)} className="flex justify-between items-center gap-3 px-3 py-2.5 text-[13px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
+                      <div className="flex items-center gap-4"><MessageCircle size={18} className="text-stone-500" /> Messaggi</div>
                     </Link>
                     {/* NUOVO: ingresso al sistema Baratto. Le sue pagine e le
                         sue route esistevano ma nessun link nel sito ci
                         portava, quindi era irraggiungibile. */}
-                    <Link href="/baratti" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-4 px-4 py-3 text-[15px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
-                      <Handshake size={20} className="text-stone-500" /> Baratti
+                    <Link href="/baratti" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-3 px-3 py-2.5 text-[13px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
+                      <Handshake size={18} className="text-stone-500" /> Baratti
                     </Link>
-                    <Link href="/dashboard/preferiti" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-4 px-4 py-3 text-[15px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
-                      <Heart size={20} className="text-stone-500" /> Preferiti
+                    <Link href="/dashboard/preferiti" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-3 px-3 py-2.5 text-[13px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
+                      <Heart size={18} className="text-stone-500" /> Preferiti
                     </Link>
-                    <Link href="/supporto" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-4 px-4 py-3 text-[15px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
-                      <HelpCircle size={20} className="text-stone-500" /> Aiuto
+                    <Link href="/supporto" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-3 px-3 py-2.5 text-[13px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
+                      <HelpCircle size={18} className="text-stone-500" /> Aiuto
                     </Link>
                     <button onClick={handleLogout} className="flex items-center gap-4 w-full text-left px-4 py-3 text-[13px] font-bold text-red-500 hover:bg-red-50 rounded-xl mt-3 uppercase tracking-widest transition-colors">
                       <LogOut size={20} strokeWidth={2.5} /> Esci
@@ -828,7 +844,7 @@ export default function Navbar() {
             </section>
 
             <section className="lg:hidden">
-              <h3 className="text-[11px] font-bold uppercase text-stone-400 mb-3 tracking-[0.2em] border-b pb-2.5 border-stone-100">Strumenti Re-love</h3>
+              <h3 className="text-[10px] font-bold uppercase text-stone-400 mb-2 tracking-[0.2em] border-b pb-2 border-stone-100">Strumenti Re-love</h3>
               <div className="grid grid-cols-2 gap-4">
                 <button onClick={() => { setDarkMode(!darkMode); setIsSidebarOpen(false); }} className="p-4 text-sm font-bold text-stone-600 bg-stone-50 rounded-2xl hover:bg-rose-50 hover:text-rose-500 transition-colors flex flex-col items-center justify-center gap-3 shadow-sm border border-stone-100">
                   {darkMode ? <Sun size={32} strokeWidth={1.5} /> : <Moon size={32} strokeWidth={1.5} />}
@@ -856,25 +872,25 @@ export default function Navbar() {
                 ci portava nessun link. Sta fuori dall'Area Riservata perché
                 si possono guardare anche senza aver fatto l'accesso. */}
             <section>
-              <h3 className="text-[11px] font-bold uppercase text-stone-400 mb-3 tracking-[0.2em] border-b pb-2.5 border-stone-100">Esplora</h3>
+              <h3 className="text-[10px] font-bold uppercase text-stone-400 mb-2 tracking-[0.2em] border-b pb-2 border-stone-100">Esplora</h3>
               <div className="grid gap-1">
-                <Link href="/vetrina" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-4 px-4 py-3 text-[15px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
+                <Link href="/vetrina" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-3 px-3 py-2.5 text-[13px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
                   <Sparkles size={20} className="text-stone-500 shrink-0" /> Vetrina
                 </Link>
-                <Link href="/curatore" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-4 px-4 py-3 text-[15px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
+                <Link href="/curatore" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-3 px-3 py-2.5 text-[13px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
                   <TrendingUp size={20} className="text-stone-500 shrink-0" /> Curatore Locale
                 </Link>
-                <Link href="/laboratori" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-4 px-4 py-3 text-[15px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
+                <Link href="/laboratori" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-3 px-3 py-2.5 text-[13px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
                   <FileText size={20} className="text-stone-500 shrink-0" /> Laboratori e Corsi
                 </Link>
-                <Link href="/come-funziona" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-4 px-4 py-3 text-[15px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
+                <Link href="/come-funziona" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-3 px-3 py-2.5 text-[13px] font-medium text-stone-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
                   <HelpCircle size={20} className="text-stone-500 shrink-0" /> Come funziona
                 </Link>
               </div>
             </section>
 
             <section>
-              <h3 className="text-[11px] font-bold uppercase text-stone-400 mb-3 tracking-[0.2em] border-b pb-2.5 border-stone-100">Categorie</h3>
+              <h3 className="text-[10px] font-bold uppercase text-stone-400 mb-2 tracking-[0.2em] border-b pb-2 border-stone-100">Categorie</h3>
               <div className="grid gap-1">
                 {/* FIX: questi link non filtravano NIENTE. Puntavano a
                     "/?cat=<slug>" (es. "abbigliamento"), ma la Home confronta
@@ -885,7 +901,7 @@ export default function Navbar() {
                     una categoria dava sempre zero risultati. Ora passiamo il
                     nome, che è il valore realmente presente sugli annunci. */}
                 {categories.map((cat) => (
-                  <Link key={cat.id} href={`/?cat=${encodeURIComponent(cat.name)}`} onClick={() => setIsSidebarOpen(false)} className="flex items-center px-4 py-3 text-[15px] font-medium text-stone-600 hover:text-orange-500 hover:bg-orange-50 rounded-xl transition-colors">
+                  <Link key={cat.id} href={`/?cat=${encodeURIComponent(cat.name)}`} onClick={() => setIsSidebarOpen(false)} className="flex items-center px-3 py-2.5 text-[13px] font-medium text-stone-600 hover:text-orange-500 hover:bg-orange-50 rounded-xl transition-colors">
                     {cat.name}
                   </Link>
                 ))}
